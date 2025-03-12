@@ -2,7 +2,9 @@ import datetime
 import os
 import subprocess
 import sys
-import click
+import webbrowser  # Standard library imports first
+
+import click  # Third-party imports next
 
 # Log levels with corresponding colors
 LOG_LEVELS = {
@@ -14,16 +16,17 @@ LOG_LEVELS = {
 }
 
 
-def browser_open_ticket(ticket):
+def browser_open_ticket(ticket, server=None):
     """
     Open a URL in the default web browser.
 
     Args:
-        url (str): The URL to open.
+        ticket (str): The ticket ID to open.
+        server (str, optional): The server hosting the ticket.
     """
-    import webbrowser
+    if server is None:
+        server = os.getenv("JIRA_SERVER", "issues.redhat.com")
 
-    server = os.getenv("JIRA_SERVER", "issues.redhat.com")
     try:
         webbrowser.open(f"https://{server}/browse/{ticket}")
     except Exception as e:

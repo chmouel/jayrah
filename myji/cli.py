@@ -1,11 +1,12 @@
 import sys
 import click
-from . import myji, utils
+from . import commands
 
 
 def main():
     try:
-        myji.cli()
+        # pylint: disable=no-value-for-parameter
+        commands.cli()
     except KeyboardInterrupt:
         click.secho("Operation cancelled by user", fg="yellow", err=True)
         sys.exit(1)
