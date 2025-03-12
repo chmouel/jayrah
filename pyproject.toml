@@ -6,15 +6,14 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "click>=8.1.8",
-    "requests>=2.32.3",
 ]
 scripts = { myj = "myji.cli:main" }
 
 [dependency-groups]
 dev = [
     "ipython>=9.0.2",
+    "isort>=6.0.1",
     "pylint>=3.3.5",
- "types-requests>=2.32.0.20250306",
 ]
 
 [tool.uv]

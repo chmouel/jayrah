@@ -1,6 +1,11 @@
+import json
 import os
+import urllib.request
+import urllib.error
+import urllib.parse
+from urllib.parse import urlencode
+
 import click
-import requests
 
 from . import cache, utils
 
@@ -22,11 +27,6 @@ class JiraHTTP:
         self.project = project or os.getenv("JIRA_PROJECT", "SRVKP")
         self.component = component or os.getenv("JIRA_COMPONENT", "Pipelines as Code")
         self.base_url = f"https://{self.server}/rest/api/2"
-        self.headers = {
-            "Authorization": f"Bearer {self.token}",
-            "Content-Type": "application/json",
-            "Accept": "application/json",
-        }
         self.no_cache = no_cache
         self.verbose = verbose
         self.cache = cache.JiraCache(verbose=self.verbose)
@@ -51,8 +51,40 @@ class JiraHTTP:
             raise click.ClickException(
                 "No JIRA API token found. Set JIRA_API_TOKEN or pass it explicitly."
             )
+        self.headers = {
+            "Authorization": f"Bearer {self.token}",
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        }
 
-    def _request(self, method, endpoint, params=None, json=None):
+    def _get_curl_command(self, method, url, headers, params=None, json_data=None):
+        """Generate an equivalent curl command for debugging purposes."""
+        curl_parts = [f"curl -X {method}"]
+
+        # Add headers with proper escaping
+        for key, value in headers.items():
+            # Mask the authorization token for security
+            if key == "Authorization":
+                value = "Bearer $(pass show jira/token)"  # Mask the actual token
+            curl_parts.append(f"-H '{key}: {value}'")
+
+        # Build the final URL with query parameters
+        final_url = url
+        if params:
+            query_string = urlencode(params)
+            final_url = f"{url}?{query_string}"
+
+        # Add JSON data if present
+        if json_data:
+            json_str = json.dumps(json_data)
+            curl_parts.append(f"-d '{json_str}'")
+
+        # Add the URL as the last part
+        curl_parts.append(f"'{final_url}'")
+
+        return " ".join(curl_parts)
+
+    def _request(self, method, endpoint, params=None, jeez=None):
         """Helper method to make HTTP requests."""
         url = f"{self.base_url}/{endpoint}"
 
@@ -60,12 +92,12 @@ class JiraHTTP:
             click.echo(f"API Request: {method} {url}", err=True)
             if params:
                 click.echo(f"Parameters: {params}", err=True)
-            if json:
-                click.echo(f"Request body: {json}", err=True)
+            if jeez:
+                click.echo(f"Request body: {jeez}", err=True)
 
         # Only use cache for GET requests
         if method.upper() == "GET" and not self.no_cache:
-            cached_response = self.cache.get(url, params, json)
+            cached_response = self.cache.get(url, params, jeez)
             if cached_response:
                 if not self.verbose:  # Only show basic message if not verbose
                     click.echo(f"Using cached response for: {url}", err=True)
@@ -77,29 +109,53 @@ class JiraHTTP:
         try:
             if self.verbose:
                 click.echo(f"Sending request to {url}...", err=True)
+                curl_cmd = self._get_curl_command(
+                    method, url, self.headers, params, jeez
+                )
+                click.echo(f"curl command :\n{curl_cmd}", err=True)
 
-            # Add timeout parameter to prevent indefinite hanging
-            response = requests.request(
-                method, url, headers=self.headers, params=params, json=json, timeout=30
-            )
+            # Construct the full URL with parameters
+            if params:
+                query_string = urlencode(params)
+                full_url = f"{url}?{query_string}"
+            else:
+                full_url = url
+
+            # Prepare the request
+            request = urllib.request.Request(full_url, method=method)
+
+            # Add headers
+            for key, value in self.headers.items():
+                request.add_header(key, value)
+
+            # Add JSON data if provided
+            data = None
+            if jeez:
+                data = jeez.dumps(jeez).encode("utf-8")
+
+            # Send the request
+            with urllib.request.urlopen(request, data=data) as response:
+                status_code = response.status
+                response_text = response.read().decode("utf-8")
+                response_data = json.loads(response_text) if response_text else {}
 
             if self.verbose:
-                click.echo(f"Response status: {response.status_code}", err=True)
-
-            response.raise_for_status()
-            response_data = response.json()
+                click.echo(f"Response status: {status_code}", err=True)
 
             # Cache the response for GET requests
             if method.upper() == "GET" and not self.no_cache:
                 if self.verbose:
                     click.echo(f"Caching response for: {url}", err=True)
-                self.cache.set(url, response_data, params, json)
+                self.cache.set(url, response_data, params, jeez)
 
             return response_data
-        except requests.exceptions.HTTPError as e:
+        except urllib.error.HTTPError as e:
             click.echo(f"HTTP error occurred: {e}", err=True)
-            click.echo(f"Response: {response.text}", err=True)
+            click.echo(f"Response: {e.read().decode('utf-8')}", err=True)
             raise click.ClickException(f"HTTP error: {e}")
+        except urllib.error.URLError as e:
+            click.echo(f"URL error occurred: {e}", err=True)
+            raise click.ClickException(f"URL error: {e}")
 
     def search_issues(self, jql, start_at=0, max_results=50, fields=None):
         """
@@ -171,7 +227,7 @@ class JiraHTTP:
             payload["fields"]["assignee"] = {"name": assignee}
         if labels:
             payload["fields"]["labels"] = labels
-        return self._request("POST", endpoint, json=payload)
+        return self._request("POST", endpoint, jeez=payload)
 
     def get_issue(self, issue_key, fields=None):
         """
