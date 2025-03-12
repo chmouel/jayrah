@@ -11,7 +11,7 @@ def main():
         sys.exit(1)
     except Exception as e:
         utils.log(f"Error: {e}", "ERROR")
-        sys.exit(1)
+        raise e
 
 
 if __name__ == "__main__":

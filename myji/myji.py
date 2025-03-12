@@ -337,6 +337,9 @@ class MyJi:
                 verbose=self.verbose,
             )
 
+        if not issues:
+            return None
+
         with tempfile.NamedTemporaryFile("w+") as tmp:
             max_summary_length = max(
                 min(
