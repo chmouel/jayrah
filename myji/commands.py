@@ -1,8 +1,10 @@
 import os
 import sys
 import click
+import os
 
 from . import myji, utils
+from . import issue_view
 
 
 @click.group()
@@ -88,10 +90,9 @@ def git_branch(myji_obj):
 @cli.group("fzf")
 def fzf():
     """FZF preview helper"""
-    # Removed unnecessary pass statement
 
 
-@fzf.command("browser-open")
+@fzf.command("open")
 @click.argument("ticket")
 @click.pass_obj
 def browser_open(myji_obj, ticket):
@@ -99,3 +100,22 @@ def browser_open(myji_obj, ticket):
     # Use the myji_obj if needed to see server info
     server = myji_obj.jira.server if hasattr(myji_obj, "jira") else None
     utils.browser_open_ticket(ticket, server=server)
+
+
+@fzf.command("view")
+@click.argument("ticket")
+@click.option("--comments", "-c", default=0, help="Number of comments to show")
+@click.option(
+    "--plain", is_flag=True, help="Display plain output without rich formatting"
+)
+@click.pass_obj
+def view(myji_obj, ticket, comments, plain):
+    """View issue in a nice format"""
+    try:
+        # Get detailed information about the issue
+        fields = None  # Get all fields
+        issue = myji_obj.jira.get_issue(ticket, fields=fields)
+        issue_view.display_issue(issue, comments, myji_obj.verbose)
+    except Exception as e:
+        click.secho(f"Error retrieving issue {ticket}: {e}", fg="red", err=True)
+        return None

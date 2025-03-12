@@ -183,7 +183,7 @@ class MyJi:
                 "--bind",
                 "ctrl-l:execute(jira issue view {2} --comments 10 | gum format -l markdown)",
                 "--bind",
-                f"enter:execute({self.myj_path} fzf browser-open {{2}})",
+                f"enter:execute({self.myj_path} fzf open {{2}})",
                 "--bind",
                 "f5:execute:echo 'TODO: Remove labels'",
                 "--bind",
