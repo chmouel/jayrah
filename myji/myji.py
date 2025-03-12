@@ -13,7 +13,13 @@ from . import cache, defaults, utils
 # Import the JiraHTTP class
 class JiraHTTP:
     def __init__(
-        self, server=None, token=None, project=None, component=None, no_cache=False, verbose=False
+        self,
+        server=None,
+        token=None,
+        project=None,
+        component=None,
+        no_cache=False,
+        verbose=False,
     ):
         self.server = server or os.getenv("JIRA_SERVER", "issues.redhat.com")
         self.token = token or os.getenv("JIRA_API_TOKEN")
@@ -28,13 +34,25 @@ class JiraHTTP:
         self.no_cache = no_cache
         self.verbose = verbose
         self.cache = cache.JiraCache(verbose=self.verbose)
-        
+
         if self.verbose:
-            utils.log(f"Initialized JiraHTTP: server={self.server}, project={self.project}, component={self.component}, no_cache={self.no_cache}", 
-                     "DEBUG", verbose_only=True, verbose=self.verbose)
-            
+            utils.log(
+                f"Initialized JiraHTTP: server={self.server}, project={self.project}, component={self.component}, no_cache={self.no_cache}",
+                "DEBUG",
+                verbose_only=True,
+                verbose=self.verbose,
+            )
+
         if not self.token:
-            utils.log("No JIRA API token found. Set JIRA_API_TOKEN or pass it explicitly.", "ERROR")
+            self.token = utils.get_pass_key(
+                os.environ.get("JIRA_PASS_TOKEN_KEY", "jira/token")
+            )
+
+        if not self.token:
+            utils.log(
+                "No JIRA API token found. Set JIRA_API_TOKEN or pass it explicitly.",
+                "ERROR",
+            )
             raise ValueError(
                 "No JIRA API token found. Set JIRA_API_TOKEN or pass it explicitly."
             )
@@ -42,45 +60,79 @@ class JiraHTTP:
     def _request(self, method, endpoint, params=None, json=None):
         """Helper method to make HTTP requests."""
         url = f"{self.base_url}/{endpoint}"
-        
+
         if self.verbose:
-            utils.log(f"API Request: {method} {url}", "DEBUG", verbose_only=True, verbose=self.verbose)
+            utils.log(
+                f"API Request: {method} {url}",
+                "DEBUG",
+                verbose_only=True,
+                verbose=self.verbose,
+            )
             if params:
-                utils.log(f"Parameters: {params}", "DEBUG", verbose_only=True, verbose=self.verbose)
+                utils.log(
+                    f"Parameters: {params}",
+                    "DEBUG",
+                    verbose_only=True,
+                    verbose=self.verbose,
+                )
             if json:
-                utils.log(f"Request body: {json}", "DEBUG", verbose_only=True, verbose=self.verbose)
+                utils.log(
+                    f"Request body: {json}",
+                    "DEBUG",
+                    verbose_only=True,
+                    verbose=self.verbose,
+                )
 
         # Only use cache for GET requests
         if method.upper() == "GET" and not self.no_cache:
             cached_response = self.cache.get(url, params, json)
             if cached_response:
                 if not self.verbose:  # Only show basic message if not verbose
-                    utils.log(f"Using cached response for: {url}", "INFO")
+                    utils.log(f"Using cached response for: {url}", "DEBUG")
                 return cached_response
             elif self.verbose:
-                utils.log(f"No cache found for: {url}", "DEBUG", verbose_only=True, verbose=self.verbose)
+                utils.log(
+                    f"No cache found for: {url}",
+                    "DEBUG",
+                    verbose_only=True,
+                    verbose=self.verbose,
+                )
 
         try:
             if self.verbose:
-                utils.log(f"Sending request to {url}...", "DEBUG", verbose_only=True, verbose=self.verbose)
-                
+                utils.log(
+                    f"Sending request to {url}...",
+                    "DEBUG",
+                    verbose_only=True,
+                    verbose=self.verbose,
+                )
+
             response = requests.request(
                 method, url, headers=self.headers, params=params, json=json
             )
-            
+
             if self.verbose:
-                utils.log(f"Response status: {response.status_code}", 
-                         "DEBUG", verbose_only=True, verbose=self.verbose)
-                
+                utils.log(
+                    f"Response status: {response.status_code}",
+                    "DEBUG",
+                    verbose_only=True,
+                    verbose=self.verbose,
+                )
+
             response.raise_for_status()
             response_data = response.json()
-            
+
             # Cache the response for GET requests
             if method.upper() == "GET" and not self.no_cache:
                 if self.verbose:
-                    utils.log(f"Caching response for: {url}", "DEBUG", verbose_only=True, verbose=self.verbose)
+                    utils.log(
+                        f"Caching response for: {url}",
+                        "DEBUG",
+                        verbose_only=True,
+                        verbose=self.verbose,
+                    )
                 self.cache.set(url, response_data, params, json)
-            
+
             return response_data
         except requests.exceptions.HTTPError as e:
             utils.log(f"HTTP error occurred: {e}", "ERROR")
@@ -104,13 +156,20 @@ class JiraHTTP:
         params = {"jql": jql, "startAt": start_at, "maxResults": max_results}
         if fields:
             params["fields"] = ",".join(fields)
-            
-        utils.log(f"Searching issues with JQL: '{utils.colorize('cyan', jql)}' Params: '{utils.colorize('cyan', params['fields'])}'", "INFO")
-        
+
+        utils.log(
+            f"Searching issues with JQL: '{utils.colorize('cyan', jql)}' Params: '{utils.colorize('cyan', params['fields'])}'",
+            "INFO",
+        )
+
         if self.verbose:
-            utils.log(f"Start at: {start_at}, Max results: {max_results}", 
-                     "DEBUG", verbose_only=True, verbose=self.verbose)
-            
+            utils.log(
+                f"Start at: {start_at}, Max results: {max_results}",
+                "DEBUG",
+                verbose_only=True,
+                verbose=self.verbose,
+            )
+
         return self._request("GET", endpoint, params=params)
 
     def create_issue(
@@ -170,11 +229,15 @@ class JiraHTTP:
         params = {}
         if fields:
             params["fields"] = ",".join(fields)
-            
+
         if self.verbose:
-            utils.log(f"Getting issue: {issue_key} with fields: {fields}", 
-                     "DEBUG", verbose_only=True, verbose=self.verbose)
-            
+            utils.log(
+                f"Getting issue: {issue_key} with fields: {fields}",
+                "DEBUG",
+                verbose_only=True,
+                verbose=self.verbose,
+            )
+
         return self._request("GET", endpoint, params=params)
 
 
@@ -182,10 +245,14 @@ class MyJi:
     def __init__(self, no_cache=False, verbose=False):
         self.verbose = verbose
         self.jira = JiraHTTP(no_cache=no_cache, verbose=verbose)
-        
+
         if self.verbose:
-            utils.log("MyJi initialized with verbose logging enabled", 
-                     "DEBUG", verbose_only=True, verbose=self.verbose)
+            utils.log(
+                "MyJi initialized with verbose logging enabled",
+                "DEBUG",
+                verbose_only=True,
+                verbose=self.verbose,
+            )
 
     def list_issues(
         self,
@@ -197,49 +264,76 @@ class MyJi:
     ):
         """List issues using JQL query."""
         if self.verbose:
-            utils.log(f"Listing issues with JQL: {jql}", "DEBUG", verbose_only=True, verbose=self.verbose)
-            utils.log(f"Order by: {order_by}, Limit: {limit}, All pages: {all_pages}", 
-                     "DEBUG", verbose_only=True, verbose=self.verbose)
-            utils.log(f"Fields: {fields}", "DEBUG", verbose_only=True, verbose=self.verbose)
-            
+            utils.log(
+                f"Listing issues with JQL: {jql}",
+                "DEBUG",
+                verbose_only=True,
+                verbose=self.verbose,
+            )
+            utils.log(
+                f"Order by: {order_by}, Limit: {limit}, All pages: {all_pages}",
+                "DEBUG",
+                verbose_only=True,
+                verbose=self.verbose,
+            )
+            utils.log(
+                f"Fields: {fields}", "DEBUG", verbose_only=True, verbose=self.verbose
+            )
+
         issues = []
         start_at = 0
         while True:
             if self.verbose:
-                utils.log(f"Fetching batch starting at {start_at}", 
-                         "DEBUG", verbose_only=True, verbose=self.verbose)
-                
+                utils.log(
+                    f"Fetching batch starting at {start_at}",
+                    "DEBUG",
+                    verbose_only=True,
+                    verbose=self.verbose,
+                )
+
             result = self.jira.search_issues(
                 jql,
                 start_at=start_at,
                 max_results=limit,
                 fields=fields,
             )
-            
+
             batch_issues = result.get("issues", [])
             issues.extend(batch_issues)
-            
+
             if self.verbose:
-                utils.log(f"Retrieved {len(batch_issues)} issues (total: {len(issues)})", 
-                         "DEBUG", verbose_only=True, verbose=self.verbose)
-                
+                utils.log(
+                    f"Retrieved {len(batch_issues)} issues (total: {len(issues)})",
+                    "DEBUG",
+                    verbose_only=True,
+                    verbose=self.verbose,
+                )
+
             total = result.get("total", 0)
             if not all_pages or start_at + limit >= total:
                 break
-                
+
             start_at += limit
-            
+
         if self.verbose:
-            utils.log(f"Total issues retrieved: {len(issues)}", 
-                     "SUCCESS", verbose_only=True, verbose=self.verbose)
-            
+            utils.log(
+                f"Total issues retrieved: {len(issues)}",
+                "SUCCESS",
+                verbose_only=True,
+                verbose=self.verbose,
+            )
+
         return issues
 
     def fuzzy_search(self, issues):
         """Use fzf to interactively select an issue."""
         if self.verbose:
-            utils.log(f"Preparing fuzzy search interface for {len(issues)} issues", 
-                     "DEBUG", verbose_only=True, verbose=self.verbose)
+            utils.log(
+                f"Preparing fuzzy search interface for {len(issues)} issues",
+                "DEBUG",
+                verbose_only=True,
+                verbose=self.verbose,
+            )
 
         # __import__("pprint").pprint(issues)
         with tempfile.NamedTemporaryFile("w+") as tmp:
@@ -318,11 +412,19 @@ class MyJi:
             tmp.flush()
 
             if self.verbose:
-                utils.log(f"Generated temporary file for fzf: {tmp.name}", 
-                         "DEBUG", verbose_only=True, verbose=self.verbose)
-                utils.log(f"Starting fzf with {len(issues)} issues", 
-                         "DEBUG", verbose_only=True, verbose=self.verbose)
-                
+                utils.log(
+                    f"Generated temporary file for fzf: {tmp.name}",
+                    "DEBUG",
+                    verbose_only=True,
+                    verbose=self.verbose,
+                )
+                utils.log(
+                    f"Starting fzf with {len(issues)} issues",
+                    "DEBUG",
+                    verbose_only=True,
+                    verbose=self.verbose,
+                )
+
             preview_cmd = """
                 jira issue view {2} --plain|gum format -l markdown --theme=tokyo-night
                 """
@@ -352,15 +454,19 @@ class MyJi:
                 result = subprocess.run(
                     fzf_cmd, stdin=open(tmp.name), capture_output=True, text=True
                 )
-                
+
                 if self.verbose and result.stdout:
-                    utils.log(f"User selected: {result.stdout.strip()}", 
-                             "DEBUG", verbose_only=True, verbose=self.verbose)
-                    
+                    utils.log(
+                        f"User selected: {result.stdout.strip()}",
+                        "DEBUG",
+                        verbose_only=True,
+                        verbose=self.verbose,
+                    )
+
             except subprocess.CalledProcessError as e:
                 utils.log(f"Error occurred: {e}", "ERROR")
                 return None
-                
+
             return result.stdout.strip().split("\t")[0] if result.stdout else None
 
     def create_issue(
@@ -390,8 +496,12 @@ class MyJi:
             utils.log("No issue selected", "WARNING")
             sys.exit("No issue selected")
 
-        utils.log(f"Getting issue details for {selected}", 
-                 "DEBUG", verbose_only=True, verbose=self.verbose)
+        utils.log(
+            f"Getting issue details for {selected}",
+            "DEBUG",
+            verbose_only=True,
+            verbose=self.verbose,
+        )
         issue = self.jira.get_issue(selected, fields=["summary"])
         summary = issue["fields"]["summary"]
 
@@ -430,10 +540,20 @@ class MyJi:
         if args.no_cache or args.verbose:
             self.jira = JiraHTTP(no_cache=args.no_cache, verbose=args.verbose)
             self.verbose = args.verbose
-            
+
             if self.verbose:
-                utils.log(f"Command: {args.command}", "DEBUG", verbose_only=True, verbose=self.verbose)
-                utils.log(f"No cache: {args.no_cache}", "DEBUG", verbose_only=True, verbose=self.verbose)
+                utils.log(
+                    f"Command: {args.command}",
+                    "DEBUG",
+                    verbose_only=True,
+                    verbose=self.verbose,
+                )
+                utils.log(
+                    f"No cache: {args.no_cache}",
+                    "DEBUG",
+                    verbose_only=True,
+                    verbose=self.verbose,
+                )
 
         if args.command == "pac-create":
             self.create_issue()
@@ -448,7 +568,12 @@ class MyJi:
             }.get(args.command, "")
 
             if jql:
-                utils.log(f"Running query: {jql}", "DEBUG", verbose_only=True, verbose=self.verbose)
+                utils.log(
+                    f"Running query: {jql}",
+                    "DEBUG",
+                    verbose_only=True,
+                    verbose=self.verbose,
+                )
                 issues = self.list_issues(jql)
                 selected = self.fuzzy_search(issues)
                 if selected:
