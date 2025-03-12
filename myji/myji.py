@@ -2,16 +2,19 @@
 import argparse
 import os
 import sys
+import subprocess
 import tempfile
 
 import requests
 
-from . import defaults, utils
+from . import cache, defaults, utils
 
 
 # Import the JiraHTTP class
 class JiraHTTP:
-    def __init__(self, server=None, token=None, project=None, component=None):
+    def __init__(
+        self, server=None, token=None, project=None, component=None, no_cache=False
+    ):
         self.server = server or os.getenv("JIRA_SERVER", "issues.redhat.com")
         self.token = token or os.getenv("JIRA_API_TOKEN")
         self.project = project or os.getenv("JIRA_PROJECT", "SRVKP")
@@ -22,6 +25,8 @@ class JiraHTTP:
             "Content-Type": "application/json",
             "Accept": "application/json",
         }
+        self.no_cache = no_cache
+        self.cache = cache.JiraCache()
         if not self.token:
             raise ValueError(
                 "No JIRA API token found. Set JIRA_API_TOKEN or pass it explicitly."
@@ -30,12 +35,26 @@ class JiraHTTP:
     def _request(self, method, endpoint, params=None, json=None):
         """Helper method to make HTTP requests."""
         url = f"{self.base_url}/{endpoint}"
+
+        # Only use cache for GET requests
+        if method.upper() == "GET" and not self.no_cache:
+            cached_response = self.cache.get(url, params, json)
+            if cached_response:
+                print(f"Using cached response for: {url}")
+                return cached_response
+
         try:
             response = requests.request(
                 method, url, headers=self.headers, params=params, json=json
             )
             response.raise_for_status()
-            return response.json()
+            response_data = response.json()
+
+            # Cache the response for GET requests
+            if method.upper() == "GET" and not self.no_cache:
+                self.cache.set(url, response_data, params, json)
+
+            return response_data
         except requests.exceptions.HTTPError as e:
             print(f"HTTP error occurred: {e}")
             print(f"Response: {response.text}")
@@ -105,10 +124,27 @@ class JiraHTTP:
             payload["fields"]["labels"] = labels
         return self._request("POST", endpoint, json=payload)
 
+    def get_issue(self, issue_key, fields=None):
+        """
+        Get a specific issue by key.
+
+        Args:
+            issue_key (str): The issue key (e.g., 'SRVKP-123')
+            fields (list): List of fields to include in the response.
+
+        Returns:
+            dict: JSON response containing the issue.
+        """
+        endpoint = f"issue/{issue_key}"
+        params = {}
+        if fields:
+            params["fields"] = ",".join(fields)
+        return self._request("GET", endpoint, params=params)
+
 
 class MyJi:
-    def __init__(self):
-        self.jira = JiraHTTP()
+    def __init__(self, no_cache=False):
+        self.jira = JiraHTTP(no_cache=no_cache)
 
     def list_issues(
         self,
@@ -137,10 +173,8 @@ class MyJi:
 
     def fuzzy_search(self, issues):
         """Use fzf to interactively select an issue."""
-        import subprocess
 
-        __import__("pprint").pprint(issues)
-
+        # __import__("pprint").pprint(issues)
         with tempfile.NamedTemporaryFile("w+") as tmp:
             max_summary_length = max(
                 min(
@@ -293,7 +327,19 @@ class MyJi:
         subparsers.add_parser("pac-create", help="Create PAC issue")
         subparsers.add_parser("git-branch", help="Suggest git branch")
 
+        # Add global options
+        parser.add_argument(
+            "-n",
+            "--no-cache",
+            action="store_true",
+            help="Disable caching of API responses",
+        )
+
         args = parser.parse_args()
+
+        # Reinitialize jira client with no_cache flag if specified
+        if args.no_cache:
+            self.jira = JiraHTTP(no_cache=args.no_cache)
 
         if args.command == "pac-create":
             self.create_issue()

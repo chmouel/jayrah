@@ -1,9 +1,13 @@
+import sys
 from . import myji
 
 
 def main():
     app = myji.MyJi()
-    app.run()
+    try:
+        app.run()
+    except KeyboardInterrupt:
+        sys.exit(1)
 
 
 if __name__ == "__main__":
