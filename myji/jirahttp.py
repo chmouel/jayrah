@@ -99,8 +99,6 @@ class JiraHTTP:
         if method.upper() == "GET" and not self.no_cache:
             cached_response = self.cache.get(url, params, jeez)
             if cached_response:
-                if not self.verbose:  # Only show basic message if not verbose
-                    click.echo(f"Using cached response for: {url}", err=True)
                 return cached_response
 
             if self.verbose:
@@ -143,7 +141,7 @@ class JiraHTTP:
                 click.echo(f"Response status: {status_code}", err=True)
 
             # Cache the response for GET requests
-            if method.upper() == "GET" and not self.no_cache:
+            if method.upper() == "GET":
                 if self.verbose:
                     click.echo(f"Caching response for: {url}", err=True)
                 self.cache.set(url, response_data, params, jeez)

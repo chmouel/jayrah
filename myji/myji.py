@@ -55,9 +55,11 @@ class MyJi:
             issues.extend(batch_issues)
 
             if self.verbose:
-                click.echo(
+                utils.log(
                     f"Retrieved {len(batch_issues)} issues (total: {len(issues)})",
-                    err=True,
+                    "DEBUG",
+                    verbose_only=True,
+                    verbose=self.verbose,
                 )
 
             total = result.get("total", 0)
@@ -66,16 +68,16 @@ class MyJi:
 
             start_at += limit
 
-        if self.verbose:
-            click.secho(f"Total issues retrieved: {len(issues)}", fg="blue", err=True)
-
         return issues
 
     def fuzzy_search(self, issues):
         """Use fzf to interactively select an issue."""
         if self.verbose:
-            click.echo(
-                f"Preparing fuzzy search interface for {len(issues)} issues", err=True
+            utils.log(
+                f"Preparing fuzzy search interface for {len(issues)} issues",
+                "DEBUG",
+                verbose_only=True,
+                verbose=self.verbose,
             )
 
         if not issues:
@@ -157,8 +159,12 @@ class MyJi:
             tmp.flush()
 
             if self.verbose:
-                click.echo(f"Generated temporary file for fzf: {tmp.name}", err=True)
-                click.echo(f"Starting fzf with {len(issues)} issues", err=True)
+                utils.log(
+                    f"Temporary file created at {tmp.name}",
+                    "DEBUG",
+                    verbose_only=True,
+                    verbose=self.verbose,
+                )
 
             preview_cmd = """
                 jira issue view {2} --plain|gum format -l markdown --theme=tokyo-night
