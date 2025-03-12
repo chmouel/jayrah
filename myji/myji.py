@@ -159,7 +159,7 @@ class JiraHTTP:
 
         utils.log(
             f"Searching issues with JQL: '{utils.colorize('cyan', jql)}' Params: '{utils.colorize('cyan', params['fields'])}'",
-            "INFO",
+            "DEBUG",
         )
 
         if self.verbose:
@@ -242,6 +242,8 @@ class JiraHTTP:
 
 
 class MyJi:
+    myj_path: str = ""
+
     def __init__(self, no_cache=False, verbose=False):
         self.verbose = verbose
         self.jira = JiraHTTP(no_cache=no_cache, verbose=verbose)
@@ -335,7 +337,6 @@ class MyJi:
                 verbose=self.verbose,
             )
 
-        # __import__("pprint").pprint(issues)
         with tempfile.NamedTemporaryFile("w+") as tmp:
             max_summary_length = max(
                 min(
@@ -442,7 +443,7 @@ class MyJi:
                 "--bind",
                 "ctrl-l:execute(jira issue view {2} --comments 10 | gum format -l markdown)",
                 "--bind",
-                "enter:execute(jira open {2})",
+                f"enter:execute({self.myj_path} fzf browser-open {{2}})",
                 "--bind",
                 "f5:execute:echo 'TODO: Remove labels'",
                 "--bind",
@@ -510,6 +511,7 @@ class MyJi:
         print(branch)
 
     def run(self):
+        self.myj_path = os.path.abspath(sys.argv[0])
         parser = argparse.ArgumentParser(description="Jira Helper")
         subparsers = parser.add_subparsers(dest="command")
 
@@ -519,6 +521,12 @@ class MyJi:
         subparsers.add_parser("pac-current", help="Current PAC issues")
         subparsers.add_parser("pac-create", help="Create PAC issue")
         subparsers.add_parser("git-branch", help="Suggest git branch")
+        fzfparsers = subparsers.add_parser("fzf", help="fzf preview helper")
+        fzf_subparsers = fzfparsers.add_subparsers(dest="fzf_command")
+        browser_open = fzf_subparsers.add_parser(
+            "browser-open", help="Open issue in browser"
+        )
+        browser_open.add_argument("ticket", help="Ticket number to open")
 
         # Add global options
         parser.add_argument(
@@ -559,6 +567,16 @@ class MyJi:
             self.create_issue()
         elif args.command == "git-branch":
             self.suggest_git_branch()
+        elif args.command == "fzf":
+            otherargs = sys.argv[2:]
+            if otherargs:
+                if otherargs[0] == "browser-open":
+                    if len(otherargs) > 1:
+                        ticket = otherargs[1]
+                    else:
+                        raise ValueError("Ticket number is required")
+                    ticket = otherargs[1]
+                    utils.browser_open_ticket(ticket)
         else:
             # Default to listing issues with appropriate JQL
             jql = {

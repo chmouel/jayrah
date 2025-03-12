@@ -1,4 +1,5 @@
 import datetime
+import os
 import shutil
 import subprocess
 import sys
@@ -23,6 +24,22 @@ LOG_LEVELS = {
     "ERROR": "red",
     "SUCCESS": "blue",
 }
+
+
+def browser_open_ticket(ticket):
+    """
+    Open a URL in the default web browser.
+
+    Args:
+        url (str): The URL to open.
+    """
+    import webbrowser
+
+    server = os.getenv("JIRA_SERVER", "issues.redhat.com")
+    try:
+        webbrowser.open(f"https://{server}/browse/{ticket}")
+    except Exception as e:
+        log(f"Failed to open URL {ticket}: {e}", level="ERROR")
 
 
 def log(message, level="INFO", verbose_only=False, verbose=False, file=sys.stdout):
