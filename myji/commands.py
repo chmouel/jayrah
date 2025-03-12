@@ -111,11 +111,7 @@ def browser_open(myji_obj, ticket):
 @click.pass_obj
 def view(myji_obj, ticket, comments, plain):
     """View issue in a nice format"""
-    try:
-        # Get detailed information about the issue
-        fields = None  # Get all fields
-        issue = myji_obj.jira.get_issue(ticket, fields=fields)
-        issue_view.display_issue(issue, comments, myji_obj.verbose)
-    except Exception as e:
-        click.secho(f"Error retrieving issue {ticket}: {e}", fg="red", err=True)
-        return None
+    # Get detailed information about the issue
+    fields = None  # Get all fields
+    issue = myji_obj.jira.get_issue(ticket, fields=fields)
+    issue_view.display_issue(issue, comments, myji_obj.verbose)

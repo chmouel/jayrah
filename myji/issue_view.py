@@ -3,8 +3,73 @@ from datetime import datetime
 import os
 import tempfile
 import subprocess
-import urllib.request
-import urllib.error
+import re
+import shutil
+
+
+def convert_jira_to_markdown(jira_text):
+    """Convert Jira formatted text to standard markdown"""
+    if not jira_text:
+        return ""
+
+    # Convert headers: h2. *Title* -> ## Title
+    def header_replace(match):
+        level = int(match.group(1))
+        title = match.group(2)
+        return "#" * level + " " + title
+
+    markdown = re.sub(r"h([1-6])\.\s*\*(.*?)\*", header_replace, jira_text)
+
+    # Convert Jira code blocks {code} or {noformat} to ```
+    markdown = re.sub(
+        r"\{code(?::\w+)?\}(.*?)\{code\}", r"```\n\1\n```", markdown, flags=re.DOTALL
+    )
+    markdown = re.sub(
+        r"\{noformat\}(.*?)\{noformat\}", r"```\n\1\n```", markdown, flags=re.DOTALL
+    )
+
+    # Process line by line for lists and other formatting
+    lines = []
+    for line in markdown.split("\n"):
+        # Convert bullet lists: " * item" -> "- item"
+        line = re.sub(r"^\s*\*\s", "- ", line)
+
+        # Convert numbered lists: " # item" -> "1. item"
+        line = re.sub(r"^\s*#\s", "1. ", line)
+
+        # Bold: *text* -> **text**
+        line = re.sub(r"\*(.*?)\*", r"**\1**", line)
+
+        lines.append(line)
+
+    return "\n".join(lines)
+
+
+def format_with_gum(text):
+    """Format text with gum if available, otherwise return original text"""
+    if not text:
+        return "No description provided"
+
+    # Check if gum is available
+    if shutil.which("gum"):
+        try:
+            # Use pipe to send markdown content to gum
+            process = subprocess.run(
+                ["gum", "format", "--type", "markdown"],
+                input=text,
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+
+            # Return formatted output
+            return process.stdout
+
+        except (subprocess.SubprocessError, OSError):
+            # Fall back to original text if there's an error
+            return text
+
+    return text
 
 
 def display_issue(issue, comments_count=0, verbose=False):
@@ -126,7 +191,10 @@ def display_issue(issue, comments_count=0, verbose=False):
     click.echo("\n" + "─" * 80)
     click.secho("📝 Description:", fg="blue", bold=True)
     if fields.get("description"):
-        click.echo(fields["description"])
+        # Convert Jira markdown to standard markdown and format with gum if available
+        markdown_description = convert_jira_to_markdown(fields["description"])
+        formatted_description = format_with_gum(markdown_description)
+        click.echo(formatted_description)
     else:
         click.echo("No description provided")
 

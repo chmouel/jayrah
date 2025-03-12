@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 import subprocess
 import tempfile
+
 import click
 
-from . import defaults, utils, jirahttp
+from . import defaults, jirahttp, utils
 
 
 class MyJi:
@@ -166,9 +167,7 @@ class MyJi:
                     verbose=self.verbose,
                 )
 
-            preview_cmd = """
-                jira issue view {2} --plain|gum format -l markdown --theme=tokyo-night
-                """
+            preview_cmd = f"{self.myj_path} fzf view {{2}}"
             fzf_cmd = [
                 "fzf",
                 "-d",
@@ -180,8 +179,6 @@ class MyJi:
                 preview_cmd,
                 "--preview-window",
                 "right:hidden:wrap",
-                "--bind",
-                "ctrl-l:execute(jira issue view {2} --comments 10 | gum format -l markdown)",
                 "--bind",
                 f"enter:execute({self.myj_path} fzf open {{2}})",
                 "--bind",
