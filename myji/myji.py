@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-import argparse
 import os
 import sys
 import subprocess
 import tempfile
+import click
 
 import requests
 
@@ -36,11 +36,9 @@ class JiraHTTP:
         self.cache = cache.JiraCache(verbose=self.verbose)
 
         if self.verbose:
-            utils.log(
+            click.echo(
                 f"Initialized JiraHTTP: server={self.server}, project={self.project}, component={self.component}, no_cache={self.no_cache}",
-                "DEBUG",
-                verbose_only=True,
-                verbose=self.verbose,
+                err=True,
             )
 
         if not self.token:
@@ -49,11 +47,12 @@ class JiraHTTP:
             )
 
         if not self.token:
-            utils.log(
+            click.secho(
                 "No JIRA API token found. Set JIRA_API_TOKEN or pass it explicitly.",
-                "ERROR",
+                fg="red",
+                err=True,
             )
-            raise ValueError(
+            raise click.ClickException(
                 "No JIRA API token found. Set JIRA_API_TOKEN or pass it explicitly."
             )
 
@@ -62,62 +61,32 @@ class JiraHTTP:
         url = f"{self.base_url}/{endpoint}"
 
         if self.verbose:
-            utils.log(
-                f"API Request: {method} {url}",
-                "DEBUG",
-                verbose_only=True,
-                verbose=self.verbose,
-            )
+            click.echo(f"API Request: {method} {url}", err=True)
             if params:
-                utils.log(
-                    f"Parameters: {params}",
-                    "DEBUG",
-                    verbose_only=True,
-                    verbose=self.verbose,
-                )
+                click.echo(f"Parameters: {params}", err=True)
             if json:
-                utils.log(
-                    f"Request body: {json}",
-                    "DEBUG",
-                    verbose_only=True,
-                    verbose=self.verbose,
-                )
+                click.echo(f"Request body: {json}", err=True)
 
         # Only use cache for GET requests
         if method.upper() == "GET" and not self.no_cache:
             cached_response = self.cache.get(url, params, json)
             if cached_response:
                 if not self.verbose:  # Only show basic message if not verbose
-                    utils.log(f"Using cached response for: {url}", "DEBUG")
+                    click.echo(f"Using cached response for: {url}", err=True)
                 return cached_response
             elif self.verbose:
-                utils.log(
-                    f"No cache found for: {url}",
-                    "DEBUG",
-                    verbose_only=True,
-                    verbose=self.verbose,
-                )
+                click.echo(f"No cache found for: {url}", err=True)
 
         try:
             if self.verbose:
-                utils.log(
-                    f"Sending request to {url}...",
-                    "DEBUG",
-                    verbose_only=True,
-                    verbose=self.verbose,
-                )
+                click.echo(f"Sending request to {url}...", err=True)
 
             response = requests.request(
                 method, url, headers=self.headers, params=params, json=json
             )
 
             if self.verbose:
-                utils.log(
-                    f"Response status: {response.status_code}",
-                    "DEBUG",
-                    verbose_only=True,
-                    verbose=self.verbose,
-                )
+                click.echo(f"Response status: {response.status_code}", err=True)
 
             response.raise_for_status()
             response_data = response.json()
@@ -125,19 +94,14 @@ class JiraHTTP:
             # Cache the response for GET requests
             if method.upper() == "GET" and not self.no_cache:
                 if self.verbose:
-                    utils.log(
-                        f"Caching response for: {url}",
-                        "DEBUG",
-                        verbose_only=True,
-                        verbose=self.verbose,
-                    )
+                    click.echo(f"Caching response for: {url}", err=True)
                 self.cache.set(url, response_data, params, json)
 
             return response_data
         except requests.exceptions.HTTPError as e:
-            utils.log(f"HTTP error occurred: {e}", "ERROR")
-            utils.log(f"Response: {response.text}", "ERROR")
-            raise
+            click.echo(f"HTTP error occurred: {e}", err=True)
+            click.echo(f"Response: {response.text}", err=True)
+            raise click.ClickException(f"HTTP error: {e}")
 
     def search_issues(self, jql, start_at=0, max_results=50, fields=None):
         """
@@ -157,18 +121,16 @@ class JiraHTTP:
         if fields:
             params["fields"] = ",".join(fields)
 
-        utils.log(
-            f"Searching issues with JQL: '{utils.colorize('cyan', jql)}' Params: '{utils.colorize('cyan', params['fields'])}'",
-            "DEBUG",
+        click.echo(
+            f"Searching issues with JQL: '{click.style(jql, fg='cyan')}' "
+            f"Params: '{click.style(params.get('fields', ''), fg='cyan')}'",
+            err=True,
         )
 
         if self.verbose:
-            utils.log(
-                f"Start at: {start_at}, Max results: {max_results}",
-                "DEBUG",
-                verbose_only=True,
-                verbose=self.verbose,
-            )
+            click.echo(
+                f"Start at: {start_at}, Max results: {max_results}", err=True
+            ) if self.verbose else None
 
         return self._request("GET", endpoint, params=params)
 
@@ -231,12 +193,7 @@ class JiraHTTP:
             params["fields"] = ",".join(fields)
 
         if self.verbose:
-            utils.log(
-                f"Getting issue: {issue_key} with fields: {fields}",
-                "DEBUG",
-                verbose_only=True,
-                verbose=self.verbose,
-            )
+            click.echo(f"Getting issue: {issue_key} with fields: {fields}", err=True)
 
         return self._request("GET", endpoint, params=params)
 
@@ -249,12 +206,7 @@ class MyJi:
         self.jira = JiraHTTP(no_cache=no_cache, verbose=verbose)
 
         if self.verbose:
-            utils.log(
-                "MyJi initialized with verbose logging enabled",
-                "DEBUG",
-                verbose_only=True,
-                verbose=self.verbose,
-            )
+            click.echo("MyJi initialized with verbose logging enabled", err=True)
 
     def list_issues(
         self,
@@ -266,32 +218,18 @@ class MyJi:
     ):
         """List issues using JQL query."""
         if self.verbose:
-            utils.log(
-                f"Listing issues with JQL: {jql}",
-                "DEBUG",
-                verbose_only=True,
-                verbose=self.verbose,
-            )
-            utils.log(
+            click.echo(f"Listing issues with JQL: {jql}", err=True)
+            click.echo(
                 f"Order by: {order_by}, Limit: {limit}, All pages: {all_pages}",
-                "DEBUG",
-                verbose_only=True,
-                verbose=self.verbose,
+                err=True,
             )
-            utils.log(
-                f"Fields: {fields}", "DEBUG", verbose_only=True, verbose=self.verbose
-            )
+            click.echo(f"Fields: {fields}", err=True)
 
         issues = []
         start_at = 0
         while True:
             if self.verbose:
-                utils.log(
-                    f"Fetching batch starting at {start_at}",
-                    "DEBUG",
-                    verbose_only=True,
-                    verbose=self.verbose,
-                )
+                click.echo(f"Fetching batch starting at {start_at}", err=True)
 
             result = self.jira.search_issues(
                 jql,
@@ -304,11 +242,9 @@ class MyJi:
             issues.extend(batch_issues)
 
             if self.verbose:
-                utils.log(
+                click.echo(
                     f"Retrieved {len(batch_issues)} issues (total: {len(issues)})",
-                    "DEBUG",
-                    verbose_only=True,
-                    verbose=self.verbose,
+                    err=True,
                 )
 
             total = result.get("total", 0)
@@ -318,23 +254,15 @@ class MyJi:
             start_at += limit
 
         if self.verbose:
-            utils.log(
-                f"Total issues retrieved: {len(issues)}",
-                "SUCCESS",
-                verbose_only=True,
-                verbose=self.verbose,
-            )
+            click.secho(f"Total issues retrieved: {len(issues)}", fg="blue", err=True)
 
         return issues
 
     def fuzzy_search(self, issues):
         """Use fzf to interactively select an issue."""
         if self.verbose:
-            utils.log(
-                f"Preparing fuzzy search interface for {len(issues)} issues",
-                "DEBUG",
-                verbose_only=True,
-                verbose=self.verbose,
+            click.echo(
+                f"Preparing fuzzy search interface for {len(issues)} issues", err=True
             )
 
         if not issues:
@@ -416,18 +344,8 @@ class MyJi:
             tmp.flush()
 
             if self.verbose:
-                utils.log(
-                    f"Generated temporary file for fzf: {tmp.name}",
-                    "DEBUG",
-                    verbose_only=True,
-                    verbose=self.verbose,
-                )
-                utils.log(
-                    f"Starting fzf with {len(issues)} issues",
-                    "DEBUG",
-                    verbose_only=True,
-                    verbose=self.verbose,
-                )
+                click.echo(f"Generated temporary file for fzf: {tmp.name}", err=True)
+                click.echo(f"Starting fzf with {len(issues)} issues", err=True)
 
             preview_cmd = """
                 jira issue view {2} --plain|gum format -l markdown --theme=tokyo-night
@@ -460,15 +378,10 @@ class MyJi:
                 )
 
                 if self.verbose and result.stdout:
-                    utils.log(
-                        f"User selected: {result.stdout.strip()}",
-                        "DEBUG",
-                        verbose_only=True,
-                        verbose=self.verbose,
-                    )
+                    click.echo(f"User selected: {result.stdout.strip()}", err=True)
 
             except subprocess.CalledProcessError as e:
-                utils.log(f"Error occurred: {e}", "ERROR")
+                click.secho(f"Error occurred: {e}", fg="red", err=True)
                 return None
 
             return result.stdout.strip().split("\t")[0] if result.stdout else None
@@ -485,7 +398,7 @@ class MyJi:
         """Create a new Jira issue."""
         self.jira.create_issue(
             issuetype=issuetype or "Story",
-            summary=summary or input("Summary: "),
+            summary=summary or click.prompt("Summary"),
             description=description,
             priority=priority,
             assignee=assignee,
@@ -497,107 +410,108 @@ class MyJi:
         issues = self.list_issues("assignee = currentUser()")
         selected = self.fuzzy_search(issues)
         if not selected:
-            utils.log("No issue selected", "WARNING")
-            sys.exit("No issue selected")
+            click.secho("No issue selected", fg="yellow", err=True)
+            raise click.Abort("No issue selected")
 
-        utils.log(
-            f"Getting issue details for {selected}",
-            "DEBUG",
-            verbose_only=True,
-            verbose=self.verbose,
-        )
+        if self.verbose:
+            click.echo(f"Getting issue details for {selected}", err=True)
+
         issue = self.jira.get_issue(selected, fields=["summary"])
         summary = issue["fields"]["summary"]
 
         branch = f"{selected}-{summary.replace(' ', '-').lower()[:75]}"
-        utils.log(f"Suggested branch name: {branch}", "SUCCESS")
-        print(branch)
+        click.secho(f"Suggested branch name: {branch}", fg="blue")
+        click.echo(branch)
 
-    def run(self):
-        self.myj_path = os.path.abspath(sys.argv[0])
-        parser = argparse.ArgumentParser(description="Jira Helper")
-        subparsers = parser.add_subparsers(dest="command")
 
-        # Add subcommands mirroring the original bash script
-        subparsers.add_parser("myissue", help="My current issues")
-        subparsers.add_parser("myinprogress", help="My in-progress issues")
-        subparsers.add_parser("pac-current", help="Current PAC issues")
-        subparsers.add_parser("pac-create", help="Create PAC issue")
-        subparsers.add_parser("git-branch", help="Suggest git branch")
-        fzfparsers = subparsers.add_parser("fzf", help="fzf preview helper")
-        fzf_subparsers = fzfparsers.add_subparsers(dest="fzf_command")
-        browser_open = fzf_subparsers.add_parser(
-            "browser-open", help="Open issue in browser"
-        )
-        browser_open.add_argument("ticket", help="Ticket number to open")
+@click.group()
+@click.option("--no-cache", "-n", is_flag=True, help="Disable caching of API responses")
+@click.option("--verbose", "-v", is_flag=True, help="Enable verbose output")
+@click.pass_context
+def cli(ctx, no_cache, verbose):
+    """Jira Helper Tool"""
+    ctx.obj = MyJi(no_cache=no_cache, verbose=verbose)
+    ctx.obj.myj_path = os.path.abspath(sys.argv[0])
 
-        # Add global options
-        parser.add_argument(
-            "-n",
-            "--no-cache",
-            action="store_true",
-            help="Disable caching of API responses",
-        )
-        parser.add_argument(
-            "-v",
-            "--verbose",
-            action="store_true",
-            help="Enable verbose output",
-        )
 
-        args = parser.parse_args()
+@cli.command("myissue")
+@click.pass_obj
+def my_issue(myji):
+    """My current issues"""
+    jql = "assignee = currentUser() AND resolution = Unresolved"
+    if myji.verbose:
+        click.echo(f"Running query: {jql}", err=True)
+    issues = myji.list_issues(jql)
+    selected = myji.fuzzy_search(issues)
+    if selected:
+        click.secho(f"Selected issue: {selected}", fg="green")
 
-        # Reinitialize jira client with flags if specified
-        if args.no_cache or args.verbose:
-            self.jira = JiraHTTP(no_cache=args.no_cache, verbose=args.verbose)
-            self.verbose = args.verbose
 
-            if self.verbose:
-                utils.log(
-                    f"Command: {args.command}",
-                    "DEBUG",
-                    verbose_only=True,
-                    verbose=self.verbose,
-                )
-                utils.log(
-                    f"No cache: {args.no_cache}",
-                    "DEBUG",
-                    verbose_only=True,
-                    verbose=self.verbose,
-                )
+@cli.command("myinprogress")
+@click.pass_obj
+def my_inprogress(myji):
+    """My in-progress issues"""
+    jql = (
+        'assignee = currentUser() AND status in ("Code Review", "In Progress", "On QA")'
+    )
+    if myji.verbose:
+        click.echo(f"Running query: {jql}", err=True)
+    issues = myji.list_issues(jql)
+    selected = myji.fuzzy_search(issues)
+    if selected:
+        click.secho(f"Selected issue: {selected}", fg="green")
 
-        if args.command == "pac-create":
-            self.create_issue()
-        elif args.command == "git-branch":
-            self.suggest_git_branch()
-        elif args.command == "fzf":
-            otherargs = sys.argv[2:]
-            if otherargs:
-                if otherargs[0] == "browser-open":
-                    if len(otherargs) > 1:
-                        ticket = otherargs[1]
-                    else:
-                        raise ValueError("Ticket number is required")
-                    ticket = otherargs[1]
-                    utils.browser_open_ticket(ticket)
-        else:
-            # Default to listing issues with appropriate JQL
-            jql = {
-                "myissue": "assignee = currentUser() AND resolution = Unresolved",
-                "myinprogress": 'assignee = currentUser() AND status in ("Code Review", "In Progress", "On QA")',
-                "pac-current": f'component = "{self.jira.component}" AND fixVersion in unreleasedVersions({self.jira.project})',
-            }.get(args.command, "")
 
-            if jql:
-                utils.log(
-                    f"Running query: {jql}",
-                    "DEBUG",
-                    verbose_only=True,
-                    verbose=self.verbose,
-                )
-                issues = self.list_issues(jql)
-                selected = self.fuzzy_search(issues)
-                if selected:
-                    utils.log(f"Selected issue: {selected}", "SUCCESS")
-            else:
-                parser.print_help()
+@cli.command("pac-current")
+@click.pass_obj
+def pac_current(myji):
+    """Current PAC issues"""
+    jql = f'component = "{myji.jira.component}" AND fixVersion in unreleasedVersions({myji.jira.project})'
+    if myji.verbose:
+        click.echo(f"Running query: {jql}", err=True)
+    issues = myji.list_issues(jql)
+    selected = myji.fuzzy_search(issues)
+    if selected:
+        click.secho(f"Selected issue: {selected}", fg="green")
+
+
+@cli.command("pac-create")
+@click.option("--type", "-t", "issuetype", default="Story", help="Issue type")
+@click.option("--summary", "-s", help="Issue summary")
+@click.option("--description", "-d", help="Issue description")
+@click.option("--priority", "-p", help="Issue priority")
+@click.option("--assignee", "-a", help="Issue assignee")
+@click.option("--labels", "-l", multiple=True, help="Issue labels")
+@click.pass_obj
+def pac_create(myji, issuetype, summary, description, priority, assignee, labels):
+    """Create PAC issue"""
+    labels_list = list(labels) if labels else None
+    myji.create_issue(
+        issuetype=issuetype,
+        summary=summary,
+        description=description,
+        priority=priority,
+        assignee=assignee,
+        labels=labels_list,
+    )
+
+
+@cli.command("git-branch")
+@click.pass_obj
+def git_branch(myji):
+    """Suggest git branch"""
+    myji.suggest_git_branch()
+
+
+@cli.group("fzf")
+def fzf():
+    """FZF preview helper"""
+    pass
+
+
+@fzf.command("browser-open")
+@click.argument("ticket")
+@click.pass_obj
+def browser_open(myji, ticket):
+    """Open issue in browser"""
+    utils.browser_open_ticket(ticket)

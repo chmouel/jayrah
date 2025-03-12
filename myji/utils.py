@@ -1,20 +1,8 @@
 import datetime
 import os
-import shutil
 import subprocess
 import sys
-
-# ANSI color codes
-COLORS = {
-    "green": "\033[92m",
-    "yellow": "\033[93m",
-    "red": "\033[91m",
-    "cyan": "\033[96m",
-    "magenta": "\033[95m",
-    "blue": "\033[94m",
-    "reset": "\033[0m",
-    "bold": "\033[1m",
-}
+import click
 
 # Log levels with corresponding colors
 LOG_LEVELS = {
@@ -39,44 +27,35 @@ def browser_open_ticket(ticket):
     try:
         webbrowser.open(f"https://{server}/browse/{ticket}")
     except Exception as e:
-        log(f"Failed to open URL {ticket}: {e}", level="ERROR")
+        click.secho(f"Failed to open URL {ticket}: {e}", fg="red", err=True)
 
 
 def log(message, level="INFO", verbose_only=False, verbose=False, file=sys.stdout):
     """
-    Print a colored log message based on level.
+    Log a message with color-coded level prefix.
 
     Args:
-        message (str): The message to print
-        level (str): Log level (DEBUG, INFO, WARNING, ERROR, SUCCESS)
-        verbose_only (bool): Only print if verbose mode is enabled
-        verbose (bool): Whether verbose mode is enabled
-        file: File object to write to (default: sys.stdout)
+        message (str): The message to log.
+        level (str): The log level (e.g., INFO, WARNING, ERROR).
+        verbose_only (bool): Only log if verbose mode is enabled.
+        verbose (bool): Whether verbose mode is enabled.
+        file (file): The file to write to.
     """
     if verbose_only and not verbose:
         return
 
-    # Default to INFO if invalid level provided
-    color = COLORS.get(LOG_LEVELS.get(level, "green"))
-    reset = COLORS["reset"]
+    color = LOG_LEVELS.get(level, "reset")
+    prefix = f"[{level}] " if level else ""
 
-    # Format level prefix
-    prefix = f"[{color}{level}{reset}] " if level != "INFO" else ""
-
-    # For error messages, print to stderr
-    if level == "ERROR":
-        file = sys.stderr
-
-    # Apply color to the entire message for warnings and errors
-    if level in ["WARNING", "ERROR"]:
-        print(f"{prefix}{color}{message}{reset}", file=file)
+    if file == sys.stderr:
+        click.secho(f"{prefix}{message}", fg=color.lower(), err=True)
     else:
-        print(f"{prefix}{message}", file=file)
+        click.secho(f"{prefix}{message}", fg=color.lower())
 
 
 def colorize(color, text):
-    """Colorize text with ANSI color codes"""
-    return f"{COLORS.get(color, '')}{text}{COLORS['reset']}"
+    """Colorize text with Click's style function"""
+    return click.style(text, fg=color.lower())
 
 
 def show_time(s):
@@ -88,27 +67,9 @@ def parse_email(s):
 
 
 def get_pass_key(s):
-    """
-    Get the password key from a password store
-
-    Args:
-        s (str): The string to parse.
-
-    Returns:
-        str: The password key.
-    """
-    # check if the pass utility is in path
-    if not shutil.which("pass"):
-        log("pass utility not found in path", level="DEBUG")
+    cmd = ["pass", s]
+    try:
+        return subprocess.check_output(cmd, text=True).strip()
+    except subprocess.CalledProcessError:
+        click.secho(f"Failed to retrieve password for {s}", fg="red", err=True)
         return None
-
-    p = subprocess.Popen(
-        ["pass", "show", s],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
-    out, err = p.communicate()
-    if p.returncode != 0:
-        log(f"Error getting password key: {err.decode().strip()}", level="ERROR")
-        return None
-    return out.decode().strip()

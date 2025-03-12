@@ -4,7 +4,10 @@ version = "0.1.0"
 description = "My simple JIRA CLI"
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = ["requests>=2.32.3"]
+dependencies = [
+    "click>=8.1.8",
+    "requests>=2.32.3",
+]
 scripts = { myj = "myji.cli:main" }
 
 [dependency-groups]

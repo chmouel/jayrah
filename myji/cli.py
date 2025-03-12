@@ -1,17 +1,19 @@
 import sys
+import click
 from . import myji, utils
 
 
 def main():
-    app = myji.MyJi()
     try:
-        app.run()
+        myji.cli()
     except KeyboardInterrupt:
-        utils.log("Operation cancelled by user", "WARNING")
+        click.secho("Operation cancelled by user", fg="yellow", err=True)
         sys.exit(1)
     except Exception as e:
-        utils.log(f"Error: {e}", "ERROR")
-        raise e
+        click.secho(f"Error: {e}", fg="red", err=True)
+        if "--verbose" in sys.argv or "-v" in sys.argv:
+            raise e
+        sys.exit(1)
 
 
 if __name__ == "__main__":
