@@ -3,6 +3,8 @@ from datetime import datetime
 import os
 import tempfile
 import subprocess
+import urllib.request
+import urllib.error
 
 
 def display_issue(issue, comments_count=0, verbose=False):
@@ -119,38 +121,6 @@ def display_issue(issue, comments_count=0, verbose=False):
     click.echo(created_date.strftime("%Y-%m-%d %H:%M:%S"))
     click.secho("🔄 Updated: ", fg="cyan", nl=False)
     click.echo(updated_date.strftime("%Y-%m-%d %H:%M:%S"))
-
-    # Display Avatar in Kitty if available
-    if (
-        fields.get("assignee")
-        and fields["assignee"].get("avatarUrls")
-        and os.environ.get("TERM") == "xterm-kitty"
-    ):
-        avatar_url = fields["assignee"]["avatarUrls"]["48x48"]
-        # If the avatar is an SVG, convert it to PNG for display
-        if avatar_url.endswith(".svg"):
-            try:
-                # Only try to display if we're in a Kitty terminal
-                click.secho("\nAssignee Avatar:", bold=True)
-                with tempfile.NamedTemporaryFile(
-                    suffix=".png", delete=False
-                ) as tmp_file:
-                    # Download SVG and convert to PNG using rsvg-convert if available
-                    subprocess.run(
-                        f"curl -s '{avatar_url}' | rsvg-convert -h 48 > {tmp_file.name}",
-                        shell=True,
-                        check=True,
-                    )
-                    # Display the PNG in the terminal
-                    subprocess.run(
-                        f"kitty icat --align left {tmp_file.name}",
-                        shell=True,
-                        check=True,
-                    )
-                    os.unlink(tmp_file.name)
-            except Exception as e:
-                if verbose:
-                    click.echo(f"Failed to display avatar: {e}", err=True)
 
     # Description
     click.echo("\n" + "─" * 80)
