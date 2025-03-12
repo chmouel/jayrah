@@ -1,0 +1,14 @@
+[project]
+name = "myji"
+version = "0.1.0"
+description = "My simple JIRA CLI"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = ["requests>=2.32.3"]
+scripts = { myj = "myji.cli:main" }
+
+[dependency-groups]
+dev = ["ipython>=9.0.2", "types-requests>=2.32.0.20250306"]
+
+[tool.uv]
+package = true
