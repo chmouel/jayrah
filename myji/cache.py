@@ -4,13 +4,15 @@ import os
 import time
 from pathlib import Path
 
-from . import utils
+from . import utils, defaults
 
 
 class JiraCache:
     """Cache handler for Jira API responses"""
 
-    def __init__(self, cache_dir=None, cache_ttl=3600, verbose=False):
+    def __init__(
+        self, cache_dir=None, cache_ttl=defaults.CACHE_DURATION, verbose=False
+    ):
         """
         Initialize the cache handler
 

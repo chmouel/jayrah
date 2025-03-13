@@ -127,3 +127,5 @@ ISSUE_TYPE_EMOJIS = {
     "New Feature": ("🌟", "NF"),
     "Improvement": ("🚀", "IM"),
 }
+
+CACHE_DURATION = 60 * 60 * 24 * 1  # 1 day
