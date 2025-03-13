@@ -196,7 +196,7 @@ class MyJi:
                 "--preview-window",
                 "right:hidden:wrap",
                 "--bind",
-                f"enter:execute({self.myj_path} issue open {{2}})",
+                f"enter:execute(python3 -m webbrowser https://{self.jira.server}/browse/{{2}})",
                 "--bind",
                 "f5:execute:echo 'TODO: Remove labels'",
                 "--bind",
