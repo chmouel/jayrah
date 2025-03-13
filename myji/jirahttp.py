@@ -7,6 +7,8 @@ from urllib.parse import urlencode
 
 import click
 
+from myji import defaults
+
 from . import cache, utils
 
 
@@ -21,6 +23,7 @@ class JiraHTTP:
         component=None,
         no_cache=False,
         verbose=False,
+        cache_ttl=defaults.CACHE_DURATION,
     ):
         self.server = server or os.getenv("JIRA_SERVER", "issues.redhat.com")
         self.token = token or os.getenv("JIRA_API_TOKEN")
@@ -29,7 +32,7 @@ class JiraHTTP:
         self.base_url = f"https://{self.server}/rest/api/2"
         self.no_cache = no_cache
         self.verbose = verbose
-        self.cache = cache.JiraCache(verbose=self.verbose)
+        self.cache = cache.JiraCache(verbose=self.verbose, cache_ttl=cache_ttl)
 
         if self.verbose:
             click.echo(

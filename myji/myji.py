@@ -9,10 +9,12 @@ from . import defaults, jirahttp, utils
 
 class MyJi:
     myj_path: str = ""
+    cache_ttl: int = defaults.CACHE_DURATION
 
-    def __init__(self, no_cache=False, verbose=False):
+    def __init__(self, no_cache=False, verbose=False, cache_ttl=defaults.CACHE_DURATION):
         self.verbose = verbose
-        self.jira = jirahttp.JiraHTTP(no_cache=no_cache, verbose=verbose)
+        self.jira = jirahttp.JiraHTTP(no_cache=no_cache, verbose=verbose, cache_ttl=cache_ttl)
+        self.cache_ttl = cache_ttl
 
         if self.verbose:
             click.echo("MyJi initialized with verbose logging enabled", err=True)

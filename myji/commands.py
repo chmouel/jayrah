@@ -1,19 +1,19 @@
 import os
 import sys
 import click
-import os
 
-from . import myji, utils
-from . import issue_view
+
+from . import myji, utils, defaults, issue_view
 
 
 @click.group()
 @click.option("--no-cache", "-n", is_flag=True, help="Disable caching of API responses")
 @click.option("--verbose", "-v", is_flag=True, help="Enable verbose output")
+@click.option("--cache-ttl", "-t", default=defaults.CACHE_DURATION, help="Cache TTL in seconds")
 @click.pass_context
-def cli(ctx, no_cache, verbose):
+def cli(ctx, no_cache, verbose, cache_ttl):
     """Jira Helper Tool"""
-    ctx.obj = myji.MyJi(no_cache=no_cache, verbose=verbose)
+    ctx.obj = myji.MyJi(no_cache=no_cache, verbose=verbose, cache_ttl=cache_ttl)
     ctx.obj.myj_path = os.path.abspath(sys.argv[0])
 
 
