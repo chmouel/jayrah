@@ -1,44 +1,58 @@
-import click
-from datetime import datetime
-import subprocess
-import re
+import os
 import shutil
+import subprocess
+import textwrap
+from datetime import datetime
+
+import click
+import jira2markdown
 
 
-def convert_jira_to_markdown(jira_text):
-    """Convert Jira formatted text to standard markdown"""
-    if not jira_text:
+def get_terminal_width() -> int:
+    terminal_width = None
+    try:
+        # Prefer FZF_PREVIEW_COLUMNS if set
+        terminal_width = int(os.getenv("FZF_PREVIEW_COLUMNS", os.getenv("COLUMNS", "")))
+    except (TypeError, ValueError):
+        # Fallback if FZF_PREVIEW_COLUMNS or COLUMNS is not set or invalid
+        terminal_width = None
+
+    # Step 2: Use shutil.get_terminal_size() if FZF variables are not available
+    if terminal_width is None:
+        try:
+            terminal_width = shutil.get_terminal_size((80, 20)).columns
+        except OSError:
+            # Final fallback to 80 characters if terminal size cannot be determined
+            terminal_width = 80
+    if terminal_width >= 130:
+        terminal_width = 130
+    elif terminal_width < 80:
+        terminal_width = 80
+
+    return terminal_width
+
+
+def wrap_markdown(text):
+    """Wrap markdown text to terminal width"""
+    if not text:
         return ""
 
-    # Convert headers: h2. *Title* -> ## Title
-    def header_replace(match):
-        level = int(match.group(1))
-        title = match.group(2)
-        return "#" * level + " " + title
-
-    markdown = re.sub(r"h([1-6])\.\s*\*(.*?)\*", header_replace, jira_text)
-
-    # Convert Jira code blocks {code} or {noformat} to ```
-    markdown = re.sub(
-        r"\{code(?::\w+)?\}(.*?)\{code\}", r"```\n\1\n```", markdown, flags=re.DOTALL
-    )
-    markdown = re.sub(
-        r"\{noformat\}(.*?)\{noformat\}", r"```\n\1\n```", markdown, flags=re.DOTALL
-    )
-
-    # Process line by line for lists and other formatting
+    terminal_width = get_terminal_width()
     lines = []
-    for line in markdown.split("\n"):
-        # Convert bullet lists: " * item" -> "- item"
-        line = re.sub(r"^\s*\*\s", "- ", line)
+    for line in text.split("\n"):
+        # Skip wrapping for code blocks and headers
+        if line.endswith("```java"):
+            line = "```bash"
 
-        # Convert numbered lists: " # item" -> "1. item"
-        line = re.sub(r"^\s*#\s", "1. ", line)
-
-        # Bold: *text* -> **text**
-        line = re.sub(r"\*(.*?)\*", r"**\1**", line)
-
-        lines.append(line)
+        if line.startswith("```") or line.startswith("#"):
+            lines.append(line)
+        else:
+            # Wrap the line to the terminal width
+            wrapped_lines = textwrap.wrap(
+                line,
+                width=terminal_width,
+            )
+            lines.append("\n".join(wrapped_lines))
 
     return "\n".join(lines)
 
@@ -212,7 +226,8 @@ def display_issue(issue, comments_count=0, verbose=False):
     click.secho("📝 Description:", fg="blue", bold=True)
     if fields.get("description"):
         # Convert Jira markdown to standard markdown and format with gum if available
-        markdown_description = convert_jira_to_markdown(fields["description"])
+        markdown_description = jira2markdown.convert(fields["description"])
+        markdown_description = wrap_markdown(markdown_description)
         formatted_description = format_with_gum(markdown_description)
         print(formatted_description)
     else:

@@ -123,6 +123,18 @@ wheels = [
 ]
 
 [[package]]
+name = "jira2markdown"
+version = "0.4"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pyparsing" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/91/8a/1484d179bcc01975040fe4835629ed61b55dd5e3c49acfbc0bc67958d328/jira2markdown-0.4.tar.gz", hash = "sha256:a91907ade53ef71106645cf914925057296f06dc7f791b31524b94b62c1240d2", size = 11618 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/57/4d/54f91c3041f1a799f84dc1e96ffe585b7a4491e6df781f2532f7b91b564a/jira2markdown-0.4-py3-none-any.whl", hash = "sha256:519fd96ec5be63072cd7e6805e5b79bd0b10c54d6aa087d787d47f2e4a13a782", size = 14281 },
+]
+
+[[package]]
 name = "markdown-it-py"
 version = "3.0.0"
 source = { registry = "https://pypi.org/simple" }
@@ -170,6 +182,7 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "click" },
+    { name = "jira2markdown" },
     { name = "rich" },
 ]
 
@@ -183,6 +196,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "click", specifier = ">=8.1.8" },
+    { name = "jira2markdown", specifier = ">=0.4" },
     { name = "rich", specifier = ">=13.9.4" },
 ]
 
@@ -278,6 +292,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/d5/e7/3616e8caa61f918c4864db075800a6bd7422621618045c188fd45c3f7a2b/pylint-3.3.5.tar.gz", hash = "sha256:38d0f784644ed493d91f76b5333a0e370a1c1bc97c22068a77523b4bf1e82c31", size = 1519168 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/99/62/42199570fc199cc0f6825d746ddb0183b30739b334dc6d85edeaa8a2073c/pylint-3.3.5-py3-none-any.whl", hash = "sha256:7cb170929a371238530b2eeea09f5f28236d106b70308c3d46a9c0cf11634633", size = 522215 },
+]
+
+[[package]]
+name = "pyparsing"
+version = "3.2.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/8b/1a/3544f4f299a47911c2ab3710f534e52fea62a633c96806995da5d25be4b2/pyparsing-3.2.1.tar.gz", hash = "sha256:61980854fd66de3a90028d679a954d5f2623e83144b5afe5ee86f43d762e5f0a", size = 1067694 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/1c/a7/c8a2d361bf89c0d9577c934ebb7421b25dc84bf3a8e3ac0a40aed9acc547/pyparsing-3.2.1-py3-none-any.whl", hash = "sha256:506ff4f4386c4cec0590ec19e6302d3aedb992fdc02c761e90416f158dacf8e1", size = 107716 },
 ]
 
 [[package]]
