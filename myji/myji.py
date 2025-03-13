@@ -73,6 +73,51 @@ class MyJi:
 
         return issues
 
+    def _build_issue_table(self, issue, max_ticket_length, max_summary_length, max_asignee_length, max_reporter_length) -> list:
+        it = issue["fields"]["issuetype"]["name"]
+        if it in defaults.ISSUE_TYPE_EMOJIS:
+            it = defaults.ISSUE_TYPE_EMOJIS[it][0]
+        else:
+            it = it[:4]
+        ss = [it]
+        ss.append(issue["key"].strip().ljust(max_ticket_length))
+        ss.append(
+            (
+                issue["fields"]["summary"].strip()[
+                    : defaults.SUMMARY_MAX_LENGTH - 3
+                ]
+                + "…"
+                if len(issue["fields"]["summary"].strip())
+                > defaults.SUMMARY_MAX_LENGTH
+                else issue["fields"]["summary"].strip()
+            ).ljust(max_summary_length)
+        )
+        if "assignee" in issue["fields"]:
+            kk = "None"
+            if issue["fields"]["assignee"]:
+                kk = utils.parse_email(
+                    issue["fields"]["assignee"]["emailAddress"]
+                )
+            ss += [kk.ljust(max_asignee_length)]
+        if "reporter" in issue["fields"]:
+            kk = utils.parse_email(issue["fields"]["reporter"]["emailAddress"])
+            ss += [kk.ljust(max_reporter_length)]
+        if "created" in issue["fields"]:
+            kk = utils.show_time(issue["fields"]["created"])
+            ss += [kk.ljust(10)]
+        if "updated" in issue["fields"]:
+            kk = utils.show_time(issue["fields"]["updated"])
+            ss += [kk.ljust(10)]
+        if "resolution" in issue["fields"]:
+            kk = "Unres"
+            if issue["fields"]["resolution"]:
+                resolution_name = issue["fields"]["resolution"]["name"]
+                kk = defaults.RESOLUTION_EMOJIS.get(
+                    resolution_name, resolution_name
+                )
+            ss += [kk.ljust(5)]
+        return ss
+
     def fuzzy_search(self, issues):
         """Use fzf to interactively select an issue."""
         if self.verbose:
@@ -116,48 +161,12 @@ class MyJi:
             ]
             tmp.write(utils.colorize("cyan", "|").join(fields) + "\n")
             for issue in issues:
-                it = issue["fields"]["issuetype"]["name"]
-                if it in defaults.ISSUE_TYPE_EMOJIS:
-                    it = defaults.ISSUE_TYPE_EMOJIS[it][0]
-                else:
-                    it = it[:4]
-                ss = [it]
-                ss.append(issue["key"].strip().ljust(max_ticket_length))
-                ss.append(
-                    (
-                        issue["fields"]["summary"].strip()[
-                            : defaults.SUMMARY_MAX_LENGTH - 3
-                        ]
-                        + "…"
-                        if len(issue["fields"]["summary"].strip())
-                        > defaults.SUMMARY_MAX_LENGTH
-                        else issue["fields"]["summary"].strip()
-                    ).ljust(max_summary_length)
+                ss = self._build_issue_table(
+                    issue, max_ticket_length,
+                    max_summary_length,
+                    max_asignee_length,
+                    max_reporter_length
                 )
-                if "assignee" in issue["fields"]:
-                    kk = "None"
-                    if issue["fields"]["assignee"]:
-                        kk = utils.parse_email(
-                            issue["fields"]["assignee"]["emailAddress"]
-                        )
-                    ss += [kk.ljust(max_asignee_length)]
-                if "reporter" in issue["fields"]:
-                    kk = utils.parse_email(issue["fields"]["reporter"]["emailAddress"])
-                    ss += [kk.ljust(max_reporter_length)]
-                if "created" in issue["fields"]:
-                    kk = utils.show_time(issue["fields"]["created"])
-                    ss += [kk.ljust(10)]
-                if "updated" in issue["fields"]:
-                    kk = utils.show_time(issue["fields"]["updated"])
-                    ss += [kk.ljust(10)]
-                if "resolution" in issue["fields"]:
-                    kk = "Unres"
-                    if issue["fields"]["resolution"]:
-                        resolution_name = issue["fields"]["resolution"]["name"]
-                        kk = defaults.RESOLUTION_EMOJIS.get(
-                            resolution_name, resolution_name
-                        )
-                    ss += [kk.ljust(5)]
                 tmp.write(utils.colorize("cyan", "|").join(ss) + "\n")
             tmp.flush()
 
