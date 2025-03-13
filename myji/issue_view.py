@@ -1,7 +1,5 @@
 import click
 from datetime import datetime
-import os
-import tempfile
 import subprocess
 import re
 import shutil
@@ -55,7 +53,13 @@ def format_with_gum(text):
         try:
             # Use pipe to send markdown content to gum
             process = subprocess.run(
-                ["gum", "format", "--type", "markdown"],
+                # TODO: make the theme configurable
+                [
+                    "gum",
+                    "format",
+                    "--type=markdown",
+                    "--theme=tokyo-night",
+                ],
                 input=text,
                 capture_output=True,
                 text=True,
@@ -110,6 +114,15 @@ def display_issue(issue, comments_count=0, verbose=False):
         "Trivial": "🟢",
     }
 
+    # Priority ANSI color mapping
+    priority_colors = {
+        "Blocker": "\033[91m",  # Bright red
+        "Critical": "\033[31m",  # Red
+        "Major": "\033[33m",  # Yellow
+        "Minor": "\033[36m",  # Cyan
+        "Trivial": "\033[32m",  # Green
+    }
+
     # Format header
     issue_type = fields["issuetype"]["name"]
     issue_status = fields["status"]["name"]
@@ -119,13 +132,19 @@ def display_issue(issue, comments_count=0, verbose=False):
     status_emoji = status_emoji.get(issue_status, "❓")
     priority_emoji = priority_emoji.get(issue_priority, "⚪")
 
-    # Header
-    click.echo("╔" + "═" * 78 + "╗")
-    click.secho(f"║ {type_emoji} ", nl=False)
-    click.secho(f"{issue['key']}: ", fg="yellow", bold=True, nl=False)
-    click.secho(fields["summary"], bold=True, nl=False)
-    click.echo(" " * (77 - len(issue["key"]) - len(fields["summary"])) + "║")
-    click.echo("╚" + "═" * 78 + "╝")
+    # Plain text version for box dimension calculations
+    plain_title = f"{type_emoji} {issue_type} {issue['key']} {fields['summary']}"
+
+    # Header with fancy UTF box-drawing characters
+    click.echo("╔" + "═" * (len(plain_title) + 3) + "╗")
+    click.echo("║ " + type_emoji + " ", nl=False)
+    print(f"\033[1m\033[36m{issue_type}\033[0m", end="")
+    click.echo(f" {issue['key']} {fields['summary']}" + " ║")
+    click.echo("╚" + "═" * (len(plain_title) + 3) + "╝")
+    click.echo("")
+
+    # Calculate correct padding accounting for all displayed elements
+    # Left border + space (2) + emoji (typical width 2) + issue key + colon & space (2) + summary
 
     # Status line
     status_color = (
@@ -139,7 +158,8 @@ def display_issue(issue, comments_count=0, verbose=False):
     click.secho(issue_status, fg=status_color, nl=False)
     click.echo(" | ", nl=False)
     click.secho(f"{priority_emoji} Priority: ", bold=True, nl=False)
-    click.echo(issue_priority, nl=False)
+    priority_color = priority_colors.get(issue_priority, "")
+    print(f"{priority_color}{issue_priority}\033[0m", end="")
     click.echo(" | ", nl=False)
     click.secho("🏷️ Type: ", bold=True, nl=False)
     click.echo(issue_type)
@@ -194,7 +214,7 @@ def display_issue(issue, comments_count=0, verbose=False):
         # Convert Jira markdown to standard markdown and format with gum if available
         markdown_description = convert_jira_to_markdown(fields["description"])
         formatted_description = format_with_gum(markdown_description)
-        click.echo(formatted_description)
+        print(formatted_description)
     else:
         click.echo("No description provided")
 

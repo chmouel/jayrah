@@ -9,7 +9,9 @@ from . import myji, utils, defaults, issue_view
 @click.group()
 @click.option("--no-cache", "-n", is_flag=True, help="Disable caching of API responses")
 @click.option("--verbose", "-v", is_flag=True, help="Enable verbose output")
-@click.option("--cache-ttl", "-t", default=defaults.CACHE_DURATION, help="Cache TTL in seconds")
+@click.option(
+    "--cache-ttl", "-t", default=defaults.CACHE_DURATION, help="Cache TTL in seconds"
+)
 @click.pass_context
 def cli(ctx, no_cache, verbose, cache_ttl):
     """Jira Helper Tool"""
@@ -87,12 +89,12 @@ def git_branch(myji_obj):
     myji_obj.suggest_git_branch()
 
 
-@cli.group("fzf")
-def fzf():
-    """FZF preview helper"""
+@cli.group("issue")
+def issue():
+    """issue commands"""
 
 
-@fzf.command("open")
+@issue.command("open")
 @click.argument("ticket")
 @click.pass_obj
 def browser_open(myji_obj, ticket):
@@ -102,7 +104,7 @@ def browser_open(myji_obj, ticket):
     utils.browser_open_ticket(ticket, server=server)
 
 
-@fzf.command("view")
+@issue.command("view")
 @click.argument("ticket")
 @click.option("--comments", "-c", default=0, help="Number of comments to show")
 @click.option(

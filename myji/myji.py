@@ -11,9 +11,13 @@ class MyJi:
     myj_path: str = ""
     cache_ttl: int = defaults.CACHE_DURATION
 
-    def __init__(self, no_cache=False, verbose=False, cache_ttl=defaults.CACHE_DURATION):
+    def __init__(
+        self, no_cache=False, verbose=False, cache_ttl=defaults.CACHE_DURATION
+    ):
         self.verbose = verbose
-        self.jira = jirahttp.JiraHTTP(no_cache=no_cache, verbose=verbose, cache_ttl=cache_ttl)
+        self.jira = jirahttp.JiraHTTP(
+            no_cache=no_cache, verbose=verbose, cache_ttl=cache_ttl
+        )
         self.cache_ttl = cache_ttl
 
         if self.verbose:
@@ -73,7 +77,14 @@ class MyJi:
 
         return issues
 
-    def _build_issue_table(self, issue, max_ticket_length, max_summary_length, max_asignee_length, max_reporter_length) -> list:
+    def _build_issue_table(
+        self,
+        issue,
+        max_ticket_length,
+        max_summary_length,
+        max_asignee_length,
+        max_reporter_length,
+    ) -> list:
         it = issue["fields"]["issuetype"]["name"]
         if it in defaults.ISSUE_TYPE_EMOJIS:
             it = defaults.ISSUE_TYPE_EMOJIS[it][0]
@@ -83,21 +94,16 @@ class MyJi:
         ss.append(issue["key"].strip().ljust(max_ticket_length))
         ss.append(
             (
-                issue["fields"]["summary"].strip()[
-                    : defaults.SUMMARY_MAX_LENGTH - 3
-                ]
+                issue["fields"]["summary"].strip()[: defaults.SUMMARY_MAX_LENGTH - 3]
                 + "…"
-                if len(issue["fields"]["summary"].strip())
-                > defaults.SUMMARY_MAX_LENGTH
+                if len(issue["fields"]["summary"].strip()) > defaults.SUMMARY_MAX_LENGTH
                 else issue["fields"]["summary"].strip()
             ).ljust(max_summary_length)
         )
         if "assignee" in issue["fields"]:
             kk = "None"
             if issue["fields"]["assignee"]:
-                kk = utils.parse_email(
-                    issue["fields"]["assignee"]["emailAddress"]
-                )
+                kk = utils.parse_email(issue["fields"]["assignee"]["emailAddress"])
             ss += [kk.ljust(max_asignee_length)]
         if "reporter" in issue["fields"]:
             kk = utils.parse_email(issue["fields"]["reporter"]["emailAddress"])
@@ -112,9 +118,7 @@ class MyJi:
             kk = "Unres"
             if issue["fields"]["resolution"]:
                 resolution_name = issue["fields"]["resolution"]["name"]
-                kk = defaults.RESOLUTION_EMOJIS.get(
-                    resolution_name, resolution_name
-                )
+                kk = defaults.RESOLUTION_EMOJIS.get(resolution_name, resolution_name)
             ss += [kk.ljust(5)]
         return ss
 
@@ -162,10 +166,11 @@ class MyJi:
             tmp.write(utils.colorize("cyan", "|").join(fields) + "\n")
             for issue in issues:
                 ss = self._build_issue_table(
-                    issue, max_ticket_length,
+                    issue,
+                    max_ticket_length,
                     max_summary_length,
                     max_asignee_length,
-                    max_reporter_length
+                    max_reporter_length,
                 )
                 tmp.write(utils.colorize("cyan", "|").join(ss) + "\n")
             tmp.flush()
@@ -178,7 +183,7 @@ class MyJi:
                     verbose=self.verbose,
                 )
 
-            preview_cmd = f"{self.myj_path} fzf view {{2}}"
+            preview_cmd = f"{self.myj_path} issue view {{2}}"
             fzf_cmd = [
                 "fzf",
                 "-d",
@@ -191,7 +196,7 @@ class MyJi:
                 "--preview-window",
                 "right:hidden:wrap",
                 "--bind",
-                f"enter:execute({self.myj_path} fzf open {{2}})",
+                f"enter:execute({self.myj_path} issue open {{2}})",
                 "--bind",
                 "f5:execute:echo 'TODO: Remove labels'",
                 "--bind",
