@@ -4,18 +4,11 @@ version = "0.1.0"
 description = "My simple JIRA CLI"
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = [
-    "click>=8.1.8",
-    "rich>=13.9.4",
-]
+dependencies = ["click>=8.1.8", "rich>=13.9.4", "jira2markdown>=0.1.3"]
 scripts = { myj = "myji.cli:main" }
 
 [dependency-groups]
-dev = [
-    "ipython>=9.0.2",
-    "isort>=6.0.1",
-    "pylint>=3.3.5",
-]
+dev = ["ipython>=9.0.2", "isort>=6.0.1", "pylint>=3.3.5"]
 
 [tool.uv]
 package = true

@@ -30,6 +30,9 @@ FZFOPTS = [
     "ctrl-v:change-preview-window(up,70%:wrap|hidden|right:wrap)",
 ]
 
+# Add a header note about F1 help
+HEADER_NOTE = "Press F1 for help | Ctrl+V toggles preview | Enter to open"
+
 SUMMARY_MAX_LENGTH = 100
 
 RESOLUTION_EMOJIS = {

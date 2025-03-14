@@ -3,7 +3,7 @@ import sys
 
 import click
 
-from . import defaults, issue_view, myji, utils
+from . import defaults, help, issue_view, myji, utils
 
 
 @click.group()
@@ -16,11 +16,21 @@ from . import defaults, issue_view, myji, utils
 @click.pass_context
 def cli(ctx, no_cache, no_fzf, verbose, cache_ttl):
     """Jira Helper Tool"""
+    # If --help-content flag is used, print the help content and exit
     ctx.obj = myji.MyJi(
         no_cache=no_cache, verbose=verbose, cache_ttl=cache_ttl, no_fzf=no_fzf
     )
     ctx.obj.myj_path = os.path.abspath(sys.argv[0])
     ctx.obj.ctx = ctx
+
+
+@cli.command("help")
+@click.pass_obj
+def help_command(myji_obj):
+    """Display help content"""
+    # Display help content in a formatted way
+    help_text = help.get_help_text()
+    click.echo(help_text, err=True)
 
 
 @cli.command("myissue")

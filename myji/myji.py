@@ -145,6 +145,9 @@ class MyJi:
             return None
 
         with tempfile.NamedTemporaryFile("w+") as tmp:
+            tmp.write(
+                f"Press {click.style('F1', fg='red')} for help -- {click.style('Ctrl-v', fg='red')} to toggle preview -- {click.style('Ctrl-r', fg='red')} to reload non cached content\n"
+            )
             max_summary_length = max(
                 min(
                     len(issue["fields"]["summary"].strip()), defaults.SUMMARY_MAX_LENGTH
@@ -198,12 +201,13 @@ class MyJi:
                 return None
 
             preview_cmd = f"{self.myj_path} issue view {{2}}"
+            help_cmd = f"clear;{self.myj_path} help;bash -c \"read -n1 -p 'Press a key to exit'\""
             fzf_cmd = [
                 "fzf",
                 "-d",
                 "|",
                 "--ansi",
-                "--header-lines=1",
+                "--header-lines=2",
                 "--reverse",
                 "--preview",
                 preview_cmd,
@@ -214,6 +218,8 @@ class MyJi:
                 f"ctrl-r:reload({self.myj_path} --no-fzf -n {self.command})",
                 "--bind",
                 f"enter:execute({self.myj_path} issue open {{2}})",
+                "--bind",
+                f"f1:execute({help_cmd})",
             ]
             fzf_cmd += defaults.FZFOPTS
 
