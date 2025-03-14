@@ -57,37 +57,17 @@ def wrap_markdown(text):
     return "\n".join(lines)
 
 
-def format_with_gum(text):
-    """Format text with gum if available, otherwise return original text"""
-    if not text:
-        return "No description provided"
+def format_with_rich(text):
+    from rich.console import Console
+    from rich.markdown import Markdown
 
-    # Check if gum is available
-    if shutil.which("gum"):
-        try:
-            # Use pipe to send markdown content to gum
-            process = subprocess.run(
-                # TODO: make the theme configurable
-                [
-                    "gum",
-                    "format",
-                    "--type=markdown",
-                    "--theme=tokyo-night",
-                ],
-                input=text,
-                capture_output=True,
-                text=True,
-                check=True,
-            )
-
-            # Return formatted output
-            return process.stdout
-
-        except (subprocess.SubprocessError, OSError):
-            # Fall back to original text if there's an error
-            return text
-
-    return text
+    console = Console(
+        color_system="truecolor",
+        force_terminal=True,
+        width=get_terminal_width(),
+    )
+    md = Markdown(text, code_theme="github-dark", justify="left")
+    console.print(md)
 
 
 def display_issue(issue, comments_count=0, verbose=False):
@@ -224,12 +204,12 @@ def display_issue(issue, comments_count=0, verbose=False):
     # Description
     click.echo("\n" + "─" * 80)
     click.secho("📝 Description:", fg="blue", bold=True)
+    click.echo("")
     if fields.get("description"):
         # Convert Jira markdown to standard markdown and format with gum if available
         markdown_description = jira2markdown.convert(fields["description"])
         markdown_description = wrap_markdown(markdown_description)
-        formatted_description = format_with_gum(markdown_description)
-        print(formatted_description)
+        format_with_rich(markdown_description)
     else:
         click.echo("No description provided")
 
@@ -258,12 +238,7 @@ def display_issue(issue, comments_count=0, verbose=False):
                 + " " * (77 - len(f"Comment {i + 1} - {author} ({created})"))
                 + "│"
             )
-            click.echo("├" + "─" * 78 + "┤")
+            click.echo("╚" + "─" * 78 + "╝")
 
             # Simple formatting for comment body
-            for line in comment["body"].split("\n"):
-                wrapped_lines = [line[i : i + 76] for i in range(0, len(line), 76)]
-                for wrapped in wrapped_lines:
-                    click.echo("│ " + wrapped + " " * (76 - len(wrapped)) + " │")
-
-            click.echo("└" + "─" * 78 + "┘\n")
+            format_with_rich(comment["body"])
