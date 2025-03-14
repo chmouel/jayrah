@@ -8,6 +8,7 @@ FIELDS = [
     "resolution",
     "issuetype",
     "fixVersion",
+    "status",
 ]
 FZFOPTS = [
     "--highlight-line",
@@ -34,17 +35,6 @@ FZFOPTS = [
 HEADER_NOTE = "Press F1 for help | Ctrl+V toggles preview | Enter to open"
 
 SUMMARY_MAX_LENGTH = 100
-
-RESOLUTION_EMOJIS = {
-    "Done": "Done",
-    "Won't Do": "WontD",
-    "Duplicate": "Dupl",
-    "Incomplete": "Incom",
-    "Cannot Reproduce": "Cannot",
-    "Fixed": "Fixed",
-    "Won't Fix": "WontF",
-}
-
 
 ISSUE_TYPE_EMOJIS = {
     "Feature Request": ("🌟", "FR"),

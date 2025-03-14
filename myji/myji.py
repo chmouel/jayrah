@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import subprocess
 import tempfile
+from functools import reduce
 
 import click
 
@@ -93,6 +94,7 @@ class MyJi:
         max_summary_length,
         max_asignee_length,
         max_reporter_length,
+        max_status_length,
     ) -> list:
         it = issue["fields"]["issuetype"]["name"]
         if it in defaults.ISSUE_TYPE_EMOJIS:
@@ -123,12 +125,8 @@ class MyJi:
         if "updated" in issue["fields"]:
             kk = utils.show_time(issue["fields"]["updated"])
             ss += [kk.ljust(10)]
-        if "resolution" in issue["fields"]:
-            kk = "Unres"
-            if issue["fields"]["resolution"]:
-                resolution_name = issue["fields"]["resolution"]["name"]
-                kk = defaults.RESOLUTION_EMOJIS.get(resolution_name, resolution_name)
-            ss += [kk.ljust(5)]
+        if "status" in issue["fields"]:
+            ss += [issue["fields"]["status"]["name"].ljust(max_status_length)]
         return ss
 
     def fuzzy_search(self, issues):
@@ -148,23 +146,28 @@ class MyJi:
             tmp.write(
                 f"Press {click.style('F1', fg='red')} for help -- {click.style('Ctrl-v', fg='red')} to toggle preview -- {click.style('Ctrl-r', fg='red')} to reload non cached content\n"
             )
-            max_summary_length = max(
-                min(
-                    len(issue["fields"]["summary"].strip()), defaults.SUMMARY_MAX_LENGTH
+            get_max_length = lambda field_path, default_value=0: max(
+                (len(value) if value else default_value)
+                for issue in issues
+                if (
+                    value := reduce(
+                        lambda obj, key: obj.get(key)
+                        if isinstance(obj, dict)
+                        else None,
+                        field_path.split("."),
+                        issue,
+                    )
                 )
-                for issue in issues
+                is not None
             )
-            max_ticket_length = max(len(issue["key"]) for issue in issues)
-            max_asignee_length = max(
-                len(issue["fields"]["assignee"])
-                for issue in issues
-                if "assignee" in issue["fields"] and issue["fields"]["assignee"]
+
+            max_summary_length = min(
+                get_max_length("fields.summary", 0), defaults.SUMMARY_MAX_LENGTH
             )
-            max_reporter_length = max(
-                len(issue["fields"]["reporter"])
-                for issue in issues
-                if "reporter" in issue["fields"] and issue["fields"]["reporter"]
-            )
+            max_ticket_length = get_max_length("key")
+            max_asignee_length = get_max_length("fields.assignee")
+            max_reporter_length = get_max_length("fields.reporter")
+            max_status_length = get_max_length("fields.status.name")
             fields = [
                 "IT",
                 "TICKET".center(max_ticket_length),
@@ -173,7 +176,7 @@ class MyJi:
                 "REPORTER".center(max_reporter_length),
                 "CREATED".center(10),
                 "UPDATED".center(10),
-                "RESOLUTION".rjust(10),
+                "STATUS".ljust(max_status_length),
             ]
             tmp.write(utils.colorize("cyan", "|").join(fields) + "\n")
             for issue in issues:
@@ -183,6 +186,7 @@ class MyJi:
                     max_summary_length,
                     max_asignee_length,
                     max_reporter_length,
+                    max_status_length,
                 )
                 tmp.write(utils.colorize("cyan", "|").join(ss) + "\n")
             tmp.flush()
