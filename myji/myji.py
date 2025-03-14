@@ -197,10 +197,6 @@ class MyJi:
                 "right:hidden:wrap",
                 "--bind",
                 f"enter:execute({self.myj_path} issue open {{2}})",
-                "--bind",
-                "f5:execute:echo 'TODO: Remove labels'",
-                "--bind",
-                "f8:execute:echo 'TODO: Set sprint'",
             ]
             fzf_cmd += defaults.FZFOPTS
 
