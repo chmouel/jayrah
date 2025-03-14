@@ -17,15 +17,14 @@ LOG_LEVELS = {
 
 
 def browser_open_ticket(ticket, server=None):
-    """
-    Open a URL in the default web browser.
-
-    Args:
-        ticket (str): The ticket ID to open.
-        server (str, optional): The server hosting the ticket.
-    """
     if server is None:
         server = os.getenv("JIRA_SERVER", "issues.redhat.com")
+
+    if not ticket:
+        webbrowser.open(
+            f"https://{server}/projects/{os.getenv('JIRA_PROJECT', 'SRVKP')}"
+        )
+        return
 
     try:
         webbrowser.open(f"https://{server}/browse/{ticket}")

@@ -100,24 +100,16 @@ def pac_create(myji_obj, issuetype, summary, description, priority, assignee, la
     )
 
 
-@cli.command("git-branch")
-@click.pass_obj
-def git_branch(myji_obj):
-    """Suggest git branch"""
-    myji_obj.suggest_git_branch()
-
-
 @cli.group("issue")
 def issue():
-    """issue commands"""
+    """Issue manage issues in a given project. See available commands below."""
 
 
 @issue.command("open")
-@click.argument("ticket")
+@click.argument("ticket", required=False)
 @click.pass_obj
 def browser_open(myji_obj, ticket):
-    """Open issue in browser"""
-    # Use the myji_obj if needed to see server info
+    """Open opens issue in a browser. If the issue key is not given, it will open the project page."""
     server = myji_obj.jira.server if hasattr(myji_obj, "jira") else None
     utils.browser_open_ticket(ticket, server=server)
 

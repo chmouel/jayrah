@@ -266,21 +266,3 @@ class MyJi:
             assignee=assignee,
             labels=labels,
         )
-
-    def suggest_git_branch(self):
-        """Suggest a git branch name based on a selected issue."""
-        issues = self.list_issues("assignee = currentUser()")
-        selected = self.fuzzy_search(issues)
-        if not selected:
-            click.secho("No issue selected", fg="yellow", err=True)
-            raise click.Abort("No issue selected")
-
-        if self.verbose:
-            click.echo(f"Getting issue details for {selected}", err=True)
-
-        issue = self.jira.get_issue(selected, fields=["summary"])
-        summary = issue["fields"]["summary"]
-
-        branch = f"{selected}-{summary.replace(' ', '-').lower()[:75]}"
-        click.secho(f"Suggested branch name: {branch}", fg="blue")
-        click.echo(branch)
