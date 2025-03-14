@@ -249,11 +249,13 @@ def display_issue(issue, comments_count=0, verbose=False):
             )
 
             click.echo("┌" + "─" * 78 + "┐")
-            click.secho(f"│ Comment {i + 1} - ", fg="cyan", nl=False)
+            click.echo("| ", nl=False)
+            click.secho(f"Comment {i + 1}", fg="cyan", nl=False)
+            click.echo(" - ", nl=False)
             click.secho(author, fg="yellow", nl=False)
             click.echo(
                 f" ({created})"
-                + " " * (79 - len(f"Comment {i + 1} - {author} ({created})"))
+                + " " * (77 - len(f"Comment {i + 1} - {author} ({created})"))
                 + "│"
             )
             click.echo("├" + "─" * 78 + "┤")

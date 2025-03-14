@@ -204,7 +204,7 @@ class MyJi:
                     print(tmp_file.read().strip())
                 return None
 
-            preview_cmd = f"{self.myj_path} issue view {{2}}"
+            preview_cmd = f"{self.myj_path} issue view --comments 3 {{2}}"
             help_cmd = f"clear;{self.myj_path} help;bash -c \"read -n1 -p 'Press a key to exit'\""
             fzf_cmd = [
                 "fzf",
