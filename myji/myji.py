@@ -10,15 +10,24 @@ from . import defaults, jirahttp, utils
 class MyJi:
     myj_path: str = ""
     cache_ttl: int = defaults.CACHE_DURATION
+    ctx: click.Context = None
+    command: str = ""
+    verbose: bool = False
+    no_fzf: bool = False
 
     def __init__(
-        self, no_cache=False, verbose=False, cache_ttl=defaults.CACHE_DURATION
+        self,
+        no_cache=False,
+        verbose=False,
+        cache_ttl=defaults.CACHE_DURATION,
+        no_fzf=False,
     ):
         self.verbose = verbose
         self.jira = jirahttp.JiraHTTP(
-            no_cache=no_cache, verbose=verbose, cache_ttl=cache_ttl
+            no_cache=no_cache, verbose=verbose, cache_ttl=cache_ttl, no_fzf=no_fzf
         )
         self.cache_ttl = cache_ttl
+        self.no_fzf = no_fzf
 
         if self.verbose:
             click.echo("MyJi initialized with verbose logging enabled", err=True)
@@ -183,6 +192,11 @@ class MyJi:
                     verbose=self.verbose,
                 )
 
+            if self.no_fzf:
+                with open(tmp.name, encoding="utf-8") as tmp_file:
+                    print(tmp_file.read().strip())
+                return None
+
             preview_cmd = f"{self.myj_path} issue view {{2}}"
             fzf_cmd = [
                 "fzf",
@@ -195,6 +209,9 @@ class MyJi:
                 preview_cmd,
                 "--preview-window",
                 "right:hidden:wrap",
+                "--bind",
+                # TODO: arguments
+                f"ctrl-r:reload({self.myj_path} --no-fzf -n {self.command})",
                 "--bind",
                 f"enter:execute({self.myj_path} issue open {{2}})",
             ]

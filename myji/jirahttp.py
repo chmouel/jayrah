@@ -1,8 +1,8 @@
 import json
 import os
-import urllib.request
 import urllib.error
 import urllib.parse
+import urllib.request
 from urllib.parse import urlencode
 
 import click
@@ -24,6 +24,7 @@ class JiraHTTP:
         no_cache=False,
         verbose=False,
         cache_ttl=defaults.CACHE_DURATION,
+        no_fzf=False,
     ):
         self.server = server or os.getenv("JIRA_SERVER", "issues.redhat.com")
         self.token = token or os.getenv("JIRA_API_TOKEN")
@@ -33,6 +34,7 @@ class JiraHTTP:
         self.no_cache = no_cache
         self.verbose = verbose
         self.cache = cache.JiraCache(verbose=self.verbose, cache_ttl=cache_ttl)
+        self.no_fzf = no_fzf
 
         if self.verbose:
             click.echo(
@@ -176,11 +178,12 @@ class JiraHTTP:
         if fields:
             params["fields"] = ",".join(fields)
 
-        click.echo(
-            f"Searching issues with JQL: '{click.style(jql, fg='cyan')}' "
-            f"Params: '{click.style(params.get('fields', ''), fg='cyan')}'",
-            err=True,
-        )
+        if self.verbose:
+            click.echo(
+                f"Searching issues with JQL: '{click.style(jql, fg='cyan')}' "
+                f"Params: '{click.style(params.get('fields', ''), fg='cyan')}'",
+                err=True,
+            )
 
         if self.verbose:
             click.echo(f"Start at: {start_at}, Max results: {max_results}", err=True)

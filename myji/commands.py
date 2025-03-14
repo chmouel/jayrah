@@ -1,28 +1,33 @@
 import os
 import sys
+
 import click
 
-
-from . import myji, utils, defaults, issue_view
+from . import defaults, issue_view, myji, utils
 
 
 @click.group()
 @click.option("--no-cache", "-n", is_flag=True, help="Disable caching of API responses")
+@click.option("--no-fzf", is_flag=True, help="Output directly to stdout without fzf")
 @click.option("--verbose", "-v", is_flag=True, help="Enable verbose output")
 @click.option(
     "--cache-ttl", "-t", default=defaults.CACHE_DURATION, help="Cache TTL in seconds"
 )
 @click.pass_context
-def cli(ctx, no_cache, verbose, cache_ttl):
+def cli(ctx, no_cache, no_fzf, verbose, cache_ttl):
     """Jira Helper Tool"""
-    ctx.obj = myji.MyJi(no_cache=no_cache, verbose=verbose, cache_ttl=cache_ttl)
+    ctx.obj = myji.MyJi(
+        no_cache=no_cache, verbose=verbose, cache_ttl=cache_ttl, no_fzf=no_fzf
+    )
     ctx.obj.myj_path = os.path.abspath(sys.argv[0])
+    ctx.obj.ctx = ctx
 
 
 @cli.command("myissue")
 @click.pass_obj
 def my_issue(myji_obj):
     """My current issues"""
+    myji_obj.command = "myissue"
     jql = "assignee = currentUser() AND resolution = Unresolved"
     if myji_obj.verbose:
         click.echo(f"Running query: {jql}", err=True)
@@ -36,6 +41,7 @@ def my_issue(myji_obj):
 @click.pass_obj
 def my_inprogress(myji_obj):
     """My in-progress issues"""
+    myji_obj.command = "myinprogress"
     jql = (
         'assignee = currentUser() AND status in ("Code Review", "In Progress", "On QA")'
     )
@@ -51,6 +57,7 @@ def my_inprogress(myji_obj):
 @click.pass_obj
 def pac_current(myji_obj):
     """Current PAC issues"""
+    myji_obj.command = "pac-current"
     jql = f'component = "{myji_obj.jira.component}" AND fixVersion in unreleasedVersions({myji_obj.jira.project})'
     if myji_obj.verbose:
         click.echo(f"Running query: {jql}", err=True)
@@ -71,6 +78,7 @@ def pac_current(myji_obj):
 # pylint: disable=too-many-positional-arguments
 def pac_create(myji_obj, issuetype, summary, description, priority, assignee, labels):
     """Create PAC issue"""
+    myji_obj.command = "pac-create"
     labels_list = list(labels) if labels else None
     myji_obj.create_issue(
         issuetype=issuetype,
