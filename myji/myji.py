@@ -221,7 +221,7 @@ class MyJi:
                 "right:hidden:wrap",
                 "--bind",
                 # TODO: arguments
-                f"ctrl-r:reload({self.myj_path} --no-fzf -n {self.command})",
+                f"ctrl-r:reload({self.myj_path} --no-fzf -n browse {self.command})",
                 "--bind",
                 f"enter:execute({self.myj_path} issue open {{2}})",
                 "--bind",

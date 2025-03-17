@@ -33,7 +33,12 @@ def help_command(myji_obj):
     click.echo(help_text, err=True)
 
 
-@cli.command("myissue")
+@cli.group("browse")
+def browse():
+    """Browse boards"""
+
+
+@browse.command("myissue")
 @click.pass_obj
 def my_issue(myji_obj):
     """My current issues"""
@@ -47,7 +52,7 @@ def my_issue(myji_obj):
         click.secho(f"Selected issue: {selected}", fg="green")
 
 
-@cli.command("myinprogress")
+@browse.command("myinprogress")
 @click.pass_obj
 def my_inprogress(myji_obj):
     """My in-progress issues"""
@@ -63,7 +68,7 @@ def my_inprogress(myji_obj):
         click.secho(f"Selected issue: {selected}", fg="green")
 
 
-@cli.command("pac-current")
+@browse.command("pac-current")
 @click.pass_obj
 def pac_current(myji_obj):
     """Current PAC issues"""
@@ -77,7 +82,7 @@ def pac_current(myji_obj):
         click.secho(f"Selected issue: {selected}", fg="green")
 
 
-@cli.command("pac-create")
+@cli.command("create")
 @click.option("--type", "-t", "issuetype", default="Story", help="Issue type")
 @click.option("--summary", "-s", help="Issue summary")
 @click.option("--description", "-d", help="Issue description")
@@ -87,8 +92,8 @@ def pac_current(myji_obj):
 @click.pass_obj
 # pylint: disable=too-many-positional-arguments
 def pac_create(myji_obj, issuetype, summary, description, priority, assignee, labels):
-    """Create PAC issue"""
-    myji_obj.command = "pac-create"
+    """Create an issue"""
+    myji_obj.command = "create"
     labels_list = list(labels) if labels else None
     myji_obj.create_issue(
         issuetype=issuetype,
@@ -98,13 +103,6 @@ def pac_create(myji_obj, issuetype, summary, description, priority, assignee, la
         assignee=assignee,
         labels=labels_list,
     )
-
-
-@cli.command("git-branch")
-@click.pass_obj
-def git_branch(myji_obj):
-    """Suggest git branch"""
-    myji_obj.suggest_git_branch()
 
 
 @cli.group("issue")
