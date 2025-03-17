@@ -20,13 +20,13 @@ def edit_description(ticketj, obj):
     # Add some helpful instructions at the top of the file
     editor_text = (
         "# Edit the description for issue " + ticket_number + "\n"
-        "# Lines starting with # will be ignored\n"
+        "# The first lines starting with # will be ignored\n"
         "# Save and exit the editor to submit changes, or exit without saving to cancel\n"
         "#\n\n" + (current_description or "")
     )
 
     # Open the editor and get the updated description
-    updated_description = utils.edit_text_with_editor(editor_text, extension=".md")
+    updated_description = utils.edit_text_with_editor(editor_text, extension=".jira")
 
     # Remove comment lines and check if there were actual changes
     cleaned_description = "\n".join(
@@ -317,6 +317,5 @@ class JiraHTTP:
         if self.verbose:
             click.echo(f"Updating issue: {issue_key}", err=True)
             click.echo(f"Fields to update: {list(fields.keys())}", err=True)
-        return True
 
-        # return self._request("PUT", endpoint, jeez=payload)
+        return self._request("PUT", endpoint, jeez=payload)

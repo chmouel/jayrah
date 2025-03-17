@@ -3,6 +3,8 @@ import sys
 
 import click
 
+from myji import jirahttp
+
 from . import defaults, help, issue_action, issue_view, myji, utils
 
 
@@ -146,3 +148,16 @@ def action(myji_obj, ticket):
     fields = None  # Get all fields
     issue = myji_obj.jira.get_issue(ticket, fields=fields)
     issue_action.action_menu(issue, myji_obj)
+
+
+@issue.command("edit-description")
+@click.argument("ticket")
+@click.pass_obj
+def edit_description(myji_obj, ticket):
+    """Edit issue description with system editor"""
+    fields = None  # Get all fields
+    ticketj = myji_obj.jira.get_issue(ticket, fields=fields)
+    edit_success = jirahttp.edit_description(ticketj, myji_obj)
+    ticket_number = ticketj["key"]
+    if edit_success and myji_obj.verbose:
+        click.echo(f"Description updated for {ticket_number}", err=True)
