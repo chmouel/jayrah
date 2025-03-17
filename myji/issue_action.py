@@ -3,7 +3,7 @@ import tempfile
 
 import click
 
-from myji import utils
+from myji import utils, jirahttp
 
 from . import defaults
 
@@ -11,11 +11,27 @@ from . import defaults
 def action_menu(ticketj, obj):
     result = choose_action(ticketj, obj)
     ticket_number = ticketj["key"]
+
+    if not result:
+        return
+
     match result:
         case "browse_issue":
             utils.browser_open_ticket(ticket_number)
             return
         case "edit_description":
+            # Call our new edit_description function
+            edit_success = jirahttp.edit_description(ticketj, obj)
+            if edit_success and obj.verbose:
+                click.echo(f"Description updated for {ticket_number}", err=True)
+            return
+        case "transition_issue":
+            click.secho(
+                "Transition issue functionality coming soon", fg="yellow", err=True
+            )
+            return
+        case "add_comment":
+            click.secho("Add comment functionality coming soon", fg="yellow", err=True)
             return
 
 

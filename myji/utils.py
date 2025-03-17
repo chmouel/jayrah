@@ -3,6 +3,8 @@ import os
 import subprocess
 import sys
 import webbrowser
+import tempfile
+
 
 import click
 
@@ -75,3 +77,28 @@ def get_pass_key(s):
     except subprocess.CalledProcessError:
         click.secho(f"Failed to retrieve password for {s}", fg="red", err=True)
         return None
+
+
+def edit_text_with_editor(initial_text, extension=".md"):
+    """Edit text using the system's default editor"""
+    # Use the EDITOR environment variable, or default to vim/nano
+    editor = os.environ.get("EDITOR", os.environ.get("VISUAL", "nano"))
+
+    # Create a temporary file with the initial text
+    with tempfile.NamedTemporaryFile(suffix=extension, mode="w+", delete=False) as tf:
+        tf.write(initial_text)
+        tf_path = tf.name
+
+    try:
+        # Open the editor with the temporary file
+        click.echo(f"Opening editor ({editor}) to edit description...", err=True)
+        subprocess.run([editor, tf_path], check=True)
+
+        # Read the edited content
+        with open(tf_path, "r") as tf:
+            edited_text = tf.read()
+
+        return edited_text
+    finally:
+        # Clean up the temporary file
+        os.unlink(tf_path)

@@ -165,5 +165,12 @@ PRIORITY_COLORS = {
     "Trivial": "\033[32m",  # Green
 }
 
+LOG_LEVELS = {
+    "DEBUG": "cyan",
+    "INFO": "green",
+    "WARNING": "yellow",
+    "ERROR": "red",
+    "SUCCESS": "blue",
+}
 
 CACHE_DURATION = 60 * 60 * 24 * 1  # 1 day

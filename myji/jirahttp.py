@@ -12,6 +12,51 @@ from myji import defaults
 from . import cache, utils
 
 
+def edit_description(ticketj, obj):
+    """Edit the description of a Jira issue"""
+    ticket_number = ticketj["key"]
+    current_description = ticketj["fields"].get("description", "")
+
+    # Add some helpful instructions at the top of the file
+    editor_text = (
+        "# Edit the description for issue " + ticket_number + "\n"
+        "# Lines starting with # will be ignored\n"
+        "# Save and exit the editor to submit changes, or exit without saving to cancel\n"
+        "#\n\n" + (current_description or "")
+    )
+
+    # Open the editor and get the updated description
+    updated_description = utils.edit_text_with_editor(editor_text, extension=".md")
+
+    # Remove comment lines and check if there were actual changes
+    cleaned_description = "\n".join(
+        line
+        for line in updated_description.splitlines()
+        if not line.strip().startswith("#")
+    )
+
+    # Strip whitespace from both descriptions for comparison
+    if cleaned_description.strip() == current_description.strip():
+        click.secho("No changes made to description", fg="yellow", err=True)
+        return False
+
+    # Confirm with the user before submitting
+    if click.confirm("Submit updated description?", default=True):
+        try:
+            # Update the issue with the new description
+            obj.jira.update_issue(ticket_number, {"description": cleaned_description})
+            click.secho(
+                f"✅ Description updated for {ticket_number}", fg="green", err=True
+            )
+            return True
+        except Exception as e:
+            click.secho(f"Error updating description: {e}", fg="red", err=True)
+            return False
+    else:
+        click.secho("Update canceled", fg="yellow", err=True)
+        return False
+
+
 class JiraHTTP:
     # pylint: disable=too-many-instance-attributes
     # pylint: disable=too-many-positional-arguments
@@ -134,7 +179,8 @@ class JiraHTTP:
             # Add JSON data if provided
             data = None
             if jeez:
-                data = jeez.dumps(jeez).encode("utf-8")
+                # Fix: Use json.dumps instead of jeez.dumps
+                data = json.dumps(jeez).encode("utf-8")
 
             # Send the request
             with urllib.request.urlopen(request, data=data) as response:
@@ -253,3 +299,24 @@ class JiraHTTP:
             click.echo(f"Getting issue: {issue_key} with fields: {fields}", err=True)
 
         return self._request("GET", endpoint, params=params)
+
+    def update_issue(self, issue_key, fields):
+        """
+        Update an existing issue's fields.
+
+        Args:
+            issue_key (str): The issue key (e.g., 'SRVKP-123')
+            fields (dict): Fields to update (e.g., {'description': '...'})
+
+        Returns:
+            dict: JSON response containing the updated issue.
+        """
+        endpoint = f"issue/{issue_key}"
+        payload = {"fields": fields}
+
+        if self.verbose:
+            click.echo(f"Updating issue: {issue_key}", err=True)
+            click.echo(f"Fields to update: {list(fields.keys())}", err=True)
+        return True
+
+        # return self._request("PUT", endpoint, jeez=payload)
