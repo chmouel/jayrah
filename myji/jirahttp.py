@@ -12,51 +12,6 @@ from myji import defaults
 from . import cache, utils
 
 
-def edit_description(ticketj, obj):
-    """Edit the description of a Jira issue"""
-    ticket_number = ticketj["key"]
-    current_description = ticketj["fields"].get("description", "")
-
-    # Add some helpful instructions at the top of the file
-    editor_text = (
-        "# Edit the description for issue " + ticket_number + "\n"
-        "# The first lines starting with # will be ignored\n"
-        "# Save and exit the editor to submit changes, or exit without saving to cancel\n"
-        "#\n\n" + (current_description or "")
-    )
-
-    # Open the editor and get the updated description
-    updated_description = utils.edit_text_with_editor(editor_text, extension=".jira")
-
-    # Remove comment lines and check if there were actual changes
-    cleaned_description = "\n".join(
-        line
-        for line in updated_description.splitlines()
-        if not line.strip().startswith("#")
-    )
-
-    # Strip whitespace from both descriptions for comparison
-    if cleaned_description.strip() == current_description.strip():
-        click.secho("No changes made to description", fg="yellow", err=True)
-        return False
-
-    # Confirm with the user before submitting
-    if click.confirm("Submit updated description?", default=True):
-        try:
-            # Update the issue with the new description
-            obj.jira.update_issue(ticket_number, {"description": cleaned_description})
-            click.secho(
-                f"✅ Description updated for {ticket_number}", fg="green", err=True
-            )
-            return True
-        except Exception as e:
-            click.secho(f"Error updating description: {e}", fg="red", err=True)
-            return False
-    else:
-        click.secho("Update canceled", fg="yellow", err=True)
-        return False
-
-
 class JiraHTTP:
     # pylint: disable=too-many-instance-attributes
     # pylint: disable=too-many-positional-arguments
@@ -319,3 +274,30 @@ class JiraHTTP:
             click.echo(f"Fields to update: {list(fields.keys())}", err=True)
 
         return self._request("PUT", endpoint, jeez=payload)
+
+    def get_transitions(self, issue_key):
+        endpoint = f"issue/{issue_key}/transitions"
+
+        return self._request("GET", endpoint)
+
+    def transition_issue(self, issue_key, transition_id):
+        """
+        Transition an issue to a new status.
+
+        Args:
+            issue_key (str): The issue key (e.g., 'SRVKP-123')
+            transition_id (str): The ID of the transition to perform
+
+        Returns:
+            dict: JSON response from the API (empty for successful transitions)
+        """
+        endpoint = f"issue/{issue_key}/transitions"
+        payload = {"transition": {"id": transition_id}}
+
+        if self.verbose:
+            click.echo(
+                f"Transitioning issue: {issue_key} with transition ID: {transition_id}",
+                err=True,
+            )
+
+        return self._request("POST", endpoint, jeez=payload)

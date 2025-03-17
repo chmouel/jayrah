@@ -144,7 +144,7 @@ class MyJi:
 
         with tempfile.NamedTemporaryFile("w+") as tmp:
             tmp.write(
-                f"Press {click.style('F1', fg='red')} for help -- {click.style('Ctrl-v', fg='red')} to toggle preview -- {click.style('Ctrl-r', fg='red')} to reload non cached content\n"
+                f"Press {click.style('F1', fg='red')} for help -- {click.style('Ctrl-v', fg='red')} for preview -- {click.style('Ctrl-r', fg='red')} to reload -- {click.style('Ctrl-a', fg='red')} for actions\n"
             )
 
             def get_max_length(field_path, default_value=0):
@@ -224,6 +224,8 @@ class MyJi:
                 f"ctrl-r:reload({self.myj_path} --no-fzf -n {self.command})",
                 "--bind",
                 f"enter:execute({self.myj_path} issue open {{2}})",
+                "--bind",
+                f"ctrl-a:execute({self.myj_path} issue action {{2}})",
                 "--bind",
                 f"f1:execute({help_cmd})",
             ]
