@@ -146,20 +146,22 @@ class MyJi:
             tmp.write(
                 f"Press {click.style('F1', fg='red')} for help -- {click.style('Ctrl-v', fg='red')} to toggle preview -- {click.style('Ctrl-r', fg='red')} to reload non cached content\n"
             )
-            get_max_length = lambda field_path, default_value=0: max(
-                (len(value) if value else default_value)
-                for issue in issues
-                if (
-                    value := reduce(
-                        lambda obj, key: obj.get(key)
-                        if isinstance(obj, dict)
-                        else None,
-                        field_path.split("."),
-                        issue,
+
+            def get_max_length(field_path, default_value=0):
+                return max(
+                    (len(value) if value else default_value)
+                    for issue in issues
+                    if (
+                        value := reduce(
+                            lambda obj, key: obj.get(key)
+                            if isinstance(obj, dict)
+                            else None,
+                            field_path.split("."),
+                            issue,
+                        )
                     )
+                    is not None
                 )
-                is not None
-            )
 
             max_summary_length = min(
                 get_max_length("fields.summary", 0), defaults.SUMMARY_MAX_LENGTH
@@ -176,7 +178,7 @@ class MyJi:
                 "REPORTER".center(max_reporter_length),
                 "CREATED".center(10),
                 "UPDATED".center(10),
-                "STATUS".ljust(max_status_length),
+                "STATUS".center(max_status_length),
             ]
             tmp.write(utils.colorize("cyan", "|").join(fields) + "\n")
             for issue in issues:
@@ -204,7 +206,7 @@ class MyJi:
                     print(tmp_file.read().strip())
                 return None
 
-            preview_cmd = f"{self.myj_path} issue view --comments 3 {{2}}"
+            preview_cmd = f"{self.myj_path} issue view {{2}}"
             help_cmd = f"clear;{self.myj_path} help;bash -c \"read -n1 -p 'Press a key to exit'\""
             fzf_cmd = [
                 "fzf",
@@ -266,3 +268,21 @@ class MyJi:
             assignee=assignee,
             labels=labels,
         )
+
+    def suggest_git_branch(self):
+        """Suggest a git branch name based on a selected issue."""
+        issues = self.list_issues("assignee = currentUser()")
+        selected = self.fuzzy_search(issues)
+        if not selected:
+            click.secho("No issue selected", fg="yellow", err=True)
+            raise click.Abort("No issue selected")
+
+        if self.verbose:
+            click.echo(f"Getting issue details for {selected}", err=True)
+
+        issue = self.jira.get_issue(selected, fields=["summary"])
+        summary = issue["fields"]["summary"]
+
+        branch = f"{selected}-{summary.replace(' ', '-').lower()[:75]}"
+        click.secho(f"Suggested branch name: {branch}", fg="blue")
+        click.echo(branch)

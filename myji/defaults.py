@@ -1,13 +1,3 @@
-# Log levels with corresponding colors
-LOG_LEVELS = {
-    "DEBUG": "cyan",
-    "INFO": "green",
-    "WARNING": "yellow",
-    "ERROR": "red",
-    "SUCCESS": "blue",
-}
-
-
 FIELDS = [
     "key",
     "summary",
@@ -45,6 +35,18 @@ FZFOPTS = [
 HEADER_NOTE = "Press F1 for help | Ctrl+V toggles preview | Enter to open"
 
 SUMMARY_MAX_LENGTH = 100
+
+RESOLUTION_EMOJIS = {
+    "Done": "✅",  # Classic checkmark for completed items
+    "Won't Do": "🚫",  # Prohibition sign for items that won't be done
+    "Duplicate": "🔄",  # Arrows in circle for duplicate items
+    "Incomplete": "⏳",  # Hourglass for incomplete items
+    "Cannot Reproduce": "🔍",  # Magnifying glass for issues that can't be reproduced
+    "Fixed": "🔧",  # Wrench for fixed items
+    "Won't Fix": "🛑",  # Stop sign for items that won't be fixed
+    "Unres": "",
+}
+
 
 ISSUE_TYPE_EMOJIS = {
     "Feature Request": ("🌟", "FR"),
@@ -154,7 +156,7 @@ PRIORITY_EMOJI = {
     "Trivial": "🟢",
 }
 
-# Priority ANSI color mapping
+
 PRIORITY_COLORS = {
     "Blocker": "\033[91m",  # Bright red
     "Critical": "\033[31m",  # Red

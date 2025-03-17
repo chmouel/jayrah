@@ -3,7 +3,7 @@ import sys
 
 import click
 
-from . import defaults, help, issue_view, myji, utils
+from . import defaults, help, issue_action, issue_view, myji, utils
 
 
 @click.group()
@@ -100,16 +100,24 @@ def pac_create(myji_obj, issuetype, summary, description, priority, assignee, la
     )
 
 
+@cli.command("git-branch")
+@click.pass_obj
+def git_branch(myji_obj):
+    """Suggest git branch"""
+    myji_obj.suggest_git_branch()
+
+
 @cli.group("issue")
 def issue():
-    """Issue manage issues in a given project. See available commands below."""
+    """issue commands"""
 
 
 @issue.command("open")
-@click.argument("ticket", required=False)
+@click.argument("ticket")
 @click.pass_obj
 def browser_open(myji_obj, ticket):
-    """Open opens issue in a browser. If the issue key is not given, it will open the project page."""
+    """Open issue in browser"""
+    # Use the myji_obj if needed to see server info
     server = myji_obj.jira.server if hasattr(myji_obj, "jira") else None
     utils.browser_open_ticket(ticket, server=server)
 
@@ -127,3 +135,14 @@ def view(myji_obj, ticket, comments, plain):
     fields = None  # Get all fields
     issue = myji_obj.jira.get_issue(ticket, fields=fields)
     issue_view.display_issue(issue, comments, myji_obj.verbose)
+
+
+@issue.command("action")
+@click.argument("ticket")
+@click.pass_obj
+def action(myji_obj, ticket):
+    """View issue in a nice format"""
+    # Get detailed information about the issue
+    fields = None  # Get all fields
+    issue = myji_obj.jira.get_issue(ticket, fields=fields)
+    issue_action.action_menu(issue, myji_obj)
