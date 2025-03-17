@@ -2,9 +2,8 @@ import datetime
 import os
 import subprocess
 import sys
-import webbrowser
 import tempfile
-
+import webbrowser
 
 import click
 
@@ -81,8 +80,8 @@ def get_pass_key(s):
 
 def edit_text_with_editor(initial_text, extension=".md"):
     """Edit text using the system's default editor"""
-    # Use the EDITOR environment variable, or default to vim/nano
-    editor = os.environ.get("EDITOR", os.environ.get("VISUAL", "nano"))
+    # Use the EDITOR environment variable, or default to vi
+    editor = os.environ.get("EDITOR", os.environ.get("VISUAL", "vi"))
 
     # Create a temporary file with the initial text
     with tempfile.NamedTemporaryFile(suffix=extension, mode="w+", delete=False) as tf:
