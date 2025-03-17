@@ -1,3 +1,13 @@
+# Log levels with corresponding colors
+LOG_LEVELS = {
+    "DEBUG": "cyan",
+    "INFO": "green",
+    "WARNING": "yellow",
+    "ERROR": "red",
+    "SUCCESS": "blue",
+}
+
+
 FIELDS = [
     "key",
     "summary",

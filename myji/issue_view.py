@@ -6,7 +6,7 @@ from datetime import datetime
 import click
 import jira2markdown
 
-from myji import defaults
+from myji import defaults, utils
 
 
 def get_terminal_width() -> int:
@@ -80,20 +80,17 @@ def display_issue(issue, comments_count=0, verbose=False):
     issue_status = fields["status"]["name"]
     issue_priority = fields["priority"]["name"]
 
-    type_emoji = defaults.ISSUE_TYPE_EMOJIS.get("issue_type", ("❓", "??"))[0]
+    type_emoji = defaults.ISSUE_TYPE_EMOJIS.get(issue_type, ("❓", "??"))[0]
     status_emoji = defaults.STATUS_EMOJI.get(issue_status, "❓")
     priority_emoji = defaults.PRIORITY_EMOJI.get(issue_priority, "⚪")
 
     # Plain text version for box dimension calculations
-    plain_title = f"{type_emoji} {issue_type} {issue['key']} {fields['summary']}"
+    issue_link = utils.make_osc8_link(issue["key"], utils.make_full_url(issue["key"]))
+    plain_title = f"{type_emoji} \033[1m\033[36m{issue_type}\033[0m {issue_link} {fields['summary']}"
 
     # Header with fancy UTF box-drawing characters
-    click.echo("╔" + "═" * (len(plain_title) + 3) + "╗")
-    click.echo("║ " + type_emoji + " ", nl=False)
-    print(f"\033[1m\033[36m{issue_type}\033[0m", end="")
-    click.echo(f" {issue['key']} {fields['summary']}" + " ║")
-    click.echo("╚" + "═" * (len(plain_title) + 3) + "╝")
-    click.echo("")
+    print(plain_title)
+    click.echo("─" * 80 + "\n")
 
     # Calculate correct padding accounting for all displayed elements
     # Left border + space (2) + emoji (typical width 2) + issue key + colon & space (2) + summary

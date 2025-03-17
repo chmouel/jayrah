@@ -2,24 +2,24 @@ import datetime
 import os
 import subprocess
 import sys
-import webbrowser  # Standard library imports first
+import webbrowser
 
-import click  # Third-party imports next
+import click
 
-# Log levels with corresponding colors
-LOG_LEVELS = {
-    "DEBUG": "cyan",
-    "INFO": "green",
-    "WARNING": "yellow",
-    "ERROR": "red",
-    "SUCCESS": "blue",
-}
+from myji import defaults  # Third-party imports next
+
+
+def make_osc8_link(text, url):
+    return f"\033]8;;{url}\033\\{text}\033]8;;\033\\"
+
+
+def make_full_url(ticket, server=None):
+    if server is None:
+        server = os.getenv("JIRA_SERVER", "issues.redhat.com")
+    return f"https://{server}/browse/{ticket}"
 
 
 def browser_open_ticket(ticket, server=None):
-    if server is None:
-        server = os.getenv("JIRA_SERVER", "issues.redhat.com")
-
     if not ticket:
         webbrowser.open(
             f"https://{server}/projects/{os.getenv('JIRA_PROJECT', 'SRVKP')}"
@@ -27,7 +27,7 @@ def browser_open_ticket(ticket, server=None):
         return
 
     try:
-        webbrowser.open(f"https://{server}/browse/{ticket}")
+        webbrowser.open(make_full_url(ticket, server))
     except Exception as e:
         click.secho(f"Failed to open URL {ticket}: {e}", fg="red", err=True)
 
@@ -46,7 +46,7 @@ def log(message, level="INFO", verbose_only=False, verbose=False, file=sys.stdou
     if verbose_only and not verbose:
         return
 
-    color = LOG_LEVELS.get(level, "reset")
+    color = defaults.LOG_LEVELS.get(level, "reset")
     prefix = f"[{level}] " if level else ""
 
     if file == sys.stderr:
