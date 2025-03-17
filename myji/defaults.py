@@ -121,4 +121,37 @@ ISSUE_TYPE_EMOJIS = {
     "Improvement": ("🚀", "IM"),
 }
 
+# Status emoji mapping
+STATUS_EMOJI = {
+    "Open": "🔓",
+    "In Progress": "🏗️",
+    "Code Review": "👀",
+    "On QA": "🧪",
+    "Done": "✅",
+    "Closed": "🔒",
+    "Resolved": "🎯",
+    "Reopened": "🔄",
+    "New": "🆕",
+    "To Do": "📌",
+}
+
+# Priority emoji mapping
+PRIORITY_EMOJI = {
+    "Blocker": "❌",
+    "Critical": "🛑",
+    "Major": "🔴",
+    "Minor": "🟠",
+    "Trivial": "🟢",
+}
+
+# Priority ANSI color mapping
+PRIORITY_COLORS = {
+    "Blocker": "\033[91m",  # Bright red
+    "Critical": "\033[31m",  # Red
+    "Major": "\033[33m",  # Yellow
+    "Minor": "\033[36m",  # Cyan
+    "Trivial": "\033[32m",  # Green
+}
+
+
 CACHE_DURATION = 60 * 60 * 24 * 1  # 1 day

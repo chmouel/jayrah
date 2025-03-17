@@ -1,11 +1,12 @@
 import os
 import shutil
-import subprocess
 import textwrap
 from datetime import datetime
 
 import click
 import jira2markdown
+
+from myji import defaults
 
 
 def get_terminal_width() -> int:
@@ -74,57 +75,14 @@ def display_issue(issue, comments_count=0, verbose=False):
     """Display issue in a pretty formatted view"""
     fields = issue["fields"]
 
-    # Issue type emoji mapping
-    issue_type_emoji = {
-        "Bug": "🐞",
-        "Epic": "🏆",
-        "Story": "📖",
-        "Task": "📋",
-        "Sub-task": "📎",
-        "Feature": "🚀",
-        "Improvement": "⬆️",
-    }
-
-    # Status emoji mapping
-    status_emoji = {
-        "Open": "🔓",
-        "In Progress": "🏗️",
-        "Code Review": "👀",
-        "On QA": "🧪",
-        "Done": "✅",
-        "Closed": "🔒",
-        "Resolved": "🎯",
-        "Reopened": "🔄",
-        "New": "🆕",
-        "To Do": "📌",
-    }
-
-    # Priority emoji mapping
-    priority_emoji = {
-        "Blocker": "❌",
-        "Critical": "🛑",
-        "Major": "🔴",
-        "Minor": "🟠",
-        "Trivial": "🟢",
-    }
-
-    # Priority ANSI color mapping
-    priority_colors = {
-        "Blocker": "\033[91m",  # Bright red
-        "Critical": "\033[31m",  # Red
-        "Major": "\033[33m",  # Yellow
-        "Minor": "\033[36m",  # Cyan
-        "Trivial": "\033[32m",  # Green
-    }
-
     # Format header
     issue_type = fields["issuetype"]["name"]
     issue_status = fields["status"]["name"]
     issue_priority = fields["priority"]["name"]
 
-    type_emoji = issue_type_emoji.get(issue_type, "📄")
-    status_emoji = status_emoji.get(issue_status, "❓")
-    priority_emoji = priority_emoji.get(issue_priority, "⚪")
+    type_emoji = defaults.ISSUE_TYPE_EMOJIS.get("issue_type", ("❓", "??"))[0]
+    status_emoji = defaults.STATUS_EMOJI.get(issue_status, "❓")
+    priority_emoji = defaults.PRIORITY_EMOJI.get(issue_priority, "⚪")
 
     # Plain text version for box dimension calculations
     plain_title = f"{type_emoji} {issue_type} {issue['key']} {fields['summary']}"
@@ -152,7 +110,7 @@ def display_issue(issue, comments_count=0, verbose=False):
     click.secho(issue_status, fg=status_color, nl=False)
     click.echo(" | ", nl=False)
     click.secho(f"{priority_emoji} Priority: ", bold=True, nl=False)
-    priority_color = priority_colors.get(issue_priority, "")
+    priority_color = defaults.PRIORITY_COLORS.get(issue_priority, "")
     print(f"{priority_color}{issue_priority}\033[0m", end="")
     click.echo(" | ", nl=False)
     click.secho("🏷️ Type: ", bold=True, nl=False)
