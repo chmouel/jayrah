@@ -3,6 +3,7 @@ general:
   jira_user: emailAddress
   jira_password: pass::jira/token
   jira_project: PRJ
+  insecure: false # Set to true to disable SSL verification
 
 boards:
   - name: "myissue"

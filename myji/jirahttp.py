@@ -1,4 +1,5 @@
 import json
+import ssl
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -20,10 +21,11 @@ class JiraHTTP:
         self.base_url = f"{server}/rest/api/2"
         self.cache = cache.JiraCache(config)
         self.verbose = self.config.get("verbose", False)
+        self.insecure = self.config.get("insecure", False)
 
         if self.verbose:
             click.echo(
-                f"Initialized JiraHTTP: server={server}, project={self.config.get('jira_component')}, no_cache={self.config.get('no_cache')}",
+                f"Initialized JiraHTTP: server={server}, project={self.config.get('jira_component')}, no_cache={self.config.get('no_cache')}, insecure={self.insecure}",
                 err=True,
             )
 
@@ -33,9 +35,29 @@ class JiraHTTP:
             "Accept": "application/json",
         }
 
+        # Create a custom opener with SSL context if insecure mode is enabled
+        if self.insecure:
+            # Create a custom SSL context that doesn't verify certificates
+            context = ssl.create_default_context()
+            context.check_hostname = False
+            context.verify_mode = ssl.CERT_NONE
+
+            # Create and install a custom opener with our SSL context
+            opener = urllib.request.build_opener(
+                urllib.request.HTTPSHandler(context=context)
+            )
+            urllib.request.install_opener(opener)
+
+            if self.verbose:
+                click.echo("WARNING: SSL certificate verification disabled", err=True)
+
     def _get_curl_command(self, method, url, headers, params=None, json_data=None):
         """Generate an equivalent curl command for debugging purposes."""
         curl_parts = [f"curl -X {method}"]
+
+        # Add insecure flag if enabled
+        if self.insecure:
+            curl_parts.append("-k")
 
         # Add headers with proper escaping
         for key, value in headers.items():

@@ -75,6 +75,9 @@ def read_config(ret: dict, config_file: pathlib.Path) -> dict:
         if "boards" not in ret:
             ret["boards"] = defaults.BOARDS
 
+        if "insecure" not in ret:
+            ret["insecure"] = False
+
     checks()
     if not config_file.exists():
         return ret
@@ -94,8 +97,9 @@ def read_config(ret: dict, config_file: pathlib.Path) -> dict:
                 "jira_component",
                 "jira_project",
                 "cache_ttl",
+                "insecure",
             ]:
-                ret[x] = set_general(x)
+                ret[x] = set_general(x) if set_general(x) is not None else ret.get(x)
         if config.get("boards"):
             ret["boards"] = config["boards"]
     checks()
@@ -115,6 +119,7 @@ def write_config(config, config_file: pathlib.Path):
         "jira_password",
         "jira_project",
         "cache_ttl",
+        "insecure",
     ]:
         if config.get(key):
             yaml_config["general"][key] = config[key]

@@ -11,6 +11,7 @@ from . import boards, config, defaults, help, issue_action, issue_view, utils
 @click.option("--no-cache", "-n", is_flag=True, help="Disable caching of API responses")
 @click.option("--no-fzf", is_flag=True, help="Output directly to stdout without fzf")
 @click.option("--verbose", "-v", is_flag=True, help="Enable verbose output")
+@click.option("--insecure", is_flag=True, help="Disable SSL verification for requests")
 @click.option(
     "--jira-server",
     default=os.environ.get("JIRA_SERVER"),
@@ -44,6 +45,7 @@ def cli(
     no_cache,
     no_fzf,
     verbose,
+    insecure,
     jira_user,
     jira_password,
     jira_component,
@@ -62,6 +64,7 @@ def cli(
         "no_cache": no_cache,
         "verbose": verbose,
         "no_fzf": no_fzf,
+        "insecure": insecure,
         "myj_path": os.path.abspath(sys.argv[0]),
         "ctx": ctx,
     }
