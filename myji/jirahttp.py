@@ -23,7 +23,7 @@ class JiraHTTP:
 
         if self.verbose:
             click.echo(
-                f"Initialized JiraHTTP: server={server}, project={self.config.get('jira_project')}, component={self.config.get('jira_component')}, no_cache={self.config.get('no_cache')}",
+                f"Initialized JiraHTTP: server={server}, project={self.config.get('jira_component')}, project={self.config.get('jira_component')}, no_cache={self.config.get('no_cache')}",
                 err=True,
             )
 
@@ -189,7 +189,7 @@ class JiraHTTP:
         endpoint = "issue"
         payload = {
             "fields": {
-                "project": {"key": self.config.get("jira_project")},
+                "project": {"key": self.config.get("jira_component")},
                 "summary": summary,
                 "issuetype": {"name": issuetype},
                 "components": [{"name": self.config.get("jira_component")}],

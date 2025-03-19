@@ -23,7 +23,7 @@ def make_full_url(ticket, server):
 def browser_open_ticket(ticket, config):
     server = config.get("jira_server")
     if not ticket:
-        project = config.get("jira_project")
+        project = config.get("jira_component")
         if not project:
             raise Exception("No ticket or project specified")
         webbrowser.open(f"{server}/projects/{project}")

@@ -53,7 +53,7 @@ def get_help_text():
         + click.style("Ctrl+V", fg="bright_green")
         + " to toggle the preview window",
         "  • Environment variables: "
-        + click.style("JIRA_SERVER, JIRA_API_TOKEN, JIRA_PROJECT", fg="bright_green"),
+        + click.style("JIRA_SERVER, JIRA_API_TOKEN, JIRA_COMPONENT", fg="bright_green"),
         "",
         "",
     ]

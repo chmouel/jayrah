@@ -3,39 +3,8 @@ import pathlib
 import sys
 
 import click
-import yaml
 
-from . import defaults, help, issue_action, issue_view, myji, utils
-
-
-def read_config(ret, config_file: pathlib.Path) -> dict:
-    """Read configuration from yaml file"""
-    if not config_file.exists():
-        return ret
-
-    with config_file.open() as file:
-        config = yaml.safe_load(file)
-        if config.get("general"):
-            general = config["general"]
-
-            def set_general(x):
-                return general.get(x) if x in general and general.get(x) else None
-
-            for x in [
-                "jira_server",
-                "jira_user",
-                "jira_password",
-                "jira_component",
-                "cache_ttl",
-            ]:
-                ret[x] = set_general(x)
-            if ret["jira_server"] and not ret["jira_server"].startswith("https://"):
-                ret["jira_server"] = "https://" + ret["jira_server"]
-            if not "cache_ttl" in ret or ret["cache_ttl"] is None:
-                ret["cache_ttl"] = defaults.CACHE_DURATION
-            elif ret["cache_ttl"] and not ret["cache_ttl"].isdigit():
-                raise ValueError("Cache TTL must be a number")
-    return ret
+from . import config, defaults, help, issue_action, issue_view, myji, utils
 
 
 @click.group()
@@ -64,6 +33,7 @@ def read_config(ret, config_file: pathlib.Path) -> dict:
 )
 @click.option("--cache-ttl", "-t", help="Cache TTL in seconds")
 @click.option(
+    "-c",
     "--config-file",
     default=defaults.CONFIG_FILE,
     help="Config file to use",
@@ -82,7 +52,8 @@ def cli(
     config_file,
 ):
     """Jira Helper Tool"""
-    config = {
+
+    flag_config = {
         "jira_server": jira_server,
         "jira_user": jira_user,
         "jira_password": jira_password,
@@ -94,8 +65,8 @@ def cli(
         "myj_path": os.path.abspath(sys.argv[0]),
         "ctx": ctx,
     }
-    config = read_config(config, pathlib.Path(config_file))
-    ctx.obj = myji.MyJi(config)
+    wconfig = config.make_config(flag_config, pathlib.Path(config_file))
+    ctx.obj = myji.MyJi(wconfig)
 
 
 @cli.command("help")
