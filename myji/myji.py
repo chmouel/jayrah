@@ -9,26 +9,15 @@ from . import defaults, jirahttp, utils
 
 
 class MyJi:
-    myj_path: str = ""
-    cache_ttl: int = defaults.CACHE_DURATION
     ctx: click.Context = None
-    command: str = ""
+    command: dict = None
+    obj = None
     verbose: bool = False
-    no_fzf: bool = False
 
-    def __init__(
-        self,
-        no_cache=False,
-        verbose=False,
-        cache_ttl=defaults.CACHE_DURATION,
-        no_fzf=False,
-    ):
-        self.verbose = verbose
-        self.jira = jirahttp.JiraHTTP(
-            no_cache=no_cache, verbose=verbose, cache_ttl=cache_ttl, no_fzf=no_fzf
-        )
-        self.cache_ttl = cache_ttl
-        self.no_fzf = no_fzf
+    def __init__(self, config: dict):
+        self.config = config
+        self.jira = jirahttp.JiraHTTP(config)
+        self.verbose = self.config.get("verbose", False)
 
         if self.verbose:
             click.echo("MyJi initialized with verbose logging enabled", err=True)
@@ -201,13 +190,13 @@ class MyJi:
                     verbose=self.verbose,
                 )
 
-            if self.no_fzf:
+            if self.config.get("no_fzf"):
                 with open(tmp.name, encoding="utf-8") as tmp_file:
                     print(tmp_file.read().strip())
                 return None
 
-            preview_cmd = f"{self.myj_path} issue view {{2}}"
-            help_cmd = f"clear;{self.myj_path} help;bash -c \"read -n1 -p 'Press a key to exit'\""
+            preview_cmd = f"{self.config.get('myj_path')} issue view {{2}}"
+            help_cmd = f"clear;{self.config.get('myj_path')} help;bash -c \"read -n1 -p 'Press a key to exit'\""
             fzf_cmd = [
                 "fzf",
                 "-d",
@@ -221,11 +210,11 @@ class MyJi:
                 "right:hidden:wrap",
                 "--bind",
                 # TODO: arguments
-                f"ctrl-r:reload({self.myj_path} --no-fzf -n browse {self.command})",
+                f"ctrl-r:reload({self.config.get('myj_path')} --no-fzf -n browse {self.command})",
                 "--bind",
-                f"enter:execute({self.myj_path} issue open {{2}})",
+                f"enter:execute({self.config.get('myj_path')} issue open {{2}})",
                 "--bind",
-                f"ctrl-a:execute({self.myj_path} issue action {{2}})",
+                f"ctrl-a:execute({self.config.get('myj_path')} issue action {{2}})",
                 "--bind",
                 f"f1:execute({help_cmd})",
             ]

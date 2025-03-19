@@ -14,17 +14,19 @@ def make_osc8_link(text, url):
     return f"\033]8;;{url}\033\\{text}\033]8;;\033\\"
 
 
-def make_full_url(ticket, server=None):
+def make_full_url(ticket, server):
     if server is None:
-        server = os.getenv("JIRA_SERVER", "issues.redhat.com")
-    return f"https://{server}/browse/{ticket}"
+        raise Exception("No Jira server URL provided")
+    return f"{server}/browse/{ticket}"
 
 
-def browser_open_ticket(ticket, server=None):
+def browser_open_ticket(ticket, config):
+    server = config.get("jira_server")
     if not ticket:
-        webbrowser.open(
-            f"https://{server}/projects/{os.getenv('JIRA_PROJECT', 'SRVKP')}"
-        )
+        project = config.get("jira_project")
+        if not project:
+            raise Exception("No ticket or project specified")
+        webbrowser.open(f"{server}/projects/{project}")
         return
 
     try:

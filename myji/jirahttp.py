@@ -1,5 +1,4 @@
 import json
-import os
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -7,57 +6,29 @@ from urllib.parse import urlencode
 
 import click
 
-from myji import defaults
-
-from . import cache, utils
+from . import cache
 
 
 class JiraHTTP:
+    verbose: bool = False
+
     # pylint: disable=too-many-instance-attributes
     # pylint: disable=too-many-positional-arguments
-    def __init__(
-        self,
-        server=None,
-        token=None,
-        project=None,
-        component=None,
-        no_cache=False,
-        verbose=False,
-        cache_ttl=defaults.CACHE_DURATION,
-        no_fzf=False,
-    ):
-        self.server = server or os.getenv("JIRA_SERVER", "issues.redhat.com")
-        self.token = token or os.getenv("JIRA_API_TOKEN")
-        self.project = project or os.getenv("JIRA_PROJECT", "SRVKP")
-        self.component = component or os.getenv("JIRA_COMPONENT", "Pipelines as Code")
-        self.base_url = f"https://{self.server}/rest/api/2"
-        self.no_cache = no_cache
-        self.verbose = verbose
-        self.cache = cache.JiraCache(verbose=self.verbose, cache_ttl=cache_ttl)
-        self.no_fzf = no_fzf
+    def __init__(self, config):
+        self.config = config
+        server = self.config.get("jira_server")
+        self.base_url = f"{server}/rest/api/2"
+        self.cache = cache.JiraCache(config)
+        self.verbose = self.config.get("verbose", False)
 
         if self.verbose:
             click.echo(
-                f"Initialized JiraHTTP: server={self.server}, project={self.project}, component={self.component}, no_cache={self.no_cache}",
+                f"Initialized JiraHTTP: server={server}, project={self.config.get('jira_project')}, component={self.config.get('jira_component')}, no_cache={self.config.get('no_cache')}",
                 err=True,
             )
 
-        if not self.token:
-            self.token = utils.get_pass_key(
-                os.environ.get("JIRA_PASS_TOKEN_KEY", "jira/token")
-            )
-
-        if not self.token:
-            click.secho(
-                "No JIRA API token found. Set JIRA_API_TOKEN or pass it explicitly.",
-                fg="red",
-                err=True,
-            )
-            raise click.ClickException(
-                "No JIRA API token found. Set JIRA_API_TOKEN or pass it explicitly."
-            )
         self.headers = {
-            "Authorization": f"Bearer {self.token}",
+            "Authorization": f"Bearer {self.config.get('token')}",
             "Content-Type": "application/json",
             "Accept": "application/json",
         }
@@ -101,7 +72,7 @@ class JiraHTTP:
                 click.echo(f"Request body: {jeez}", err=True)
 
         # Only use cache for GET requests
-        if method.upper() == "GET" and not self.no_cache:
+        if method.upper() == "GET" and not self.config.get("no_cache"):
             cached_response = self.cache.get(url, params, jeez)
             if cached_response:
                 return cached_response
@@ -218,10 +189,10 @@ class JiraHTTP:
         endpoint = "issue"
         payload = {
             "fields": {
-                "project": {"key": self.project},
+                "project": {"key": self.config.get("jira_project")},
                 "summary": summary,
                 "issuetype": {"name": issuetype},
-                "components": [{"name": self.component}],
+                "components": [{"name": self.config.get("jira_component")}],
             }
         }
         if description:

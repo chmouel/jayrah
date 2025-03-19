@@ -71,7 +71,7 @@ def format_with_rich(text):
     console.print(md)
 
 
-def display_issue(issue, comments_count=0, verbose=False):
+def display_issue(issue, config, comments_count):
     """Display issue in a pretty formatted view"""
     fields = issue["fields"]
 
@@ -85,7 +85,9 @@ def display_issue(issue, comments_count=0, verbose=False):
     priority_emoji = defaults.PRIORITY_EMOJI.get(issue_priority, "⚪")
 
     # Plain text version for box dimension calculations
-    issue_link = utils.make_osc8_link(issue["key"], utils.make_full_url(issue["key"]))
+    issue_link = utils.make_osc8_link(
+        issue["key"], utils.make_full_url(issue["key"], config.get("jira_server"))
+    )
     plain_title = f"{type_emoji} \033[1m\033[36m{issue_type}\033[0m {issue_link} {fields['summary']}"
 
     # Header with fancy UTF box-drawing characters
@@ -136,13 +138,11 @@ def display_issue(issue, comments_count=0, verbose=False):
     if fields.get("assignee"):
         click.secho("👤 Assignee: ", fg="cyan", nl=False)
         click.echo(
-            f"{fields['assignee']['displayName']} <{fields['assignee']['emailAddress']}>"
+            f"{fields['assignee']['displayName']} <{fields['assignee']['name']}>"
         )
 
     click.secho("📣 Reporter: ", fg="cyan", nl=False)
-    click.echo(
-        f"{fields['reporter']['displayName']} <{fields['reporter']['emailAddress']}>"
-    )
+    click.echo(f"{fields['reporter']['displayName']} <{fields['reporter']['name']}>")
 
     # Dates
     date_format = "%Y-%m-%dT%H:%M:%S.%f%z"

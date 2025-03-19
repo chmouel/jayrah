@@ -4,14 +4,16 @@ import os
 import time
 from pathlib import Path
 
-from . import utils, defaults
+from . import defaults, utils
 
 
 class JiraCache:
     """Cache handler for Jira API responses"""
 
     def __init__(
-        self, cache_dir=None, cache_ttl=defaults.CACHE_DURATION, verbose=False
+        self,
+        config,
+        cache_dir=None,
     ):
         """
         Initialize the cache handler
@@ -25,8 +27,8 @@ class JiraCache:
             cache_dir = os.path.expanduser("~/.cache/myji")
 
         self.cache_dir = Path(cache_dir)
-        self.cache_ttl = cache_ttl
-        self.verbose = verbose
+        self.cache_ttl = config.get("cache_ttl", defaults.CACHE_DURATION)
+        self.verbose = config.get("verbose", False)
 
         # Ensure cache directory exists
         self.cache_dir.mkdir(parents=True, exist_ok=True)

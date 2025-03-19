@@ -151,7 +151,7 @@ def action_menu(ticketj, obj):
 
     match result:
         case "browse_issue":
-            utils.browser_open_ticket(ticket_number)
+            utils.browser_open_ticket(ticket_number, obj.config)
             return
         case "edit_description":
             # Call our new edit_description function
