@@ -4,7 +4,8 @@ import sys
 
 import click
 
-from . import config, defaults, help, issue_action, issue_view, myji, utils
+from . import (boards, config, defaults, help, issue_action, issue_view, myji,
+               utils)
 
 
 @click.group()
@@ -85,36 +86,9 @@ def help_command(myji_obj):
 @click.pass_obj
 def browse(myji_obj, board):
     """Browse boards"""
-
-    def show_boards():
-        click.echo("Available boards:")
-        for x in myji_obj.config.get("boards", []):
-            click.secho(f"  {x.get('name')}", fg="cyan", nl=False)
-            if x.get("description"):
-                click.secho(f" - {x.get('description')}", italic=True, nl=False)
-            click.echo()
-
-    if not board:
-        show_boards()
+    jql, order_by = boards.check(board, myji_obj.config)
+    if not jql or not order_by:
         return
-
-    chosen_boards = [x for x in myji_obj.config["boards"] if x.get("name") == board]
-    if board is not None and board not in [
-        x.get("name") for x in chosen_boards if x.get("name") == board
-    ]:
-        click.secho("Invalid board: ", fg="red", err=True, nl=False)
-        click.echo(f"{board}", err=True)
-        show_boards()
-        return
-
-    jql = chosen_boards[0].get("jql").strip() if chosen_boards else None
-    if not jql:
-        click.secho(f"Board {board} has no JQL defined", fg="red", err=True)
-        return
-    order_by = chosen_boards[0].get("order_by", defaults.ORDER_BY)
-    if myji_obj.verbose:
-        click.echo(f"Running query: {jql} ORDER BY: {order_by}", err=True)
-
     issues = myji_obj.list_issues(jql, order_by=order_by)
     selected = myji_obj.fuzzy_search(issues)
     if selected:
