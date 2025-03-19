@@ -31,8 +31,10 @@ def read_config(ret, config_file: pathlib.Path) -> dict:
                 ret[x] = set_general(x)
             if ret["jira_server"] and not ret["jira_server"].startswith("https://"):
                 ret["jira_server"] = "https://" + ret["jira_server"]
-            if not ret["cache_ttl"]:
+            if not "cache_ttl" in ret or ret["cache_ttl"] is None:
                 ret["cache_ttl"] = defaults.CACHE_DURATION
+            elif ret["cache_ttl"] and not ret["cache_ttl"].isdigit():
+                raise ValueError("Cache TTL must be a number")
     return ret
 
 
