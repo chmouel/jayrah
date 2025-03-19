@@ -81,7 +81,7 @@ def help_command(myji_obj):
 
 
 @cli.command("browse")
-@click.argument("board", required=False)
+@click.argument("board", required=False, type=boards.BoardType())
 @click.pass_obj
 def browse(myji_obj, board):
     """Browse boards"""

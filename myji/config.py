@@ -24,7 +24,7 @@ def make_config(config: dict, config_file: pathlib.Path) -> dict:
         config_modified = True
 
     if not config["jira_project"]:
-        config["jira_project"] = Prompt.ask("Enter your Jira Component (ie: SRVKP)")
+        config["jira_project"] = Prompt.ask("Enter your Jira Project (ie: SRVKP)")
         config_modified = True
 
     if not config["jira_password"]:
@@ -53,7 +53,11 @@ def read_config(ret: dict, config_file: pathlib.Path) -> dict:
     """Read configuration from yaml file"""
 
     def checks():
-        if ret["jira_server"] and not ret["jira_server"].startswith("https://"):
+        if (
+            "jira_server" in ret
+            and ret["jira_server"]
+            and not ret["jira_server"].startswith("https://")
+        ):
             ret["jira_server"] = "https://" + ret["jira_server"]
 
         if (
@@ -71,7 +75,7 @@ def read_config(ret: dict, config_file: pathlib.Path) -> dict:
         if "boards" not in ret:
             ret["boards"] = defaults.BOARDS
 
-    checks
+    checks()
     if not config_file.exists():
         return ret
 

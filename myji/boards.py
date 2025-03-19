@@ -1,12 +1,29 @@
 #!/usr/bin/env python3
+import pathlib
 import subprocess
 import tempfile
 import typing
 from functools import reduce
 
 import click
+import click.shell_completion
 
-from . import defaults, jirahttp, utils
+from . import config, defaults, jirahttp, utils
+
+
+class BoardType(click.ParamType):
+    name = "board"
+
+    def shell_complete(self, ctx, param, incomplete):
+        config_file = defaults.CONFIG_FILE
+        if ctx.parent.params.get("config_file"):
+            config_file = pathlib.Path(ctx.parent.params.get("config_file"))
+        cfg = config.read_config({}, config_file)
+        return [
+            click.shell_completion.CompletionItem(x)
+            for x in [x.get("name") for x in cfg.get("boards", [])]
+            if x.startswith(incomplete)
+        ]
 
 
 def show(config):
