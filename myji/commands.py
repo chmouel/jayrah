@@ -4,8 +4,7 @@ import sys
 
 import click
 
-from . import (boards, config, defaults, help, issue_action, issue_view, myji,
-               utils)
+from . import boards, config, defaults, help, issue_action, issue_view, utils
 
 
 @click.group()
@@ -69,7 +68,7 @@ def cli(
     wconfig = config.make_config(flag_config, pathlib.Path(config_file))
     if verbose:
         click.echo(f"Using config: {wconfig}", err=True)
-    ctx.obj = myji.MyJi(wconfig)
+    ctx.obj = boards.Boards(wconfig)
 
 
 @cli.command("help")
