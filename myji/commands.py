@@ -85,6 +85,7 @@ def help_command(myji_obj):
 @click.pass_obj
 def browse(myji_obj, board):
     """Browse boards"""
+    myji_obj.command = board
     jql, order_by = boards.check(board, myji_obj.config)
     if not jql or not order_by:
         return
