@@ -1,5 +1,15 @@
 import pathlib
 
+ORDER_BY = "updated"
+BOARDS = [
+    {
+        "name": "myissue",
+        "jql": "assignee = currentUser() AND resolution = Unresolved",
+        "order_by": "updated",
+        "description": "My current unresolved issues",
+    }
+]
+
 FIELDS = [
     "key",
     "summary",

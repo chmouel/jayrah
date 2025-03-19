@@ -66,6 +66,8 @@ def cli(
         "ctx": ctx,
     }
     wconfig = config.make_config(flag_config, pathlib.Path(config_file))
+    if verbose:
+        click.echo(f"Using config: {wconfig}", err=True)
     ctx.obj = myji.MyJi(wconfig)
 
 
@@ -78,50 +80,42 @@ def help_command(myji_obj):
     click.echo(help_text, err=True)
 
 
-@cli.group("browse")
-def browse():
+@cli.command("browse")
+@click.argument("board", required=False)
+@click.pass_obj
+def browse(myji_obj, board):
     """Browse boards"""
 
+    def show_boards():
+        click.echo("Available boards:")
+        for x in myji_obj.config.get("boards", []):
+            click.secho(f"  {x.get('name')}", fg="cyan", nl=False)
+            if x.get("description"):
+                click.secho(f" - {x.get('description')}", italic=True, nl=False)
+            click.echo()
 
-@browse.command("myissue")
-@click.pass_obj
-def my_issue(myji_obj):
-    """My current issues"""
-    myji_obj.command = "myissue"
-    jql = "assignee = currentUser() AND resolution = Unresolved"
+    if not board:
+        show_boards()
+        return
+
+    chosen_boards = [x for x in myji_obj.config["boards"] if x.get("name") == board]
+    if board is not None and board not in [
+        x.get("name") for x in chosen_boards if x.get("name") == board
+    ]:
+        click.secho("Invalid board: ", fg="red", err=True, nl=False)
+        click.echo(f"{board}", err=True)
+        show_boards()
+        return
+
+    jql = chosen_boards[0].get("jql").strip() if chosen_boards else None
+    if not jql:
+        click.secho(f"Board {board} has no JQL defined", fg="red", err=True)
+        return
+    order_by = chosen_boards[0].get("order_by", defaults.ORDER_BY)
     if myji_obj.verbose:
-        click.echo(f"Running query: {jql}", err=True)
-    issues = myji_obj.list_issues(jql)
-    selected = myji_obj.fuzzy_search(issues)
-    if selected:
-        click.secho(f"Selected issue: {selected}", fg="green")
+        click.echo(f"Running query: {jql} ORDER BY: {order_by}", err=True)
 
-
-@browse.command("myinprogress")
-@click.pass_obj
-def my_inprogress(myji_obj):
-    """My in-progress issues"""
-    myji_obj.command = "myinprogress"
-    jql = (
-        'assignee = currentUser() AND status in ("Code Review", "In Progress", "On QA")'
-    )
-    if myji_obj.verbose:
-        click.echo(f"Running query: {jql}", err=True)
-    issues = myji_obj.list_issues(jql)
-    selected = myji_obj.fuzzy_search(issues)
-    if selected:
-        click.secho(f"Selected issue: {selected}", fg="green")
-
-
-@browse.command("pac-current")
-@click.pass_obj
-def pac_current(myji_obj):
-    """Current PAC issues"""
-    myji_obj.command = "pac-current"
-    jql = f'component = "{myji_obj.jira.component}" AND fixVersion in unreleasedVersions({myji_obj.jira.project})'
-    if myji_obj.verbose:
-        click.echo(f"Running query: {jql}", err=True)
-    issues = myji_obj.list_issues(jql)
+    issues = myji_obj.list_issues(jql, order_by=order_by)
     selected = myji_obj.fuzzy_search(issues)
     if selected:
         click.secho(f"Selected issue: {selected}", fg="green")

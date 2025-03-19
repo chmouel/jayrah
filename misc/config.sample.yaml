@@ -1,0 +1,30 @@
+general:
+  jira_server: https://server.corp
+  jira_user: emailAddress
+  jira_password: pass::jira/token
+  jira_project: PRJ
+
+boards:
+  - name: "myissue"
+    jql: |
+      assignee = currentUser() AND resolution = Unresolved
+    order_by: "updated"
+    description: "My current issues"
+
+  - name: "myinprogress"
+    jql: |
+      assignee = currentUser() AND status in ("Code Review", "In Progress", "On QA")
+    order_by: "updated"
+    description: "My issues in progress"
+
+  - name: "pac-current"
+    jql: |
+      component = 'MyComponent' AND fixVersion in unreleasedVersions(PRJ)
+    order_by: "updated"
+    description: "Component issues targeted for next version"
+
+  - name: "pac-current-unresolved"
+    jql: |
+      component = 'MyComponent' AND fixVersion in unreleasedVersions(PRJ) AND resolution = 'Unresolved'
+    order_by: "assignee,fixVersion "
+    description: "Component issues targeted for next version and resolution is Unresolved"

@@ -38,10 +38,14 @@ def make_config(config: dict, config_file: pathlib.Path) -> dict:
         config["jira_server"] = "https://" + config["jira_server"]
         config_modified = True
 
+    if "boards" not in config:
+        config["boards"] = defaults.BOARDS
+
     # Save the config if modified
     if config_modified:
         write_config(config, config_path)
         click.echo(f"Configuration saved to {config_file}", err=True)
+
     return config
 
 
@@ -64,7 +68,10 @@ def read_config(ret: dict, config_file: pathlib.Path) -> dict:
         if "cache_ttl" not in ret or ret["cache_ttl"] is None:
             ret["cache_ttl"] = defaults.CACHE_DURATION
 
-    checks()
+        if "boards" not in ret:
+            ret["boards"] = defaults.BOARDS
+
+    checks
     if not config_file.exists():
         return ret
 
@@ -85,6 +92,8 @@ def read_config(ret: dict, config_file: pathlib.Path) -> dict:
                 "cache_ttl",
             ]:
                 ret[x] = set_general(x)
+        if config.get("boards"):
+            ret["boards"] = config["boards"]
     checks()
     return ret
 
