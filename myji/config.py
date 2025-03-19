@@ -1,9 +1,10 @@
-import os.path
 import pathlib
 
 import click
 import yaml
 from rich.prompt import Prompt
+
+from myji import utils
 
 from . import defaults
 
@@ -22,8 +23,8 @@ def make_config(config: dict, config_file: pathlib.Path) -> dict:
         config["jira_user"] = Prompt.ask("Enter Jira username")
         config_modified = True
 
-    if not config["jira_component"]:
-        config["jira_component"] = Prompt.ask("Enter your Jira Component (ie: SRVKP)")
+    if not config["jira_project"]:
+        config["jira_project"] = Prompt.ask("Enter your Jira Component (ie: SRVKP)")
         config_modified = True
 
     if not config["jira_password"]:
@@ -46,10 +47,24 @@ def make_config(config: dict, config_file: pathlib.Path) -> dict:
 
 def read_config(ret: dict, config_file: pathlib.Path) -> dict:
     """Read configuration from yaml file"""
-    if ret["jira_server"] and not ret["jira_server"].startswith("https://"):
-        ret["jira_server"] = "https://" + ret["jira_server"]
-    if "cache_ttl" not in ret or ret["cache_ttl"] is None:
-        ret["cache_ttl"] = defaults.CACHE_DURATION
+
+    def checks():
+        if ret["jira_server"] and not ret["jira_server"].startswith("https://"):
+            ret["jira_server"] = "https://" + ret["jira_server"]
+
+        if (
+            "jira_password" in ret
+            and ret["jira_password"]
+            and ret["jira_password"].startswith("pass::")
+        ):
+            ret["jira_password"] = utils.get_pass_key(
+                ret["jira_password"].split("::")[-1]
+            )
+
+        if "cache_ttl" not in ret or ret["cache_ttl"] is None:
+            ret["cache_ttl"] = defaults.CACHE_DURATION
+
+    checks()
     if not config_file.exists():
         return ret
 
@@ -66,11 +81,11 @@ def read_config(ret: dict, config_file: pathlib.Path) -> dict:
                 "jira_user",
                 "jira_password",
                 "jira_component",
+                "jira_project",
                 "cache_ttl",
             ]:
                 ret[x] = set_general(x)
-    if ret["jira_server"] and not ret["jira_server"].startswith("https://"):
-        ret["jira_server"] = "https://" + ret["jira_server"]
+    checks()
     return ret
 
 

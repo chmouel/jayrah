@@ -72,7 +72,7 @@ def parse_email(s):
 
 
 def get_pass_key(s):
-    cmd = ["pass", s]
+    cmd = ["pass", "show", s]
     try:
         return subprocess.check_output(cmd, text=True).strip()
     except subprocess.CalledProcessError:

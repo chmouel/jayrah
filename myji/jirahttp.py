@@ -23,12 +23,12 @@ class JiraHTTP:
 
         if self.verbose:
             click.echo(
-                f"Initialized JiraHTTP: server={server}, project={self.config.get('jira_component')}, project={self.config.get('jira_component')}, no_cache={self.config.get('no_cache')}",
+                f"Initialized JiraHTTP: server={server}, project={self.config.get('jira_component')}, no_cache={self.config.get('no_cache')}",
                 err=True,
             )
 
         self.headers = {
-            "Authorization": f"Bearer {self.config.get('token')}",
+            "Authorization": f"Bearer {self.config.get('jira_password')}",
             "Content-Type": "application/json",
             "Accept": "application/json",
         }
@@ -41,8 +41,8 @@ class JiraHTTP:
         for key, value in headers.items():
             # Mask the authorization token for security
             if key == "Authorization":
-                value = "Bearer $(pass show jira/token)"  # Mask the actual token
-            curl_parts.append(f"-H '{key}: {value}'")
+                value = "Bearer ${JIRA_API_TOKEN}"  # Mask the actual token
+            curl_parts.append(f'-H "{key}: {value}"')
 
         # Build the final URL with query parameters
         final_url = url
@@ -189,7 +189,7 @@ class JiraHTTP:
         endpoint = "issue"
         payload = {
             "fields": {
-                "project": {"key": self.config.get("jira_component")},
+                "project": {"key": self.config.get("jira_project")},
                 "summary": summary,
                 "issuetype": {"name": issuetype},
                 "components": [{"name": self.config.get("jira_component")}],
