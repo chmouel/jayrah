@@ -42,7 +42,7 @@ def transition_issue(ticketj, obj):
 
         tmp.flush()
 
-        preview_cmd = f"{obj.myj_path} issue view '{ticket_number}'"
+        preview_cmd = f"{obj.config.get('myj_path')} issue view '{ticket_number}'"
         fzf_cmd = [
             "fzf",
             "-d",
@@ -156,7 +156,7 @@ def action_menu(ticketj, obj):
         case "edit_description":
             # Call our new edit_description function
             edit_success = edit_description(ticketj, obj)
-            if edit_success and obj.verbose:
+            if edit_success and obj.config.get("verbose"):
                 click.echo(f"Description updated for {ticket_number}", err=True)
             return
         case "transition_issue":
@@ -179,7 +179,7 @@ def action_menu(ticketj, obj):
 
 def choose_action(ticketj, obj):
     """Display action menu for the issue"""
-    verbose = obj.verbose
+    verbose = obj.config.get("verbose")
     if not ticketj:
         return None
 
@@ -208,7 +208,7 @@ def choose_action(ticketj, obj):
             tmp.write(ss + "\n")
         tmp.flush()
 
-        preview_cmd = f"{obj.myj_path} issue view '{ticket_number}'"
+        preview_cmd = f"{obj.config.get('myj_path')} issue view '{ticket_number}'"
         fzf_cmd = [
             "fzf",
             "-d",
