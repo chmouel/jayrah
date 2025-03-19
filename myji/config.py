@@ -23,7 +23,7 @@ def make_config(config: dict, config_file: pathlib.Path) -> dict:
         config["jira_user"] = Prompt.ask("Enter Jira username")
         config_modified = True
 
-    if not config["jira_project"]:
+    if not "jira_project" in config or not config["jira_project"]:
         config["jira_project"] = Prompt.ask("Enter your Jira Project (ie: SRVKP)")
         config_modified = True
 
@@ -113,11 +113,14 @@ def write_config(config, config_file: pathlib.Path):
         "jira_server",
         "jira_user",
         "jira_password",
-        "jira_component",
+        "jira_project",
         "cache_ttl",
     ]:
         if config.get(key):
             yaml_config["general"][key] = config[key]
+
+    if config.get("boards"):
+        yaml_config["boards"] = config["boards"]
 
     # Write to file
     with config_file.open("w") as file:
