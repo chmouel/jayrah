@@ -31,11 +31,23 @@ def get_help_text():
         "",
         click.style("📋 Commands:", fg="bright_yellow", bold=True),
         "",
-        f"  {click.style('jayrah myissue', fg='cyan')}       {click.style('List my current issues', fg='white')}",
-        f"  {click.style('jayrah myinprogress', fg='cyan')}  {click.style('List my in-progress issues', fg='white')}",
-        f"  {click.style('jayrah pac-current', fg='cyan')}   {click.style('List current PAC issues', fg='white')}",
-        f"  {click.style('jayrah pac-create', fg='cyan')}    {click.style('Create a new PAC issue', fg='white')}",
-        f"  {click.style('jayrah git-branch', fg='cyan')}    {click.style('Generate git branch name from issue', fg='white')}",
+        f"  {click.style('jayrah browse [BOARD]', fg='cyan')}    {click.style('Browse issues from a board defined in config', fg='white')}",
+        f"  {click.style('jayrah create', fg='cyan')}            {click.style('Create a new issue', fg='white')}",
+        f"  {click.style('jayrah issue open TICKET', fg='cyan')} {click.style('Open issue in browser', fg='white')}",
+        f"  {click.style('jayrah issue view TICKET', fg='cyan')} {click.style('View issue details', fg='white')}",
+        f"  {click.style('jayrah issue action TICKET', fg='cyan')} {click.style('Perform actions on an issue', fg='white')}",
+        f"  {click.style('jayrah issue edit-description TICKET', fg='cyan')} {click.style('Edit issue description', fg='white')}",
+        f"  {click.style('jayrah issue transition TICKET', fg='cyan')} {click.style('Change issue status', fg='white')}",
+        "",
+        click.style("🔍 Boards:", fg="bright_yellow", bold=True),
+        "",
+        f"  {click.style('Boards are defined in your config file:', fg='white')}",
+        f"  {click.style('~/.config/jayrah/config.yaml', fg='bright_green')}",
+        f"  {click.style('Example board configuration:', fg='white')}",
+        f"  {click.style('boards:', fg='bright_green')}",
+        f"  {click.style('  myissues:', fg='bright_green')}",
+        f"  {click.style('    jql: "assignee = currentUser() AND resolution = Unresolved"', fg='bright_green')}",
+        f"  {click.style('    order_by: "updated DESC"', fg='bright_green')}",
         "",
         click.style("🚀 Global Options:", fg="bright_yellow", bold=True),
         "",
@@ -53,7 +65,11 @@ def get_help_text():
         + click.style("Ctrl+V", fg="bright_green")
         + " to toggle the preview window",
         "  • Environment variables: "
-        + click.style("JIRA_SERVER, JIRA_API_TOKEN, JIRA_COMPONENT", fg="bright_green"),
+        + click.style(
+            "JIRA_SERVER, JIRA_USER, JIRA_PASSWORD, JIRA_COMPONENT", fg="bright_green"
+        ),
+        "  • Custom boards can be defined in your config file and used with "
+        + click.style("jayrah browse [BOARD]", fg="bright_green"),
         "",
         "",
     ]
