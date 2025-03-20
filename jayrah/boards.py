@@ -70,7 +70,7 @@ class Boards:
         self.verbose = self.config.get("verbose", False)
 
         if self.verbose:
-            click.echo("MyJi initialized with verbose logging enabled", err=True)
+            click.echo("Jayrah initialized with verbose logging enabled", err=True)
 
     # pylint: disable=too-many-positional-arguments
     def list_issues(
@@ -245,8 +245,8 @@ class Boards:
                     print(tmp_file.read().strip())
                 return None
 
-            preview_cmd = f"{self.config.get('myj_path')} issue view {{2}}"
-            help_cmd = f"clear;{self.config.get('myj_path')} help;bash -c \"read -n1 -p 'Press a key to exit'\""
+            preview_cmd = f"{self.config.get('jayrah_path')} issue view {{2}}"
+            help_cmd = f"clear;{self.config.get('jayrah_path')} help;bash -c \"read -n1 -p 'Press a key to exit'\""
             fzf_cmd = [
                 "fzf",
                 "-d",
@@ -260,11 +260,11 @@ class Boards:
                 "right:hidden:wrap",
                 "--bind",
                 # TODO: arguments
-                f"ctrl-r:reload({self.config.get('myj_path')} --no-fzf -n browse {self.command})",
+                f"ctrl-r:reload({self.config.get('jayrah_path')} --no-fzf -n browse {self.command})",
                 "--bind",
-                f"enter:execute({self.config.get('myj_path')} issue open {{2}})",
+                f"enter:execute({self.config.get('jayrah_path')} issue open {{2}})",
                 "--bind",
-                f"ctrl-a:execute({self.config.get('myj_path')} issue action {{2}})",
+                f"ctrl-a:execute({self.config.get('jayrah_path')} issue action {{2}})",
                 "--bind",
                 f"f1:execute({help_cmd})",
             ]

@@ -4,7 +4,7 @@ import click
 import yaml
 from rich.prompt import Prompt
 
-from myji import utils
+from jayrah import utils
 
 from . import defaults
 

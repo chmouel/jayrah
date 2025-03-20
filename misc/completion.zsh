@@ -1,12 +1,12 @@
-#compdef myj
+#compdef jayrah
 
-_myj_completion() {
+_jayrah_completion() {
     local -a completions
     local -a completions_with_descriptions
     local -a response
-    (( ! $+commands[myj] )) && return 1
+    (( ! $+commands[jayrah] )) && return 1
 
-    response=("${(@f)$(env COMP_WORDS="${words[*]}" COMP_CWORD=$((CURRENT-1)) _MYJ_COMPLETE=zsh_complete myj)}")
+    response=("${(@f)$(env COMP_WORDS="${words[*]}" COMP_CWORD=$((CURRENT-1)) _JAYRAH_COMPLETE=zsh_complete jayrah)}")
 
     for type key descr in ${response}; do
         if [[ "$type" == "plain" ]]; then
@@ -33,8 +33,8 @@ _myj_completion() {
 
 if [[ $zsh_eval_context[-1] == loadautofunc ]]; then
     # autoload from fpath, call function directly
-    _myj_completion "$@"
+    _jayrah_completion "$@"
 else
     # eval/source/. command, register function for later
-    compdef _myj_completion myj
+    compdef _jayrah_completion jayrah
 fi

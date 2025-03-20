@@ -1,4 +1,4 @@
-"""Help module for myji providing formatted help text."""
+"""Help module for jayrah providing formatted help text."""
 
 import shutil
 
@@ -12,7 +12,7 @@ def get_help_text():
     width = min(100, width)  # Cap width to 100 characters
 
     # Create a centered title
-    title = "🌟 MyJi Help 🌟"
+    title = "🌟 JayRah Help 🌟"
     centered_title = title.center(width)
 
     help_text = [
@@ -31,11 +31,11 @@ def get_help_text():
         "",
         click.style("📋 Commands:", fg="bright_yellow", bold=True),
         "",
-        f"  {click.style('myj myissue', fg='cyan')}       {click.style('List my current issues', fg='white')}",
-        f"  {click.style('myj myinprogress', fg='cyan')}  {click.style('List my in-progress issues', fg='white')}",
-        f"  {click.style('myj pac-current', fg='cyan')}   {click.style('List current PAC issues', fg='white')}",
-        f"  {click.style('myj pac-create', fg='cyan')}    {click.style('Create a new PAC issue', fg='white')}",
-        f"  {click.style('myj git-branch', fg='cyan')}    {click.style('Generate git branch name from issue', fg='white')}",
+        f"  {click.style('jayrah myissue', fg='cyan')}       {click.style('List my current issues', fg='white')}",
+        f"  {click.style('jayrah myinprogress', fg='cyan')}  {click.style('List my in-progress issues', fg='white')}",
+        f"  {click.style('jayrah pac-current', fg='cyan')}   {click.style('List current PAC issues', fg='white')}",
+        f"  {click.style('jayrah pac-create', fg='cyan')}    {click.style('Create a new PAC issue', fg='white')}",
+        f"  {click.style('jayrah git-branch', fg='cyan')}    {click.style('Generate git branch name from issue', fg='white')}",
         "",
         click.style("🚀 Global Options:", fg="bright_yellow", bold=True),
         "",
@@ -47,7 +47,7 @@ def get_help_text():
         click.style("💡 Tips:", fg="bright_yellow", bold=True),
         "",
         "  • Use "
-        + click.style("myj --help", fg="bright_green")
+        + click.style("jayrah --help", fg="bright_green")
         + " to see all available commands",
         "  • Press "
         + click.style("Ctrl+V", fg="bright_green")

@@ -19,12 +19,12 @@ class JiraCache:
         Initialize the cache handler
 
         Args:
-            cache_dir (str): Directory to store cache files (defaults to ~/.cache/myji/)
+            cache_dir (str): Directory to store cache files (defaults to ~/.cache/jayrah/)
             cache_ttl (int): Time to live for cache entries in seconds (default: 1 hour)
             verbose (bool): Enable verbose logging
         """
         if cache_dir is None:
-            cache_dir = os.path.expanduser("~/.cache/myji")
+            cache_dir = os.path.expanduser("~/.cache/jayrah")
 
         self.cache_dir = Path(cache_dir)
         self.cache_ttl = config.get("cache_ttl", defaults.CACHE_DURATION)

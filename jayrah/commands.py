@@ -65,7 +65,7 @@ def cli(
         "verbose": verbose,
         "no_fzf": no_fzf,
         "insecure": insecure,
-        "myj_path": os.path.abspath(sys.argv[0]),
+        "jayrah_path": os.path.abspath(sys.argv[0]),
         "ctx": ctx,
     }
     wconfig = config.make_config(flag_config, pathlib.Path(config_file))
@@ -76,7 +76,7 @@ def cli(
 
 @cli.command("help")
 @click.pass_obj
-def help_command(myji_obj):
+def help_command(jayrah_obj):
     """Display help content"""
     # Display help content in a formatted way
     help_text = help.get_help_text()
@@ -86,14 +86,14 @@ def help_command(myji_obj):
 @cli.command("browse")
 @click.argument("board", required=False, type=boards.BoardType())
 @click.pass_obj
-def browse(myji_obj, board):
+def browse(jayrah_obj, board):
     """Browse boards"""
-    myji_obj.command = board
-    jql, order_by = boards.check(board, myji_obj.config)
+    jayrah_obj.command = board
+    jql, order_by = boards.check(board, jayrah_obj.config)
     if not jql or not order_by:
         return
-    issues = myji_obj.list_issues(jql, order_by=order_by)
-    selected = myji_obj.fuzzy_search(issues)
+    issues = jayrah_obj.list_issues(jql, order_by=order_by)
+    selected = jayrah_obj.fuzzy_search(issues)
     if selected:
         click.secho(f"Selected issue: {selected}", fg="green")
 
@@ -107,11 +107,11 @@ def browse(myji_obj, board):
 @click.option("--labels", "-l", multiple=True, help="Issue labels")
 @click.pass_obj
 # pylint: disable=too-many-positional-arguments
-def pac_create(myji_obj, issuetype, summary, description, priority, assignee, labels):
+def pac_create(jayrah_obj, issuetype, summary, description, priority, assignee, labels):
     """Create an issue"""
-    myji_obj.command = "create"
+    jayrah_obj.command = "create"
     labels_list = list(labels) if labels else None
-    myji_obj.create_issue(
+    jayrah_obj.create_issue(
         issuetype=issuetype,
         summary=summary,
         description=description,
@@ -129,52 +129,52 @@ def issue():
 @issue.command("open")
 @click.argument("ticket")
 @click.pass_obj
-def browser_open(myji_obj, ticket):
+def browser_open(jayrah_obj, ticket):
     """Open issue in browser"""
-    # Use the myji_obj if needed to see server info
-    utils.browser_open_ticket(ticket, myji_obj.config)
+    # Use the jayrah_obj if needed to see server info
+    utils.browser_open_ticket(ticket, jayrah_obj.config)
 
 
 @issue.command("view")
 @click.argument("ticket")
 @click.option("--comments", "-c", default=0, help="Number of comments to show")
 @click.pass_obj
-def view(myji_obj, ticket, comments):
+def view(jayrah_obj, ticket, comments):
     """View issue in a nice format"""
     # Get detailed information about the issue
     fields = None  # Get all fields
-    issue = myji_obj.jira.get_issue(ticket, fields=fields)
-    issue_view.display_issue(issue, myji_obj.config, comments)
+    issue = jayrah_obj.jira.get_issue(ticket, fields=fields)
+    issue_view.display_issue(issue, jayrah_obj.config, comments)
 
 
 @issue.command("action")
 @click.argument("ticket")
 @click.pass_obj
-def action(myji_obj, ticket):
+def action(jayrah_obj, ticket):
     """View issue in a nice format"""
     # Get detailed information about the issue
     fields = None  # Get all fields
-    issue = myji_obj.jira.get_issue(ticket, fields=fields)
-    issue_action.action_menu(issue, myji_obj)
+    issue = jayrah_obj.jira.get_issue(ticket, fields=fields)
+    issue_action.action_menu(issue, jayrah_obj)
 
 
 @issue.command("edit-description")
 @click.argument("ticket")
 @click.pass_obj
-def edit_description(myji_obj, ticket):
+def edit_description(jayrah_obj, ticket):
     """Edit issue description with system editor"""
     fields = None  # Get all fields
-    ticketj = myji_obj.jira.get_issue(ticket, fields=fields)
-    edit_success = issue_action.edit_description(ticketj, myji_obj)
+    ticketj = jayrah_obj.jira.get_issue(ticket, fields=fields)
+    edit_success = issue_action.edit_description(ticketj, jayrah_obj)
     ticket_number = ticketj["key"]
-    if edit_success and myji_obj.verbose:
+    if edit_success and jayrah_obj.verbose:
         click.echo(f"Description updated for {ticket_number}", err=True)
 
 
 @issue.command("transition")
 @click.argument("ticket")
 @click.pass_obj
-def transition(myji_obj, ticket):
+def transition(jayrah_obj, ticket):
     """Transition issue to a new status"""
-    ticketj = myji_obj.jira.get_issue(ticket, fields=None)
-    issue_action.transition_issue(ticketj, myji_obj)
+    ticketj = jayrah_obj.jira.get_issue(ticket, fields=None)
+    issue_action.transition_issue(ticketj, jayrah_obj)

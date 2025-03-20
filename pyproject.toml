@@ -1,7 +1,7 @@
 [project]
-name = "myji"
+name = "jayrah"
 version = "0.1.0"
-description = "My simple JIRA CLI"
+description = "A command-line tool for managing Jira issues with FZF."
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
@@ -10,13 +10,13 @@ dependencies = [
   "pyyaml>=6.0.2",
   "rich>=13.9.4",
 ]
-scripts = { myj = "myji.cli:main" }
+scripts = { jayrah = "jayrah.cli:main" }
 
 [dependency-groups]
 dev = ["ipython>=9.0.2", "isort>=6.0.1", "pylint>=3.3.5"]
 
 [tool.setuptools]
-py-modules = ["myji"]
+py-modules = ["jayrah"]
 
 [tool.uv]
 package = true

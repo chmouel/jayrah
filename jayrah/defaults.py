@@ -188,4 +188,4 @@ LOG_LEVELS = {
 CACHE_DURATION = 60 * 60 * 24 * 1  # 1 day
 
 
-CONFIG_FILE = pathlib.Path.home() / ".config" / "myji" / "config.yaml"
+CONFIG_FILE = pathlib.Path.home() / ".config" / "jayrah" / "config.yaml"

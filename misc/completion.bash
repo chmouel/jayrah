@@ -1,29 +1,22 @@
-_myj_completion() {
-    local IFS=$'\n'
-    local response
+Usage: jayrah [OPTIONS] COMMAND [ARGS]...
 
-    response=$(env COMP_WORDS="${COMP_WORDS[*]}" COMP_CWORD=$COMP_CWORD _MYJ_COMPLETE=bash_complete $1)
+  Jira Helper Tool
 
-    for completion in $response; do
-        IFS=',' read type value <<< "$completion"
+Options:
+  -n, --no-cache          Disable caching of API responses
+  --no-fzf                Output directly to stdout without fzf
+  -v, --verbose           Enable verbose output
+  --insecure              Disable SSL verification for requests
+  --jira-server TEXT      Jira server URL
+  --jira-user TEXT        Jira user
+  --jira-component TEXT   Jira user
+  --jira-password TEXT    Jira user
+  -t, --cache-ttl TEXT    Cache TTL in seconds
+  -c, --config-file TEXT  Config file to use
+  --help                  Show this message and exit.
 
-        if [[ $type == 'dir' ]]; then
-            COMPREPLY=()
-            compopt -o dirnames
-        elif [[ $type == 'file' ]]; then
-            COMPREPLY=()
-            compopt -o default
-        elif [[ $type == 'plain' ]]; then
-            COMPREPLY+=($value)
-        fi
-    done
-
-    return 0
-}
-
-_myj_completion_setup() {
-    complete -o nosort -F _myj_completion myj
-}
-
-_myj_completion_setup;
-
+Commands:
+  browse  Browse boards
+  create  Create an issue
+  help    Display help content
+  issue   issue commands

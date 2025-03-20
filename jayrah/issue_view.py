@@ -6,7 +6,7 @@ from datetime import datetime
 import click
 import jira2markdown
 
-from myji import defaults, utils
+from jayrah import defaults, utils
 
 
 def get_terminal_width() -> int:

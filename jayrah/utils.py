@@ -7,7 +7,7 @@ import webbrowser
 
 import click
 
-from myji import defaults  # Third-party imports next
+from jayrah import defaults  # Third-party imports next
 
 
 def make_osc8_link(text, url):

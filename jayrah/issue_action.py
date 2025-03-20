@@ -3,7 +3,7 @@ import tempfile
 
 import click
 
-from myji import utils
+from jayrah import utils
 
 from . import defaults
 
@@ -42,7 +42,7 @@ def transition_issue(ticketj, obj):
 
         tmp.flush()
 
-        preview_cmd = f"{obj.config.get('myj_path')} issue view '{ticket_number}'"
+        preview_cmd = f"{obj.config.get('jayrah_path')} issue view '{ticket_number}'"
         fzf_cmd = [
             "fzf",
             "-d",
@@ -208,7 +208,7 @@ def choose_action(ticketj, obj):
             tmp.write(ss + "\n")
         tmp.flush()
 
-        preview_cmd = f"{obj.config.get('myj_path')} issue view '{ticket_number}'"
+        preview_cmd = f"{obj.config.get('jayrah_path')} issue view '{ticket_number}'"
         fzf_cmd = [
             "fzf",
             "-d",
