@@ -88,6 +88,27 @@ jayrah issue edit-description TICKET-123
 jayrah issue transition TICKET-123
 ```
 
+## Shell completion
+
+## ZSH
+
+copy [./misc/completion.zsh](./misc/completion.zsh) to your [zsh fpath](https://github.com/zsh-users/zsh-completions/blob/master/zsh-completions-howto.org#telling-zsh-which-function-to-use-for-completing-a-command)
+directory or add the following to your `.zshrc`:
+
+```shell
+eval "$(_JAYRAH_COMPLETE=zsh_source jayrah)" 
+```
+
+## Bash
+
+Copy [./misc/completion.bash](./misc/completion.bash) to your bash completion
+directory or add this to your `.bashrc`:
+
+```shell
+```shell
+eval "$(_JAYRAH_COMPLETE=bash_source jayrah)" 
+```
+
 ## Help
 
 Run `jayrah help` for more information on how to use the tool.
