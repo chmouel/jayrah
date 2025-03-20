@@ -1,6 +1,6 @@
-# Jayrah - A Jira Helper Tool
+# 🌞 Jayrah - A Jira with FZF CLI 🌞
 
-Jayrah is a command-line interface (CLI) tool that helps you interact with Jira more efficiently. It provides a fuzzy search interface for browsing issues, creating tickets, and performing various actions on tickets.
+Jayrah is a command-line interface (CLI) tool that helps you interact with Jira more efficiently. It provides a fuzzy search interface via FZF for browsing issues, creating tickets, and performing various actions on tickets.
 
 ## Installation
 
@@ -55,7 +55,7 @@ You can also set configuration through environment variables:
 
 ## Usage
 
-### Browse issues
+### 🔍 Browse issues
 
 ```bash
 jayrah browse [BOARD]
@@ -63,28 +63,28 @@ jayrah browse [BOARD]
 
 Where `BOARD` is one of the boards defined in your configuration file.
 
-### Create an issue
+### ✨ Create an issue
 
 ```bash
 jayrah create --type "Story" --summary "Issue summary" --description "Issue description"
 ```
 
-### Working with issues
+### 🛠️ Working with issues
 
 ```bash
-# Open an issue in browser
+# 🌐 Open an issue in browser
 jayrah issue open TICKET-123
 
-# View issue details
+# 👁️ View issue details
 jayrah issue view TICKET-123 [--comments N]
 
-# Perform actions on an issue (transition, edit, etc.)
+# 🎬 Perform actions on an issue (transition, edit, etc.)
 jayrah issue action TICKET-123
 
-# Edit issue description
+# 📝 Edit issue description
 jayrah issue edit-description TICKET-123
 
-# Transition an issue to a new status
+# 🔄 Transition an issue to a new status
 jayrah issue transition TICKET-123
 ```
 
