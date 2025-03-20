@@ -48,7 +48,7 @@ def check(board, config) -> typing.Tuple[str, str]:
         show(config)
         return "", ""
 
-    jql = chosen_boards[0].get("jql").strip() if chosen_boards else None
+    jql = chosen_boards[0].get("jql", "").strip() if chosen_boards else None
     if not jql:
         click.secho(f"Board {board} has no JQL defined", fg="red", err=True)
         return "", ""
