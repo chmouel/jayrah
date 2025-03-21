@@ -67,7 +67,12 @@ def show_time(s):
     return datetime.datetime.strptime(s, "%Y-%m-%dT%H:%M:%S.%f%z").strftime("%Y-%m-%d")
 
 
-def parse_email(s):
+def parse_email(dico):
+    s = ""
+    if "emailAddress" in dico:
+        s = dico["emailAddress"]
+    elif "key" in dico:
+        s = dico["key"]
     return s.split("@")[0].split("+")[0]
 
 

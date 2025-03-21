@@ -153,10 +153,10 @@ class Boards:
         if "assignee" in issue["fields"]:
             kk = "None"
             if issue["fields"]["assignee"]:
-                kk = utils.parse_email(issue["fields"]["assignee"]["key"])
+                kk = utils.parse_email(issue["fields"]["assignee"])
             ss += [kk.ljust(max_asignee_length)]
         if "reporter" in issue["fields"]:
-            kk = utils.parse_email(issue["fields"]["reporter"]["key"])
+            kk = utils.parse_email(issue["fields"]["reporter"])
             ss += [kk.ljust(max_reporter_length)]
         if "created" in issue["fields"]:
             kk = utils.show_time(issue["fields"]["created"])
