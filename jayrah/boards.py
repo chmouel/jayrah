@@ -301,14 +301,27 @@ class Boards:
         labels=None,
     ):
         """Create a new Jira issue."""
-        self.jira.create_issue(
+        summary = summary or click.prompt("Summary")
+        if not description:
+            editor_text = (
+                "\n\n"
+                "# Edit description for the new issue with summary:\n"
+                "# {description}\n"
+                "# The first lines starting with # will be ignored\n"
+                "# Save and exit the editor to submit changes, or exit without saving to cancel\n"
+            )
+            description = utils.edit_text_with_editor(editor_text, extension=".jira")
+
+        ret = self.jira.create_issue(
             issuetype=issuetype or "Story",
-            summary=summary or click.prompt("Summary"),
+            summary=summary,
             description=description,
             priority=priority,
             assignee=assignee,
             labels=labels,
         )
+        issue_key = ret.get("key")
+        print(f"Issue created: {utils.make_full_url(issue_key)}")
 
     def suggest_git_branch(self):
         """Suggest a git branch name based on a selected issue."""
