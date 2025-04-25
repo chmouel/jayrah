@@ -76,8 +76,8 @@ def parse_email(dico):
     return s.split("@")[0].split("+")[0]
 
 
-def get_pass_key(s):
-    cmd = ["pass", "show", s]
+def get_pass_key(passCmd, s):
+    cmd = [passCmd, "show", s]
     try:
         return subprocess.check_output(cmd, text=True).strip()
     except subprocess.CalledProcessError:
