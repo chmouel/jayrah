@@ -1,6 +1,7 @@
 import pathlib
 
 import click
+import re
 import yaml
 from rich.prompt import Prompt
 
@@ -63,9 +64,10 @@ def read_config(ret: dict, config_file: pathlib.Path) -> dict:
         if (
             "jira_password" in ret
             and ret["jira_password"]
-            and ret["jira_password"].startswith("pass::")
+            and re.match(r"(pass|passage)::", ret["jira_password"])
         ):
             ret["jira_password"] = utils.get_pass_key(
+                ret["jira_password"].split("::")[0],
                 ret["jira_password"].split("::")[-1]
             )
 
