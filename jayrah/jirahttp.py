@@ -1,7 +1,6 @@
 import json
 import ssl
 import urllib.error
-import urllib.parse
 import urllib.request
 from urllib.parse import urlencode
 
@@ -193,6 +192,7 @@ class JiraHTTP:
         priority=None,
         assignee=None,
         labels=None,
+        components: list = [],
     ):
         """
         Create a new issue.
@@ -214,9 +214,12 @@ class JiraHTTP:
                 "project": {"key": self.config.get("jira_project")},
                 "summary": summary,
                 "issuetype": {"name": issuetype},
-                "components": [{"name": self.config.get("jira_component")}],
             }
         }
+        if components:
+            payload["fields"]["components"] = [
+                {"name": component} for component in components
+            ]
         if description:
             payload["fields"]["description"] = description
         if priority:

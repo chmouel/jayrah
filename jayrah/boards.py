@@ -14,7 +14,7 @@ from . import config, defaults, jirahttp, utils
 class BoardType(click.ParamType):
     name = "board"
 
-    def shell_complete(self, ctx, param, incomplete):
+    def shell_complete(self, ctx, _, incomplete):
         config_file = defaults.CONFIG_FILE
         if ctx.parent.params.get("config_file"):
             config_file = pathlib.Path(ctx.parent.params.get("config_file"))
@@ -59,7 +59,7 @@ def check(board, config) -> typing.Tuple[str, str]:
 
 
 class Boards:
-    ctx: click.Context = None
+    ctx: click.Context
     command: str = ""
     obj = None
     verbose: bool = False
@@ -299,6 +299,7 @@ class Boards:
         priority=None,
         assignee=None,
         labels=None,
+        components: list = [],
     ):
         """Create a new Jira issue."""
         summary = summary or click.prompt("Summary")
@@ -311,7 +312,8 @@ class Boards:
                 "# Save and exit the editor to submit changes, or exit without saving to cancel\n"
             )
             description = utils.edit_text_with_editor(editor_text, extension=".jira")
-
+        if not components and self.config.get("default_component"):
+            components = [self.config.get("default_component")]
         ret = self.jira.create_issue(
             issuetype=issuetype or "Story",
             summary=summary,
@@ -319,9 +321,12 @@ class Boards:
             priority=priority,
             assignee=assignee,
             labels=labels,
+            components=components,
         )
-        issue_key = ret.get("key")
-        print(f"Issue created: {utils.make_full_url(issue_key)}")
+
+        print(
+            f"Issue created: {utils.make_full_url(ret.get('key'), self.config.get('jira_server'))}"
+        )
 
     def suggest_git_branch(self):
         """Suggest a git branch name based on a selected issue."""
