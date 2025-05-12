@@ -1,9 +1,10 @@
-from mcp.server.models import InitializationOptions
+import json
+
+import mcp.server.stdio
 import mcp.types as types
 from mcp.server import NotificationOptions, Server
+from mcp.server.models import InitializationOptions
 from pydantic import AnyUrl
-import mcp.server.stdio
-import json
 
 from . import boards, config, defaults, utils
 
@@ -12,19 +13,14 @@ config_file = defaults.CONFIG_FILE
 wconfig = config.make_config({}, config_file)
 boards_obj = boards.Boards(wconfig)
 
-# Store notes as a simple key-value dict to demonstrate state management
-notes: dict[str, str] = {}
-
 server = Server("jayrah")
 
 
 @server.list_resources()
 async def handle_list_resources() -> list[types.Resource]:
     """
-    List available note resources.
-    Each note is exposed as a resource with a custom note:// URI scheme.
+    List all available Jira boards as resources
     """
-    # List all available Jira boards as resources
     board_resources = []
 
     if wconfig.get("boards"):
@@ -40,18 +36,7 @@ async def handle_list_resources() -> list[types.Resource]:
                 )
             )
 
-    # Also include existing notes as resources
-    note_resources = [
-        types.Resource(
-            uri=AnyUrl(f"note://internal/{name}"),
-            name=f"Note: {name}",
-            description=f"A simple note named {name}",
-            mimeType="text/plain",
-        )
-        for name in notes
-    ]
-
-    return board_resources + note_resources
+    return board_resources
 
 
 @server.read_resource()
@@ -59,14 +44,7 @@ async def handle_read_resource(uri: AnyUrl) -> str:
     """
     Read a specific resource by its URI.
     """
-    if uri.scheme == "note":
-        name = uri.path
-        if name is not None:
-            name = name.lstrip("/")
-            return notes[name]
-        raise ValueError(f"Note not found: {name}")
-
-    elif uri.scheme == "jira":
+    if uri.scheme == "jira":
         parts = uri.path.lstrip("/").split("/")
         if len(parts) >= 2 and parts[0] == "board":
             board_name = parts[1]
@@ -100,17 +78,6 @@ async def handle_list_prompts() -> list[types.Prompt]:
     """
     return [
         types.Prompt(
-            name="summarize-notes",
-            description="Creates a summary of all notes",
-            arguments=[
-                types.PromptArgument(
-                    name="style",
-                    description="Style of the summary (brief/detailed)",
-                    required=False,
-                )
-            ],
-        ),
-        types.Prompt(
             name="analyze-jira-issue",
             description="Analyze a Jira issue and provide insights",
             arguments=[
@@ -131,26 +98,7 @@ async def handle_get_prompt(
     """
     Generate a prompt by combining arguments with server state.
     """
-    if name == "summarize-notes":
-        style = (arguments or {}).get("style", "brief")
-        detail_prompt = " Give extensive details." if style == "detailed" else ""
-
-        return types.GetPromptResult(
-            description="Summarize the current notes",
-            messages=[
-                types.PromptMessage(
-                    role="user",
-                    content=types.TextContent(
-                        type="text",
-                        text=f"Here are the current notes to summarize:{detail_prompt}\n\n"
-                        + "\n".join(
-                            f"- {name}: {content}" for name, content in notes.items()
-                        ),
-                    ),
-                )
-            ],
-        )
-    elif name == "analyze-jira-issue":
+    if name == "analyze-jira-issue":
         issue_key = (arguments or {}).get("issue_key")
         if not issue_key:
             raise ValueError("Missing required argument: issue_key")
@@ -185,19 +133,6 @@ async def handle_list_tools() -> list[types.Tool]:
     Each tool specifies its arguments using JSON Schema validation.
     """
     return [
-        # Original note tool
-        types.Tool(
-            name="add-note",
-            description="Add a new note",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "name": {"type": "string"},
-                    "content": {"type": "string"},
-                },
-                "required": ["name", "content"],
-            },
-        ),
         # Jira browse boards
         types.Tool(
             name="browse",
@@ -328,30 +263,7 @@ async def handle_call_tool(
     Handle tool execution requests, mapping to Jira CLI commands.
     """
     try:
-        if name == "add-note":
-            if not arguments:
-                raise ValueError("Missing arguments")
-
-            note_name = arguments.get("name")
-            content = arguments.get("content")
-
-            if not note_name or not content:
-                raise ValueError("Missing name or content")
-
-            # Update server state
-            notes[note_name] = content
-
-            # Notify clients that resources have changed
-            await server.request_context.session.send_resource_list_changed()
-
-            return [
-                types.TextContent(
-                    type="text",
-                    text=f"Added note '{note_name}' with content: {content}",
-                )
-            ]
-
-        elif name == "browse":
+        if name == "browse":
             board = arguments.get("board")
             if not board:
                 raise ValueError("Board name is required")
