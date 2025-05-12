@@ -1,10 +1,12 @@
+import asyncio
 import os
 import pathlib
 import sys
 
 import click
 
-from . import boards, config, defaults, help, issue_action, issue_view, utils
+from . import (boards, config, defaults, help, issue_action, issue_view,
+               mcp_server, utils)
 
 
 @click.group()
@@ -178,3 +180,18 @@ def transition(jayrah_obj, ticket):
     """Transition issue to a new status"""
     ticketj = jayrah_obj.jira.get_issue(ticket, fields=None)
     issue_action.transition_issue(ticketj, jayrah_obj)
+
+
+@cli.command("mcp-server")
+@click.option("--host", default="127.0.0.1", help="Host to bind the MCP server")
+@click.option("--port", default=8765, type=int, help="Port to bind the MCP server")
+@click.pass_context
+def mcp_server_cmd(ctx, host, port):
+    """Start the MCP server for programmatic access."""
+
+    # Use the config file from the CLI context if available
+    # config_file = ctx.parent.params.get("config_file") if ctx.parent else None
+    try:
+        asyncio.run(mcp_server.main())
+    except KeyboardInterrupt:
+        click.secho("MCP server stopped by user", fg="yellow", err=True)

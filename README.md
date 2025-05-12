@@ -109,6 +109,80 @@ directory or add this to your `.bashrc`:
 eval "$(_JAYRAH_COMPLETE=bash_source jayrah)" 
 ```
 
+## MCP Server Integration with Jayrah
+
+To integrate Jayrah's Jira functionality with AI agents and other tools, we've implemented a Model Context Protocol (MCP) server that exposes all the key features as a standard API.
+
+### Starting the MCP Server
+
+You can start the MCP server using the following command:
+
+```bash
+jayrah mcp-server
+```
+
+By default, this starts the server in stdio mode for use with VS Code and the MCP extension.
+
+### Supported Tools
+
+The MCP server supports the following tools that map to CLI commands:
+
+* **browse**: List issues on a specific board
+* **create-issue**: Create a new Jira issue
+* **view-issue**: View details of a specific issue
+* **transition-issue**: Change the status of an issue
+* **get-transitions**: Get available transitions for an issue
+* **open-issue**: Get URL to open an issue in browser
+* **list-boards**: List all available boards
+
+### Using with VS Code
+
+1. Get access to Copilot Chat.
+2. Choose the action `MCP: Add server` from the command palette.
+3. Choose `Command Stdio`
+4. Type the command `jayrah mcp-server` in the input box.
+5. Choose where to  save the configuration file (e.g., `.vscode/mcp.json`).
+your `.vscode/mcp.json` will look like
+
+```json
+{
+    "servers": {
+        "jayrah": {
+            "type": "stdio",
+            "command": "jayrah",
+            "args": [
+                "mcp-server"
+            ]
+        }
+    }
+}
+```
+
+6. Open the Copilot Chat choose agent and press the Tools button.
+
+### Using with AI Agents (Claude, etc.)
+
+The MCP server can be used by AI agents that support tool-calling over the MCP protocol. For example, with Anthropic Claude:
+
+1. Start the MCP server
+2. Configure Claude to use the MCP server
+3. Ask Claude to perform Jira tasks like "create a new story for improving error handling" or "show me issues on the myissues board"
+
+Example agent interaction:
+
+```text
+me: Show me all issues on my current board
+claude: I'll check that for you using the browse tool...
+
+[Tool usage: browse with board="myissues"]
+
+Found 5 issues on board 'myissues':
+
+1. PROJ-123: Implement error handling (In Progress)
+2. PROJ-124: Update documentation (To Do)
+...
+```
+
 ## Help
 
 Run `jayrah help` for more information on how to use the tool.
