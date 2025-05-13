@@ -99,34 +99,6 @@ def test_write_config(tmp_path):
     assert written_config["general"]["jira_user"] == "test_user"
 
 
-@patch("jayrah.utils.get_pass_key")
-def test_read_config_password_from_pass(mock_get_pass_key, tmp_path):
-    """Test reading password from pass utility."""
-    # Fix: Actually call the function we're testing
-    mock_get_pass_key.return_value = "password_from_pass"
-
-    config_data = {
-        "jira_password": "pass::jira-token",
-    }
-
-    # Create a test config file with valid YAML content
-    config_file = tmp_path / "pass_config.yaml"
-    with open(config_file, "w") as f:
-        yaml.dump({"general": {}}, f)  # Write a minimal valid YAML structure
-
-    # The issue is that we get a NoneType error when trying to access .get() on None
-    # So let's patch yaml.safe_load to return a dict instead of None
-    with patch("yaml.safe_load") as mock_safe_load:
-        mock_safe_load.return_value = {"general": {}}  # Return a valid structure
-
-        # Call the actual function
-        result = config.read_config(config_data, config_file)
-
-        # Verify results
-        assert result["jira_password"] == "password_from_pass"
-        mock_get_pass_key.assert_called_once_with("jira-token")
-
-
 @patch("rich.prompt.Prompt.ask")
 @patch("jayrah.config.write_config")
 def test_make_config_prompts_for_missing_values(

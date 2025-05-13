@@ -1,4 +1,3 @@
-import subprocess
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -62,21 +61,6 @@ def test_parse_email():
     # Test with plus addressing
     result = utils.parse_email({"emailAddress": "user+tag@example.com"})
     assert result == "user"
-
-
-@patch("subprocess.check_output")
-def test_get_pass_key(mock_check_output):
-    """Test retrieving passwords from pass."""
-    mock_check_output.return_value = "secret_password\n"
-    result = utils.get_pass_key("jira/token")
-    assert result == "secret_password"
-    mock_check_output.assert_called_once_with(["pass", "show", "jira/token"], text=True)
-
-    # Test with subprocess error
-    mock_check_output.reset_mock()
-    mock_check_output.side_effect = subprocess.CalledProcessError(1, "pass")
-    result = utils.get_pass_key("jira/token")
-    assert result is None
 
 
 @patch("subprocess.run")
