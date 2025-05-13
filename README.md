@@ -125,7 +125,7 @@ Jayrah can run as an MCP server to work with AI tools like VS Code Copilot.
 ### Start the server
 
 ```bash
-jayrah mcp-server
+jayrah mcp
 ```
 
 This runs in stdio mode by default for VS Code.
@@ -147,7 +147,7 @@ The server exposes these Jira operations:
 2. Make sure you have Copilot in VS Code
 3. Hit `F1` and pick `MCP: Add server`
 4. Choose `Command Stdio`
-5. Enter: `uv run --directory=/path/to/jayrah jayrah mcp-server`
+5. Enter: `uv run --directory=/path/to/jayrah jayrah mcp`
 6. Save the config (e.g., to `.vscode/mcp.json`):
 
 ```json
@@ -161,7 +161,7 @@ The server exposes these Jira operations:
                 "--directory",
                "/path/to/jayrah",
                "jayrah",
-               "mcp-server"
+               "mcp"
             ]
         }
     }

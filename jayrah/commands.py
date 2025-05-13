@@ -5,8 +5,16 @@ import sys
 
 import click
 
-from . import (boards, config, defaults, help, issue_action, issue_view,
-               mcp_server, utils)
+from . import (
+    boards,
+    config,
+    defaults,
+    help,
+    issue_action,
+    issue_view,
+    mcp_server,
+    utils,
+)
 
 
 @click.group()
@@ -182,7 +190,7 @@ def transition(jayrah_obj, ticket):
     issue_action.transition_issue(ticketj, jayrah_obj)
 
 
-@cli.command("mcp-server")
+@cli.command("mcp")
 @click.option("--host", default="127.0.0.1", help="Host to bind the MCP server")
 @click.option("--port", default=8765, type=int, help="Port to bind the MCP server")
 @click.pass_context
