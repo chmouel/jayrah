@@ -124,6 +124,10 @@ def browse(jayrah_obj, board, search_terms, use_or):
         boards.show_no_issues_message(search_terms, use_or)
         return
 
+    selected = jayrah_obj.fuzzy_search(issues)
+    if selected:
+        click.secho(f"Selected issue: {selected}", fg="green")
+
 
 @cli.command("create")
 @click.option("--type", "-t", "issuetype", default="Story", help="Issue type")
