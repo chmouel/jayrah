@@ -169,6 +169,11 @@ async def handle_list_tools() -> list[types.Tool]:
                         "type": "boolean",
                         "description": "Use OR instead of AND to combine search terms (default: false)",
                     },
+                    "filters": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Filter issues by specific fields (e.g., 'status=In Progress', 'priority=High')",
+                    },
                     "limit": {
                         "type": "integer",
                         "description": "Maximum number of issues to display (default: 10)",
@@ -183,6 +188,30 @@ async def handle_list_tools() -> list[types.Tool]:
                     },
                 },
                 "required": ["board"],
+            },
+        ),
+        # Suggest Git branch
+        types.Tool(
+            name="git-branch",
+            description="Suggest a git branch name based on a selected issue",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "search_terms": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "List of search terms to filter issues by summary and description",
+                    },
+                    "use_or": {
+                        "type": "boolean",
+                        "description": "Use OR instead of AND to combine search terms (default: false)",
+                    },
+                    "filters": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Filter issues by specific fields (e.g., 'status=In Progress', 'priority=High')",
+                    },
+                },
             },
         ),
         # Create Jira issue
@@ -301,6 +330,7 @@ async def handle_call_tool(
     """
     tool_handlers = {
         "browse": _handle_browse,
+        "git-branch": _handle_git_branch,
         "create-issue": _handle_create_issue,
         "view-issue": _handle_view_issue,
         "transition-issue": _handle_transition_issue,
@@ -331,6 +361,7 @@ async def _handle_browse(arguments: dict) -> list[types.TextContent]:
     page_size = arguments.get("page_size", 100)  # Default page size is 100
     search_terms = arguments.get("search_terms", [])  # Get search terms if provided
     use_or = arguments.get("use_or", False)  # Get OR/AND flag
+    filters = arguments.get("filters", [])  # Get field-specific filters
 
     # For backward compatibility
     if not search_terms and "search" in arguments and arguments["search"]:
@@ -349,7 +380,7 @@ async def _handle_browse(arguments: dict) -> list[types.TextContent]:
 
     # Use the common function to build the search JQL
     jql = boards.build_search_jql(
-        jql, search_terms, use_or, wconfig.get("verbose", False)
+        jql, search_terms, use_or, wconfig.get("verbose", False), filters
     )
 
     # Calculate start_at based on page number (0-indexed for the API)
@@ -393,6 +424,7 @@ async def _handle_browse(arguments: dict) -> list[types.TextContent]:
                 page_size,
                 search_terms=search_terms,
                 use_or=use_or,
+                filters=filters,
             ),
         )
     ]
@@ -406,6 +438,7 @@ def _format_issues_summary(
     page_size: int = 100,
     search_terms: list = None,
     use_or: bool = False,
+    filters: list = None,
     search_term: str = None,  # For backward compatibility
 ) -> str:
     """Format a list of issues into a readable summary."""
@@ -424,20 +457,23 @@ def _format_issues_summary(
     if not search_terms and search_term:
         search_terms = [search_term]
 
-    # Create the summary heading with search term info if applicable
+    # Create the summary heading with search term info and filters if applicable
+    summary_parts = []
     if search_terms:
         # Use the common helper function to format search terms
         terms_text = boards.format_search_terms(search_terms, use_or)
+        summary_parts.append(f"matching {terms_text}")
 
-        if total_count:
-            summary = f"Found {total_count} total issues matching {terms_text} on board '{board_name}' (Page {page}, showing {total_in_page}):\n\n"
-        else:
-            summary = f"Found {total_in_page} issues matching {terms_text} on board '{board_name}' (Page {page}):\n\n"
+    if filters:
+        filter_text = " AND ".join(f"{f}" for f in filters)
+        summary_parts.append(f"with filters: {filter_text}")
+
+    search_info = " " + " ".join(summary_parts) if summary_parts else ""
+
+    if total_count:
+        summary = f"Found {total_count} total issues{search_info} on board '{board_name}' (Page {page}, showing {total_in_page}):\n\n"
     else:
-        if total_count:
-            summary = f"Found {total_count} total issues on board '{board_name}' (Page {page}, showing {total_in_page}):\n\n"
-        else:
-            summary = f"Found {total_in_page} issues on board '{board_name}' (Page {page}):\n\n"
+        summary = f"Found {total_in_page} issues{search_info} on board '{board_name}' (Page {page}):\n\n"
 
     # Display issues up to the specified limit
     display_count = min(limit, total_in_page)
@@ -594,6 +630,66 @@ async def _handle_list_boards(arguments: dict) -> list[types.TextContent]:
         formatted_boards += f"* {board_name}: {description}\n"
 
     return [types.TextContent(type="text", text=formatted_boards)]
+
+
+async def _handle_git_branch(arguments: dict) -> list[types.TextContent]:
+    """Handle the git-branch tool to suggest a git branch name from an issue."""
+    search_terms = arguments.get("search_terms", [])  # Get search terms if provided
+    use_or = arguments.get("use_or", False)  # Get OR/AND flag
+    filters = arguments.get("filters", [])  # Get field-specific filters
+
+    try:
+        # Call the suggest_git_branch method and capture its output
+        # This would normally display to stdout, so we need to capture it
+        import io
+        from contextlib import redirect_stdout
+
+        # Create a StringIO object to capture stdout
+        f = io.StringIO()
+
+        # Redirect stdout to our StringIO object
+        with redirect_stdout(f):
+            boards_obj.suggest_git_branch(search_terms, use_or, filters)
+
+        # Get the captured output
+        output = f.getvalue().strip()
+
+        # If we didn't get any output, it means no branch was created (likely no issues found)
+        if not output:
+            search_info = ""
+            if search_terms:
+                search_operator = " OR " if use_or else " AND "
+                search_info += f" with search terms: {search_operator.join(f'"{term}"' for term in search_terms)}"
+
+            if filters:
+                filter_info = " AND ".join(f"{f}" for f in filters)
+                if search_info:
+                    search_info += f" and filters: {filter_info}"
+                else:
+                    search_info += f" with filters: {filter_info}"
+
+            return [
+                types.TextContent(
+                    type="text",
+                    text=f"No issues found{search_info} to create a branch from.",
+                )
+            ]
+
+        # Extract just the branch name (last line of output)
+        branch_name = output.split("\n")[-1]
+
+        return [
+            types.TextContent(
+                type="text",
+                text=f"Suggested git branch name: {branch_name}\n\nYou can create this branch with:\ngit checkout -b {branch_name}",
+            )
+        ]
+    except Exception as e:
+        return [
+            types.TextContent(
+                type="text", text=f"Error suggesting git branch: {str(e)}"
+            )
+        ]
 
 
 async def main():

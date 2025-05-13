@@ -72,7 +72,34 @@ jayrah browse [BOARD] term1 term2   # Searches for term1 AND term2
 jayrah browse [BOARD] --or term1 term2   # Searches for term1 OR term2
 ```
 
-Pick a board from your config file. Add search terms as arguments to filter issues by content. By default, multiple terms are combined with AND logic, but you can use the `--or` flag to combine them with OR logic.
+#### 🔎 Field Filtering Examples
+
+Jayrah supports powerful field-specific filtering with the `--filter` option:
+
+```bash
+# Basic status filtering
+jayrah browse myissues --filter status="In Progress"
+jayrah browse myissues --filter status="Code Review"
+
+# Multiple field filters (combined with AND)
+jayrah browse myissues --filter status="In Progress" --filter priority=High
+jayrah browse myissues --filter assignee=currentUser() --filter created>"-1w"
+
+# Combining content search with field filters
+jayrah browse myissues bug frontend --filter status="To Do"
+
+# Using Jira JQL operators in filters
+jayrah browse myissues --filter created>"-1w"       # Issues created in last week
+jayrah browse myissues --filter updated<"-30d"      # Issues not updated in 30 days 
+jayrah browse myissues --filter summary~"Critical"  # Summary contains "Critical"
+jayrah browse myissues --filter labels="backend"    # Has "backend" label
+
+# Complex filtering examples
+jayrah browse myissues --filter "sprint in openSprints()" --filter status!="Done"
+jayrah browse myissues --filter "duedate < endOfWeek()" --filter priority="High"
+```
+
+Pick a board from your config file. Add search terms as arguments to filter issues by content. By default, multiple terms are combined with AND logic, but you can use the `--or` flag to combine them with OR logic. Use the `--filter` option to add field-specific filters in Jira JQL format.
 
 ### ✨ Make a new issue
 
@@ -109,6 +136,29 @@ jayrah git-branch
 jayrah git-branch term1 term2      # Searches for term1 AND term2
 jayrah git-branch --or term1 term2  # Searches for term1 OR term2
 ```
+
+#### 🌿 Git Branch Filtering Examples
+
+Filtering works with the `git-branch` command too, helping you quickly find the right issue to branch from:
+
+```bash
+# Focus on specific issue statuses
+jayrah git-branch --filter status="To Do"           # Only To Do issues
+jayrah git-branch --filter status="In Progress"     # Only In Progress issues
+
+# Find high-priority issues
+jayrah git-branch --filter priority=High
+
+# Combine with content search
+jayrah git-branch bug --filter status="To Do"       # Bug issues in To Do
+jayrah git-branch feature --filter sprint="Current Sprint"
+
+# Advanced filtering
+jayrah git-branch --filter "issuetype=Story" --filter "labels=frontend"
+jayrah git-branch --filter "created>startOfWeek()" --filter "assignee=currentUser()"
+```
+
+The `git-branch` command will show you matching issues and let you select one to create a branch name from. The branch name will be formatted as `ISSUE-KEY-issue-summary-in-kebab-case`.
 
 ## Shell completion
 
@@ -162,12 +212,14 @@ The server exposes these Jira operations:
 
 ### VS Code setup
 
-1. Clone the repo somewhere (e.g., `/path/to/jayrah`)
-2. Make sure you have Copilot in VS Code
-3. Hit `F1` and pick `MCP: Add server`
-4. Choose `Command Stdio`
-5. Enter: `uv run --directory=/path/to/jayrah jayrah mcp`
-6. Save the config (e.g., to `.vscode/mcp.json`):
+Follow these steps to set up Jayrah with VS Code:
+
+* Clone the repo somewhere (e.g., `/path/to/jayrah`)
+* Make sure you have Copilot in VS Code
+* Hit `F1` and pick `MCP: Add server`
+* Choose `Command Stdio`
+* Enter: `uv run --directory=/path/to/jayrah jayrah mcp`
+* Save the config (e.g., to `.vscode/mcp.json`):
 
 ```json
 {
@@ -187,41 +239,47 @@ The server exposes these Jira operations:
 }
 ```
 
-7. In Copilot Chat, select the tools button (often a sparkle icon or similar) to see and use Jayrah's available actions.
+* In Copilot Chat, select the tools button (often a sparkle icon or similar) to see and use Jayrah's available actions.
 
-### Using Pagination with Browse
+### Using MCP with Pagination and Filtering
 
-When browsing issues using the MCP server in Copilot Chat, you can now use pagination to navigate through large sets of issues:
+When using the MCP server in Copilot Chat, you can leverage powerful pagination and filtering capabilities:
 
 ```bash
-# Basic usage
-@jira browse --board="MyBoard"
+# Basic board browsing
+@jira browse --board="myissues"
 
-# Display more issues on a single page (default is 10)
-@jira browse --board="MyBoard" --limit=20
+# Pagination options
+@jira browse --board="myissues" --limit=20             # Show 20 issues per page
+@jira browse --board="myissues" --page=2               # Show second page of results
+@jira browse --board="myissues" --page_size=50 --page=3 # Customize page size and go to page 3
 
-# Navigate to page 2 of the results
-@jira browse --board="MyBoard" --page=2
+# Field filtering examples
+@jira browse --board="myissues" --filters=["status=In Progress"]
+@jira browse --board="myissues" --filters=["priority=High", "assignee=currentUser()"]
 
-# Customize page size (default is 100 issues per page)
-@jira browse --board="MyBoard" --page_size=50 
+# Combining search terms with filters
+@jira browse --board="myissues" --search_terms=["bug", "frontend"] --filters=["status=To Do"]
+@jira browse --board="myissues" --search_terms=["api"] --filters=["created>-1w"]
 
-# Combine parameters for fine-grained control
-@jira browse --board="MyBoard" --limit=15 --page=3 --page_size=50
+# Using JQL operators in filters
+@jira browse --board="myissues" --filters=["updated<-30d"]      # Not updated in 30 days
+@jira browse --board="myissues" --filters=["summary~Critical"]  # Summary contains "Critical"
 
-# Search for issues containing specific terms
-@jira browse --board="MyBoard" --search_terms=["urgent", "bug"]
+# Complex filtering examples
+@jira browse --board="myissues" --filters=["sprint in openSprints()", "status!=Done"]
+@jira browse --board="myissues" --filters=["duedate < endOfWeek()", "priority=High"]
 
-# Using OR instead of AND for search terms
-@jira browse --board="MyBoard" --search_terms=["urgent", "bug"] --use_or=true
+# Using OR logic for search terms
+@jira browse --board="myissues" --search_terms=["bug", "error"] --use_or=true
 
-# Combine search with pagination
-@jira browse --board="MyBoard" --search_terms=["urgent", "bug"] --page=2 --limit=15
+# Git branch suggestions with filters
+@jira git-branch --filters=["status=To Do"]
+@jira git-branch --search_terms=["feature"] --filters=["sprint in openSprints()"]
+@jira git-branch --filters=["issuetype=Story", "labels=frontend"]
 ```
 
-The output will show you which page you're viewing and how to navigate between pages.
-
-The output will show you which page you're viewing and how to navigate between pages.
+The output will show you which page you're viewing and how to navigate between pages. When using the git-branch command, you'll get a suggested branch name ready to use.
 
 ## Need help?
 
