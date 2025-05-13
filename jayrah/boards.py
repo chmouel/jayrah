@@ -329,9 +329,24 @@ class Boards:
             f"Issue created: {utils.make_full_url(ret.get('key'), self.config.get('jira_server'))}"
         )
 
-    def suggest_git_branch(self):
-        """Suggest a git branch name based on a selected issue."""
-        issues = self.list_issues("assignee = currentUser()")
+    def suggest_git_branch(self, search_terms=None, use_or=False):
+        """Suggest a git branch name based on a selected issue.
+
+        Args:
+            search_terms: Optional list of search terms to filter issues by summary or description
+            use_or: Whether to combine search terms with OR instead of AND
+        """
+        base_jql = "assignee = currentUser()"
+
+        # Use the common function to build the search JQL
+        jql = build_search_jql(base_jql, search_terms, use_or, self.verbose)
+
+        issues = self.list_issues(jql)
+
+        if not issues:
+            show_no_issues_message(search_terms, use_or)
+            raise click.Abort("No issues found")
+
         selected = self.fuzzy_search(issues)
         if not selected:
             click.secho("No issue selected", fg="yellow", err=True)
@@ -346,3 +361,72 @@ class Boards:
         branch = f"{selected}-{summary.replace(' ', '-').lower()[:75]}"
         click.secho(f"Suggested branch name: {branch}", fg="blue")
         click.echo(branch)
+
+
+def build_search_jql(
+    base_jql: str, search_terms, use_or: bool = False, verbose: bool = False
+) -> str:
+    """Build a JQL query with search terms.
+
+    Args:
+        base_jql: The base JQL query to extend with search conditions
+        search_terms: A list of search terms to filter issues by summary or description
+        use_or: Whether to combine search terms with OR instead of AND
+        verbose: Whether to display verbose output
+
+    Returns:
+        The extended JQL query string with search conditions
+    """
+    if not search_terms:
+        return base_jql
+
+    # Create individual search conditions for each term
+    search_conditions = []
+    for term in search_terms:
+        term_condition = f'(summary ~ "{term}" OR description ~ "{term}")'
+        search_conditions.append(term_condition)
+
+    # Combine search conditions with AND or OR based on the flag
+    operator = " OR " if use_or else " AND "
+    combined_condition = operator.join(search_conditions)
+
+    # Add combined condition to existing JQL
+    extended_jql = f"({base_jql}) AND ({combined_condition})"
+
+    # Show search message if verbose
+    if verbose:
+        terms_text = format_search_terms(search_terms, use_or)
+        click.secho(f"Searching for: {terms_text}", fg="blue", err=True)
+
+    return extended_jql
+
+
+def format_search_terms(search_terms, use_or: bool = False) -> str:
+    """Format search terms for display in messages.
+
+    Args:
+        search_terms: A list of search terms
+        use_or: Whether to combine terms with OR instead of AND
+
+    Returns:
+        A formatted string of search terms joined with the appropriate operator
+    """
+    if not search_terms:
+        return ""
+
+    operator = " OR " if use_or else " AND "
+    return operator.join(f"'{term}'" for term in search_terms)
+
+
+def show_no_issues_message(search_terms=None, use_or: bool = False) -> None:
+    """Display a standardized message when no issues are found.
+
+    Args:
+        search_terms: Optional list of search terms that were used
+        use_or: Whether OR logic was used instead of AND
+    """
+    if search_terms:
+        terms_text = format_search_terms(search_terms, use_or)
+        click.secho(f"No issues found matching {terms_text}", fg="yellow", err=True)
+    else:
+        click.secho("No issues found", fg="yellow", err=True)

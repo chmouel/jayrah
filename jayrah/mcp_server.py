@@ -160,6 +160,15 @@ async def handle_list_tools() -> list[types.Tool]:
                         "type": "string",
                         "description": "Board name as defined in config",
                     },
+                    "search_terms": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "List of search terms to filter issues by summary and description",
+                    },
+                    "use_or": {
+                        "type": "boolean",
+                        "description": "Use OR instead of AND to combine search terms (default: false)",
+                    },
                     "limit": {
                         "type": "integer",
                         "description": "Maximum number of issues to display (default: 10)",
@@ -320,6 +329,12 @@ async def _handle_browse(arguments: dict) -> list[types.TextContent]:
     limit = arguments.get("limit", 10)  # Default display limit is 10
     page = arguments.get("page", 1)  # Default to first page
     page_size = arguments.get("page_size", 100)  # Default page size is 100
+    search_terms = arguments.get("search_terms", [])  # Get search terms if provided
+    use_or = arguments.get("use_or", False)  # Get OR/AND flag
+
+    # For backward compatibility
+    if not search_terms and "search" in arguments and arguments["search"]:
+        search_terms = [arguments["search"]]
 
     if not board:
         raise ValueError("Board name is required")
@@ -331,6 +346,11 @@ async def _handle_browse(arguments: dict) -> list[types.TextContent]:
                 type="text", text=f"Invalid board or missing JQL: {board}"
             )
         ]
+
+    # Use the common function to build the search JQL
+    jql = boards.build_search_jql(
+        jql, search_terms, use_or, wconfig.get("verbose", False)
+    )
 
     # Calculate start_at based on page number (0-indexed for the API)
     start_at = (page - 1) * page_size
@@ -365,7 +385,15 @@ async def _handle_browse(arguments: dict) -> list[types.TextContent]:
     return [
         types.TextContent(
             type="text",
-            text=_format_issues_summary(board, issues, limit, page, page_size),
+            text=_format_issues_summary(
+                board,
+                issues,
+                limit,
+                page,
+                page_size,
+                search_terms=search_terms,
+                use_or=use_or,
+            ),
         )
     ]
 
@@ -376,6 +404,9 @@ def _format_issues_summary(
     limit: int = 10,
     page: int = 1,
     page_size: int = 100,
+    search_terms: list = None,
+    use_or: bool = False,
+    search_term: str = None,  # For backward compatibility
 ) -> str:
     """Format a list of issues into a readable summary."""
     # Get the total number of issues (from the page)
@@ -386,15 +417,27 @@ def _format_issues_summary(
 
     # Get total count if available in the first issue's metadata
     total_count = None
-    if issues and "total" in issues[0].get("metadata", {}):
+    if issues and "metadata" in issues[0] and "total" in issues[0]["metadata"]:
         total_count = issues[0]["metadata"]["total"]
 
-    if total_count:
-        summary = f"Found {total_count} total issues on board '{board_name}' (Page {page}, showing {total_in_page}):\n\n"
+    # Handle backward compatibility
+    if not search_terms and search_term:
+        search_terms = [search_term]
+
+    # Create the summary heading with search term info if applicable
+    if search_terms:
+        # Use the common helper function to format search terms
+        terms_text = boards.format_search_terms(search_terms, use_or)
+
+        if total_count:
+            summary = f"Found {total_count} total issues matching {terms_text} on board '{board_name}' (Page {page}, showing {total_in_page}):\n\n"
+        else:
+            summary = f"Found {total_in_page} issues matching {terms_text} on board '{board_name}' (Page {page}):\n\n"
     else:
-        summary = (
-            f"Found {total_in_page} issues on board '{board_name}' (Page {page}):\n\n"
-        )
+        if total_count:
+            summary = f"Found {total_count} total issues on board '{board_name}' (Page {page}, showing {total_in_page}):\n\n"
+        else:
+            summary = f"Found {total_in_page} issues on board '{board_name}' (Page {page}):\n\n"
 
     # Display issues up to the specified limit
     display_count = min(limit, total_in_page)

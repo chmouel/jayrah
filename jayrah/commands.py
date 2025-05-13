@@ -95,17 +95,34 @@ def help_command(jayrah_obj):
 
 @cli.command("browse")
 @click.argument("board", required=False, type=boards.BoardType())
+@click.argument("search_terms", nargs=-1)
+@click.option(
+    "--or", "-o", "use_or", is_flag=True, help="Use OR instead of AND for search terms"
+)
 @click.pass_obj
-def browse(jayrah_obj, board):
-    """Browse boards"""
+def browse(jayrah_obj, board, search_terms, use_or):
+    """
+    Browse boards
+
+    SEARCH_TERMS are optional search terms that filter issues by summary or description.
+    Multiple terms are combined with AND by default (or with OR if --or flag is used).
+
+    Example: jayrah browse my-board term1 term2   # Searches for term1 AND term2
+    Example: jayrah browse my-board --or term1 term2   # Searches for term1 OR term2
+    """
     jayrah_obj.command = board
     jql, order_by = boards.check(board, jayrah_obj.config)
     if not jql or not order_by:
         return
+
+    # Use the common function to build the search JQL
+    jql = boards.build_search_jql(jql, search_terms, use_or, jayrah_obj.verbose)
+
     issues = jayrah_obj.list_issues(jql, order_by=order_by)
-    selected = jayrah_obj.fuzzy_search(issues)
-    if selected:
-        click.secho(f"Selected issue: {selected}", fg="green")
+
+    if not issues:
+        boards.show_no_issues_message(search_terms, use_or)
+        return
 
 
 @cli.command("create")
@@ -203,3 +220,26 @@ def mcp_server_cmd(ctx, host, port):
         asyncio.run(mcp_server.main())
     except KeyboardInterrupt:
         click.secho("MCP server stopped by user", fg="yellow", err=True)
+
+
+@cli.command("git-branch")
+@click.argument("search_terms", nargs=-1)
+@click.option(
+    "--or", "-o", "use_or", is_flag=True, help="Use OR instead of AND for search terms"
+)
+@click.pass_obj
+def git_branch(jayrah_obj, search_terms, use_or):
+    """
+    Suggest a git branch name based on a selected issue
+
+    SEARCH_TERMS are optional search terms that filter issues by summary or description.
+    Multiple terms are combined with AND by default (or with OR if --or flag is used).
+
+    Example: jayrah git-branch term1 term2   # Searches for term1 AND term2
+    Example: jayrah git-branch --or term1 term2   # Searches for term1 OR term2
+    """
+    try:
+        jayrah_obj.suggest_git_branch(search_terms, use_or)
+    except click.Abort:
+        # Already handled by the suggest_git_branch method
+        pass

@@ -64,10 +64,15 @@ You can also set these via environment variables:
 ### 🔍 Find issues
 
 ```bash
+# Browse all issues in a board
 jayrah browse [BOARD]
+
+# Search for issues containing specific terms in summary or description 
+jayrah browse [BOARD] term1 term2   # Searches for term1 AND term2
+jayrah browse [BOARD] --or term1 term2   # Searches for term1 OR term2
 ```
 
-Pick a board from your config file.
+Pick a board from your config file. Add search terms as arguments to filter issues by content. By default, multiple terms are combined with AND logic, but you can use the `--or` flag to combine them with OR logic.
 
 ### ✨ Make a new issue
 
@@ -92,6 +97,17 @@ jayrah issue edit-description TICKET-123
 
 # Move to a different status
 jayrah issue transition TICKET-123
+```
+
+### 🔀 Create Git branches
+
+```bash
+# Create a git branch name from your assigned issues
+jayrah git-branch
+
+# Search your assigned issues for specific terms and create a branch
+jayrah git-branch term1 term2      # Searches for term1 AND term2
+jayrah git-branch --or term1 term2  # Searches for term1 OR term2
 ```
 
 ## Shell completion
@@ -192,7 +208,18 @@ When browsing issues using the MCP server in Copilot Chat, you can now use pagin
 
 # Combine parameters for fine-grained control
 @jira browse --board="MyBoard" --limit=15 --page=3 --page_size=50
+
+# Search for issues containing specific terms
+@jira browse --board="MyBoard" --search_terms=["urgent", "bug"]
+
+# Using OR instead of AND for search terms
+@jira browse --board="MyBoard" --search_terms=["urgent", "bug"] --use_or=true
+
+# Combine search with pagination
+@jira browse --board="MyBoard" --search_terms=["urgent", "bug"] --page=2 --limit=15
 ```
+
+The output will show you which page you're viewing and how to navigate between pages.
 
 The output will show you which page you're viewing and how to navigate between pages.
 
