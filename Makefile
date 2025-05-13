@@ -8,7 +8,7 @@ sync:
 test: sync
 	@echo "Running Tests"
 	@echo "-------------"
-	@uvx pytest -vvv -s
+	@uv run pytest -vvv -s
 
 lint: sync
 	@echo "Running linter"
@@ -23,4 +23,5 @@ format: sync
 coverage: sync
 	@echo "Running coverage"
 	@echo "---------------"
-	.venv/bin/pytest --cov=$(PROJECT_NAME) --cov-report=html --cov-report=term-missing 
+	@source .venv/bin/activate && \
+		pytest --cov=$(PROJECT_NAME) --cov-report=html --cov-report=term-missing 
