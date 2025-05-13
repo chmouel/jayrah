@@ -8,7 +8,7 @@ sync:
 test: sync
 	@echo "Running Tests"
 	@echo "-------------"
-	@uv run pytest -vvv -s
+	@uv run pytest -v
 
 lint: sync
 	@echo "Running linter"

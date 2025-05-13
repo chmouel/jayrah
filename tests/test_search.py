@@ -40,6 +40,38 @@ def test_build_search_jql():
     print("All build_search_jql tests passed!")
 
 
+def test_build_search_jql_with_filters():
+    """Test the build_search_jql function with field filters"""
+    base_jql = "project = TEST"
+
+    # Test with a single filter
+    filters = ["status=Open"]
+    result = boards.build_search_jql(base_jql, [], False, False, filters)
+    expected = f"({base_jql}) AND (status = Open)"
+    assert result == expected, f"Expected {expected}, got {result}"
+
+    # Test with multiple filters
+    filters = ["status=Open", "priority=High"]
+    result = boards.build_search_jql(base_jql, [], False, False, filters)
+    expected = f"({base_jql}) AND (status = Open AND priority = High)"
+    assert result == expected, f"Expected {expected}, got {result}"
+
+    # Test with a filter that contains spaces in value
+    filters = ["status=Code Review"]
+    result = boards.build_search_jql(base_jql, [], False, False, filters)
+    expected = f'({base_jql}) AND (status = "Code Review")'
+    assert result == expected, f"Expected {expected}, got {result}"
+
+    # Test with both search terms and filters
+    search_terms = ["test"]
+    filters = ["status=Open"]
+    result = boards.build_search_jql(base_jql, search_terms, False, False, filters)
+    expected = f'(({base_jql}) AND ((summary ~ "test" OR description ~ "test"))) AND (status = Open)'
+    assert result == expected, f"Expected {expected}, got {result}"
+
+    print("All build_search_jql_with_filters tests passed!")
+
+
 def test_format_search_terms():
     """Test the format_search_terms function"""
     # Test with no search terms
@@ -70,6 +102,7 @@ def test_format_search_terms():
 if __name__ == "__main__":
     try:
         test_build_search_jql()
+        test_build_search_jql_with_filters()  # Added new test
         test_format_search_terms()
         print("\nAll tests passed successfully!")
     except AssertionError as e:

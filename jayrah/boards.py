@@ -328,22 +328,23 @@ class Boards:
             f"Issue created: {utils.make_full_url(ret.get('key'), self.config.get('jira_server'))}"
         )
 
-    def suggest_git_branch(self, search_terms=None, use_or=False):
+    def suggest_git_branch(self, search_terms=None, use_or=False, filters=None):
         """Suggest a git branch name based on a selected issue.
 
         Args:
             search_terms: Optional list of search terms to filter issues by summary or description
             use_or: Whether to combine search terms with OR instead of AND
+            filters: Optional list of field-specific filters
         """
         base_jql = "assignee = currentUser()"
 
         # Use the common function to build the search JQL
-        jql = build_search_jql(base_jql, search_terms, use_or, self.verbose)
+        jql = build_search_jql(base_jql, search_terms, use_or, self.verbose, filters)
 
         issues = self.list_issues(jql)
 
         if not issues:
-            show_no_issues_message(search_terms, use_or)
+            show_no_issues_message(search_terms, use_or, filters)
             raise click.Abort("No issues found")
 
         selected = self.fuzzy_search(issues)
@@ -363,37 +364,81 @@ class Boards:
 
 
 def build_search_jql(
-    base_jql: str, search_terms, use_or: bool = False, verbose: bool = False
+    base_jql: str,
+    search_terms,
+    use_or: bool = False,
+    verbose: bool = False,
+    filters=None,
 ) -> str:
-    """Build a JQL query with search terms.
+    """Build a JQL query with search terms and field filters.
 
     Args:
         base_jql: The base JQL query to extend with search conditions
         search_terms: A list of search terms to filter issues by summary or description
         use_or: Whether to combine search terms with OR instead of AND
         verbose: Whether to display verbose output
+        filters: Optional list of field-specific filters in format "field=value"
 
     Returns:
-        The extended JQL query string with search conditions
+        The extended JQL query string with search conditions and filters
     """
-    if not search_terms:
-        return base_jql
+    extended_jql = base_jql
 
-    # Create individual search conditions for each term
-    search_conditions = []
-    for term in search_terms:
-        term_condition = f'(summary ~ "{term}" OR description ~ "{term}")'
-        search_conditions.append(term_condition)
+    # Add search terms if provided
+    if search_terms:
+        # Create individual search conditions for each term
+        search_conditions = []
+        for term in search_terms:
+            term_condition = f'(summary ~ "{term}" OR description ~ "{term}")'
+            search_conditions.append(term_condition)
 
-    # Combine search conditions with AND or OR based on the flag
-    operator = " OR " if use_or else " AND "
-    combined_condition = operator.join(search_conditions)
+        # Combine search conditions with AND or OR based on the flag
+        operator = " OR " if use_or else " AND "
+        combined_condition = operator.join(search_conditions)
 
-    # Add combined condition to existing JQL
-    extended_jql = f"({base_jql}) AND ({combined_condition})"
+        # Add combined condition to existing JQL
+        extended_jql = f"({base_jql}) AND ({combined_condition})"
+
+    # Add field-specific filters if provided
+    if filters:
+        filter_conditions = []
+        for filter_expr in filters:
+            # Split the filter expression at the first equals sign
+            parts = filter_expr.split("=", 1)
+            if len(parts) == 2:
+                field, value = parts[0].strip(), parts[1].strip()
+
+                # Remove quotes from value if they're already present
+                if (value.startswith('"') and value.endswith('"')) or (
+                    value.startswith("'") and value.endswith("'")
+                ):
+                    value = value[1:-1]
+
+                # Add quotes around the value if it contains spaces and isn't already quoted
+                if " " in value:
+                    value = f'"{value}"'
+
+                filter_conditions.append(f"{field} = {value}")
+            else:
+                # Invalid filter format, log a warning if verbose
+                if verbose:
+                    click.secho(
+                        f"Warning: Ignoring invalid filter format: {filter_expr}",
+                        fg="yellow",
+                        err=True,
+                    )
+
+        if filter_conditions:
+            # Combine filter conditions with AND and add to the query
+            filter_jql = " AND ".join(filter_conditions)
+            extended_jql = f"({extended_jql}) AND ({filter_jql})"
+
+            # Show filter message if verbose
+            if verbose:
+                click.secho(f"Applied filters: {filter_jql}", fg="blue", err=True)
 
     # Show search message if verbose
-    if verbose:
+    if verbose and search_terms:
         terms_text = format_search_terms(search_terms, use_or)
         click.secho(f"Searching for: {terms_text}", fg="blue", err=True)
 
@@ -417,15 +462,30 @@ def format_search_terms(search_terms, use_or: bool = False) -> str:
     return operator.join(f"'{term}'" for term in search_terms)
 
 
-def show_no_issues_message(search_terms=None, use_or: bool = False) -> None:
+def show_no_issues_message(
+    search_terms=None, use_or: bool = False, filters=None
+) -> None:
     """Display a standardized message when no issues are found.
 
     Args:
         search_terms: Optional list of search terms that were used
         use_or: Whether OR logic was used instead of AND
+        filters: Optional list of field-specific filters that were used
     """
+    message_parts = []
+
     if search_terms:
         terms_text = format_search_terms(search_terms, use_or)
-        click.secho(f"No issues found matching {terms_text}", fg="yellow", err=True)
+        message_parts.append(terms_text)
+
+    if filters:
+        filter_text = " AND ".join(f"{f}" for f in filters)
+        message_parts.append(f"filters: {filter_text}")
+
+    if message_parts:
+        combined_message = " with " + ", ".join(message_parts)
+        click.secho(
+            f"No issues found matching{combined_message}", fg="yellow", err=True
+        )
     else:
         click.secho("No issues found", fg="yellow", err=True)
