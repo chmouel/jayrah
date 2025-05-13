@@ -23,4 +23,4 @@ format: sync
 coverage: sync
 	@echo "Running coverage"
 	@echo "---------------"
-	@uvx pytest --cov=$(PROJECT_NAME) --cov-report=html --cov-report=term-missing 
+	@uv run pytest --cov=$(PROJECT_NAME) --cov-report=html --cov-report=term-missing 
