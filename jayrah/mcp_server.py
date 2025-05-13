@@ -160,6 +160,18 @@ async def handle_list_tools() -> list[types.Tool]:
                         "type": "string",
                         "description": "Board name as defined in config",
                     },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Maximum number of issues to display (default: 10)",
+                    },
+                    "page": {
+                        "type": "integer",
+                        "description": "Page number to retrieve (starts at 1)",
+                    },
+                    "page_size": {
+                        "type": "integer",
+                        "description": "Number of issues to retrieve per page (default: 100)",
+                    },
                 },
                 "required": ["board"],
             },
@@ -305,6 +317,10 @@ async def handle_call_tool(
 async def _handle_browse(arguments: dict) -> list[types.TextContent]:
     """Handle the browse tool to list issues on a board."""
     board = arguments.get("board")
+    limit = arguments.get("limit", 10)  # Default display limit is 10
+    page = arguments.get("page", 1)  # Default to first page
+    page_size = arguments.get("page_size", 100)  # Default page size is 100
+
     if not board:
         raise ValueError("Board name is required")
 
@@ -316,27 +332,94 @@ async def _handle_browse(arguments: dict) -> list[types.TextContent]:
             )
         ]
 
-    issues = boards_obj.list_issues(jql, order_by=order_by)
-    return [types.TextContent(type="text", text=_format_issues_summary(board, issues))]
+    # Calculate start_at based on page number (0-indexed for the API)
+    start_at = (page - 1) * page_size
+
+    # Always fetch a single page at a time for pagination control
+    issues = boards_obj.list_issues(
+        jql, order_by=order_by, limit=page_size, all_pages=False, start_at=start_at
+    )
+
+    # If we have issues returned, try to get the total count from the metadata
+    if issues:
+        # This is a bit of a hack since Jira API doesn't return total with the issues
+        # We need to use search_issues directly to get the total
+        try:
+            result = boards_obj.jira.search_issues(
+                jql,
+                start_at=0,
+                max_results=1,  # Just need one to get the metadata
+                fields=["key"],  # Minimal fields to reduce payload
+            )
+            total = result.get("total", 0)
+
+            # Add the total to each issue's metadata (or create metadata if it doesn't exist)
+            for issue in issues:
+                if "metadata" not in issue:
+                    issue["metadata"] = {}
+                issue["metadata"]["total"] = total
+        except Exception:
+            # If we can't get the total, just continue without it
+            pass
+
+    return [
+        types.TextContent(
+            type="text",
+            text=_format_issues_summary(board, issues, limit, page, page_size),
+        )
+    ]
 
 
-def _format_issues_summary(board_name: str, issues: list[dict]) -> str:
+def _format_issues_summary(
+    board_name: str,
+    issues: list[dict],
+    limit: int = 10,
+    page: int = 1,
+    page_size: int = 100,
+) -> str:
     """Format a list of issues into a readable summary."""
-    summary = f"Found {len(issues)} issues on board '{board_name}':\n\n"
+    # Get the total number of issues (from the page)
+    total_in_page = len(issues)
 
-    # Display first 10 issues for readability
-    display_count = min(10, len(issues))
+    # Calculate pagination info
+    start_index = (page - 1) * page_size
 
-    for i, issue in enumerate(issues):
+    # Get total count if available in the first issue's metadata
+    total_count = None
+    if issues and "total" in issues[0].get("metadata", {}):
+        total_count = issues[0]["metadata"]["total"]
+
+    if total_count:
+        summary = f"Found {total_count} total issues on board '{board_name}' (Page {page}, showing {total_in_page}):\n\n"
+    else:
+        summary = (
+            f"Found {total_in_page} issues on board '{board_name}' (Page {page}):\n\n"
+        )
+
+    # Display issues up to the specified limit
+    display_count = min(limit, total_in_page)
+
+    for i, issue in enumerate(issues[:display_count]):
         key = issue.get("key", "Unknown")
         fields = issue.get("fields", {})
         summary_text = fields.get("summary", "No summary")
         status = fields.get("status", {}).get("name", "Unknown")
 
-        summary += f"{i + 1}. {key}: {summary_text} ({status})\n"
+        summary += f"{start_index + i + 1}. {key}: {summary_text} ({status})\n"
 
-    if len(issues) > display_count:
-        summary += f"\n... and {len(issues) - display_count} more issues."
+    # Add pagination information
+    if total_in_page > display_count:
+        summary += (
+            f"\n... and {total_in_page - display_count} more issues on this page."
+        )
+
+    summary += f"\n\nShowing issues {start_index + 1}-{start_index + display_count}"
+    if total_count:
+        summary += f" of {total_count} total issues (page {page})."
+    else:
+        summary += f" of page {page}."
+
+    summary += "\nUse the 'page' parameter to navigate between pages and 'limit' to adjust how many issues are displayed."
 
     return summary
 

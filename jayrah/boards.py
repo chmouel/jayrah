@@ -80,6 +80,7 @@ class Boards:
         limit=100,
         all_pages=True,
         fields=None,
+        start_at=None,
     ):
         """List issues using JQL query."""
         # Handle the dangerous default value
@@ -95,14 +96,14 @@ class Boards:
             click.echo(f"Fields: {fields}", err=True)
 
         issues = []
-        start_at = 0
+        current_start_at = 0 if start_at is None else start_at
         while True:
             if self.verbose:
-                click.echo(f"Fetching batch starting at {start_at}", err=True)
+                click.echo(f"Fetching batch starting at {current_start_at}", err=True)
 
             result = self.jira.search_issues(
                 jql,
-                start_at=start_at,
+                start_at=current_start_at,
                 max_results=limit,
                 fields=fields,
             )
@@ -119,10 +120,10 @@ class Boards:
                 )
 
             total = result.get("total", 0)
-            if not all_pages or start_at + limit >= total:
+            if not all_pages or current_start_at + limit >= total:
                 break
 
-            start_at += limit
+            current_start_at += limit
 
         return issues
 

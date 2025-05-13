@@ -134,7 +134,10 @@ This runs in stdio mode by default for VS Code.
 
 The server exposes these Jira operations:
 
-* Browse issues
+* Browse issues (with pagination support)
+  * `limit` - Control how many issues to display (default: 10)
+  * `page` - Select which page of results to view (starts at 1)
+  * `page_size` - Number of issues per page (default: 100)
 * Create/view issues
 * Change issue status
 * Get possible status changes
@@ -169,6 +172,29 @@ The server exposes these Jira operations:
 ```
 
 7. In Copilot Chat, select the tools button (often a sparkle icon or similar) to see and use Jayrah's available actions.
+
+### Using Pagination with Browse
+
+When browsing issues using the MCP server in Copilot Chat, you can now use pagination to navigate through large sets of issues:
+
+```bash
+# Basic usage
+@jira browse --board="MyBoard"
+
+# Display more issues on a single page (default is 10)
+@jira browse --board="MyBoard" --limit=20
+
+# Navigate to page 2 of the results
+@jira browse --board="MyBoard" --page=2
+
+# Customize page size (default is 100 issues per page)
+@jira browse --board="MyBoard" --page_size=50 
+
+# Combine parameters for fine-grained control
+@jira browse --board="MyBoard" --limit=15 --page=3 --page_size=50
+```
+
+The output will show you which page you're viewing and how to navigate between pages.
 
 ## Need help?
 
