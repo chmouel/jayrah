@@ -113,7 +113,6 @@ ISSUE_TYPE_EMOJIS = {
     "Docs Sub-task": ("📄", "DS"),
     "Simple Sub-task": ("✅", "SS"),
     "Next Action": ("⏭️", "NA"),
-    "BU Initiative": ("🌱", "BI"),
     "RFE": ("🌟", "RF"),
     "Issue": ("🐛", "IS"),
     "Closed Loop": ("♾️", "CL"),

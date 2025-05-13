@@ -1,6 +1,5 @@
 import time
 
-import pytest
 
 from jayrah.cache import JiraCache
 
@@ -9,7 +8,7 @@ def test_init_creates_cache_dir(tmp_path):
     """Test that init creates the cache directory if it doesn't exist."""
     cache_dir = tmp_path / "nonexistent_dir"
     config = {"cache_ttl": 3600, "verbose": True}
-    cache = JiraCache(config, cache_dir=cache_dir)
+    JiraCache(config, cache_dir=cache_dir)
     assert cache_dir.exists()
     assert cache_dir.is_dir()
 

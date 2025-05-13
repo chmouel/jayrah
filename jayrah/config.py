@@ -24,7 +24,7 @@ def make_config(config: dict, config_file: pathlib.Path) -> dict:
         config["jira_user"] = Prompt.ask("Enter Jira username")
         config_modified = True
 
-    if not "jira_project" in config or not config["jira_project"]:
+    if "jira_project" not in config or not config["jira_project"]:
         config["jira_project"] = Prompt.ask("Enter your Jira Project (ie: SRVKP)")
         config_modified = True
 
@@ -68,7 +68,7 @@ def read_config(ret: dict, config_file: pathlib.Path) -> dict:
         ):
             ret["jira_password"] = utils.get_pass_key(
                 ret["jira_password"].split("::")[0],
-                ret["jira_password"].split("::")[-1]
+                ret["jira_password"].split("::")[-1],
             )
 
         if "cache_ttl" not in ret or ret["cache_ttl"] is None:
