@@ -230,13 +230,14 @@ class JiraHTTP:
             payload["fields"]["labels"] = labels
         return self._request("POST", endpoint, jeez=payload)
 
-    def get_issue(self, issue_key, fields=None):
+    def get_issue(self, issue_key, fields=None, use_cache=True):
         """
         Get a specific issue by key.
 
         Args:
             issue_key (str): The issue key (e.g., 'SRVKP-123')
             fields (list): List of fields to include in the response.
+            use_cache (bool): Whether to use cached data or force a fresh fetch.
 
         Returns:
             dict: JSON response containing the issue.
@@ -249,7 +250,19 @@ class JiraHTTP:
         if self.verbose:
             click.echo(f"Getting issue: {issue_key} with fields: {fields}", err=True)
 
-        return self._request("GET", endpoint, params=params)
+        # If we don't want to use cache, temporarily set no_cache to True
+        original_no_cache = self.config.get("no_cache", False)
+        if not use_cache:
+            self.config["no_cache"] = True
+
+        try:
+            result = self._request("GET", endpoint, params=params)
+        finally:
+            # Restore original no_cache setting
+            if not use_cache:
+                self.config["no_cache"] = original_no_cache
+
+        return result
 
     def update_issue(self, issue_key, fields):
         """
@@ -271,10 +284,116 @@ class JiraHTTP:
 
         return self._request("PUT", endpoint, jeez=payload)
 
+    def update_labels(self, issue_key, labels):
+        """
+        Update the labels on an issue.
+
+        Args:
+            issue_key (str): The issue key (e.g., 'SRVKP-123')
+            labels (list): The complete list of labels to set on the issue
+
+        Returns:
+            dict: JSON response containing the updated issue.
+        """
+        if self.verbose:
+            click.echo(f"Updating labels for issue: {issue_key}", err=True)
+            click.echo(f"New labels: {labels}", err=True)
+
+        return self.update_issue(issue_key, {"labels": labels})
+
+    def add_label(self, issue_key, label):
+        """
+        Add a label to an issue.
+
+        Args:
+            issue_key (str): The issue key (e.g., 'SRVKP-123')
+            label (str): The label to add
+
+        Returns:
+            dict: JSON response containing the updated issue.
+        """
+        # First get the current labels
+        issue = self.get_issue(issue_key, fields=["labels"])
+        current_labels = issue["fields"].get("labels", [])
+
+        # Add the new label if it doesn't already exist
+        if label not in current_labels:
+            current_labels.append(label)
+
+        return self.update_labels(issue_key, current_labels)
+
+    def remove_label(self, issue_key, label):
+        """
+        Remove a label from an issue.
+
+        Args:
+            issue_key (str): The issue key (e.g., 'SRVKP-123')
+            label (str): The label to remove
+
+        Returns:
+            dict: JSON response containing the updated issue.
+        """
+        # First get the current labels
+        issue = self.get_issue(issue_key, fields=["labels"])
+        current_labels = issue["fields"].get("labels", [])
+
+        # Remove the label if it exists
+        if label in current_labels:
+            current_labels.remove(label)
+
+        return self.update_labels(issue_key, current_labels)
+
     def get_transitions(self, issue_key):
         endpoint = f"issue/{issue_key}/transitions"
 
         return self._request("GET", endpoint)
+
+    def get_labels(self, project_key=None):
+        """
+        Get available labels from Jira.
+
+        Args:
+            project_key (str, optional): The project key to filter labels by. If None, uses config's jira_project.
+
+        Returns:
+            list: List of label strings
+        """
+        project = project_key or self.config.get("jira_project")
+        if not project:
+            if self.verbose:
+                click.echo(
+                    "No project specified for labels, using entire instance", err=True
+                )
+
+        try:
+            if self.verbose:
+                click.echo(f"Getting labels for project: {project}", err=True)
+
+            # Skip the direct label endpoint which may not be available on all Jira instances
+            # (like issues.redhat.com which returns 404 for /rest/api/2/label)
+            # and go straight to the more reliable JQL-based method
+
+            # Get labels from a JQL search that retrieves all issues with any label
+            jql = f"project = {project} AND labels IS NOT EMPTY ORDER BY updated DESC"
+            results = self.search_issues(jql, max_results=100, fields=["labels"])
+
+            if not results or "issues" not in results:
+                if self.verbose:
+                    click.echo("No issues with labels found", err=True)
+                return []
+
+            # Extract all unique labels from the search results
+            all_labels = set()
+            for issue in results.get("issues", []):
+                labels = issue.get("fields", {}).get("labels", [])
+                all_labels.update(labels)
+
+            return sorted(list(all_labels))
+
+        except Exception as e:
+            if self.verbose:
+                click.echo(f"Error retrieving labels: {e}", err=True)
+            return []
 
     def transition_issue(self, issue_key, transition_id):
         """

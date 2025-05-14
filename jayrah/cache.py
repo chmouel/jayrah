@@ -229,3 +229,126 @@ class JiraCache:
                 verbose_only=True,
                 verbose=self.verbose,
             )
+
+    def set_direct(self, key, data):
+        """
+        Save data directly to cache with a custom key
+
+        Args:
+            key (str): Custom cache key
+            data: Data to save
+        """
+        if not key:
+            return
+
+        cache_path = self.cache_dir / f"{key}.json"
+
+        if self.verbose:
+            utils.log(
+                f"Saving data with key '{key}' to cache: {cache_path}",
+                "DEBUG",
+                verbose_only=True,
+                verbose=self.verbose,
+            )
+
+        cached_data = {"timestamp": time.time(), "data": data}
+
+        try:
+            with open(cache_path, "w", encoding="utf-8") as f:
+                json.dump(cached_data, f)
+
+            if self.verbose:
+                utils.log(
+                    f"Successfully wrote {len(str(data))} bytes to cache with key '{key}'",
+                    "SUCCESS",
+                    verbose_only=True,
+                    verbose=self.verbose,
+                )
+        except Exception as e:
+            if self.verbose:
+                utils.log(
+                    f"Error saving to cache with key '{key}': {e}",
+                    "ERROR",
+                    verbose_only=True,
+                    verbose=self.verbose,
+                )
+
+    def get_direct(self, key):
+        """
+        Get data directly from cache using a custom key
+
+        Args:
+            key (str): Custom cache key
+
+        Returns:
+            The cached data or None if not found/expired
+        """
+        if not key:
+            return None
+
+        cache_path = self.cache_dir / f"{key}.json"
+
+        if self.verbose:
+            utils.log(
+                f"Looking for cache with key '{key}' at: {cache_path}",
+                "DEBUG",
+                verbose_only=True,
+                verbose=self.verbose,
+            )
+
+        if not cache_path.exists():
+            if self.verbose:
+                utils.log(
+                    f"Cache miss for key '{key}': File not found",
+                    "DEBUG",
+                    verbose_only=True,
+                    verbose=self.verbose,
+                )
+            return None
+
+        try:
+            with open(cache_path, "r", encoding="utf-8") as f:
+                cached_data = json.load(f)
+
+            if self.verbose:
+                cached_time = time.strftime(
+                    "%Y-%m-%d %H:%M:%S", time.localtime(cached_data["timestamp"])
+                )
+                utils.log(
+                    f"Cache file for key '{key}' found, created at: {cached_time}",
+                    "DEBUG",
+                    verbose_only=True,
+                    verbose=self.verbose,
+                )
+
+            # Check if cache has expired
+            age = time.time() - cached_data["timestamp"]
+            if age > self.cache_ttl:
+                if self.verbose:
+                    utils.log(
+                        f"Cache expired for key '{key}': Age is {int(age)}s, TTL is {self.cache_ttl}s",
+                        "DEBUG",
+                        verbose_only=True,
+                        verbose=self.verbose,
+                    )
+                return None
+
+            if self.verbose:
+                utils.log(
+                    f"Cache hit for key '{key}': Using cached data ({int(age)}s old)",
+                    "SUCCESS",
+                    verbose_only=True,
+                    verbose=self.verbose,
+                )
+
+            return cached_data["data"]
+        except (json.JSONDecodeError, KeyError, FileNotFoundError) as e:
+            if self.verbose:
+                utils.log(
+                    f"Cache error for key '{key}': {e}",
+                    "WARNING",
+                    verbose_only=True,
+                    verbose=self.verbose,
+                )
+            # Invalid or corrupt cache
+            return None

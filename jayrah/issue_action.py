@@ -6,6 +6,7 @@ import click
 from jayrah import utils
 
 from . import defaults
+from .label_ui import LabelUI
 
 
 def transition_issue(ticketj, obj):
@@ -142,6 +143,27 @@ def edit_description(ticketj, obj):
         return False
 
 
+def manage_labels(ticketj, obj):
+    """Add or remove labels for a Jira issue (Legacy function)"""
+    # Use the new LabelUI class instead
+    label_ui = LabelUI(obj.jira, obj.config)
+    return label_ui.manage_labels_menu(ticketj)
+
+
+def add_label(ticket_number, current_labels, available_labels, obj):
+    """Add a label to an issue (Legacy function)"""
+    # Use the new LabelUI class instead
+    label_ui = LabelUI(obj.jira, obj.config)
+    return label_ui.add_label_menu(ticket_number, current_labels, available_labels)
+
+
+def remove_label(ticket_number, current_labels, obj):
+    """Remove a label from an issue (Legacy function)"""
+    # Use the new LabelUI class instead
+    label_ui = LabelUI(obj.jira, obj.config)
+    return label_ui.remove_label_menu(ticket_number, current_labels)
+
+
 def action_menu(ticketj, obj):
     result = choose_action(ticketj, obj)
     ticket_number = ticketj["key"]
@@ -175,6 +197,10 @@ def action_menu(ticketj, obj):
         case "add_comment":
             click.secho("Add comment functionality coming soon", fg="yellow", err=True)
             return
+        case "manage_labels":
+            label_ui = LabelUI(obj.jira, obj.config)
+            label_ui.manage_labels_menu(ticketj)
+            return
 
 
 def choose_action(ticketj, obj):
@@ -199,6 +225,7 @@ def choose_action(ticketj, obj):
             "Edit Description": ("edit_description", "✏️"),
             "Transition issue": ("transition_issue", "🔄"),
             "Add comment": ("add_comment", "💬"),
+            "Manage labels": ("manage_labels", "🏷️"),
         }
 
         tmp.write(f"|Choose an action for {ticket_number}\n")
