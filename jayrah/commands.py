@@ -19,7 +19,8 @@ from . import (
 
 @click.group()
 @click.option("--no-cache", "-n", is_flag=True, help="Disable caching of API responses")
-@click.option("--no-fzf", is_flag=True, help="Output directly to stdout without fzf")
+@click.option("--no-fzf", is_flag=True, help="Output directly to stdout without interactive UI")
+@click.option("--ui-type", type=click.Choice(["fzf", "textual"]), default="textual", help="Choose UI type (fzf or textual)")
 @click.option("--verbose", "-v", is_flag=True, help="Enable verbose output")
 @click.option("--insecure", is_flag=True, help="Disable SSL verification for requests")
 @click.option(
@@ -54,6 +55,7 @@ def cli(
     ctx,
     no_cache,
     no_fzf,
+    ui_type,
     verbose,
     insecure,
     jira_user,
@@ -74,6 +76,7 @@ def cli(
         "no_cache": no_cache,
         "verbose": verbose,
         "no_fzf": no_fzf,
+        "ui_type": ui_type,
         "insecure": insecure,
         "jayrah_path": os.path.abspath(sys.argv[0]),
         "ctx": ctx,
@@ -137,6 +140,8 @@ def browse(jayrah_obj, board, search_terms, use_or, filters):
     selected = jayrah_obj.fuzzy_search(issues)
     if selected:
         click.secho(f"Selected issue: {selected}", fg="green")
+        # You can also auto-open the issue if needed
+        # utils.browser_open_ticket(selected, jayrah_obj.config)
 
 
 @cli.command("create")

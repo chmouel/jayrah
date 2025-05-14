@@ -10,6 +10,8 @@ dependencies = [
   "mcp>=1.8.0",
   "pyyaml>=6.0.2",
   "rich>=13.9.4",
+  "textual>=3.2.0",
+  "textual-dev>=1.7.0",
 ]
 scripts = { jayrah = "jayrah.cli:main" }
 
