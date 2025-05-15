@@ -1,44 +1,99 @@
-import subprocess
-
 from textual import log, on
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Container, Vertical
-from textual.widgets import DataTable, Footer, Header, Label
+from textual.widgets import DataTable, Footer, Header, Markdown
 
-from jayrah import defaults, utils
+from jayrah import boards, defaults, issue_view, utils
 
 
 class IssueDetailPanel(Vertical):
-    """Panel showing detailed information about the selected issue."""
+    """Panel showing detailed information about the selected issue using Markdown."""
+
+    DEFAULT_CSS = """
+    IssueDetailPanel {
+        padding: 1;
+        border: round $primary;
+        width: 1fr; /* Take available width */
+        height: 1fr; /* Take available height */
+        /* overflow: hidden; Prevent IssueDetailPanel itself from scrolling if Markdown handles it */
+    }
+
+    #detail-header {
+        width: 100%;
+        height: 100%; /* Markdown widget takes full space of its parent */
+        overflow: auto; /* Allow Markdown widget to scroll its content */
+    }
+    #detail-markdown {
+        width: 100%;
+        height: 100%; /* Markdown widget takes full space of its parent */
+        overflow: auto; /* Allow Markdown widget to scroll its content */
+    }
+    """
 
     def __init__(self, ticket: str | None = None, config: dict | None = None):
         super().__init__()
         self.ticket = ticket
         self.config = config or {}
+        # Initialize your Jira connection object
+        # Ensure 'boards.Boards' is the correct way to get your Jira API handler
+        self.jayrah_obj = boards.Boards(self.config)
 
     def compose(self) -> ComposeResult:  # type: ignore[override]
-        # Single label for all states
-        text = (
+        """Compose the widget with a Markdown display area."""
+        initial_message = (
             f"Loading issue {self.ticket}…"
             if self.ticket
             else "Select an issue to view details"
         )
-        yield Label(text, id="detail-label")
+        # Use Markdown widget instead of Label
+        with Container():
+            with Vertical(id="detail-label"):
+                yield Markdown(initial_message, id="detail-markdown")
 
     def update_issue(self, ticket: str | None, config: dict | None) -> None:
-        """Refresh the panel by updating the existing label's text."""
+        """
+        Refresh the panel by updating the Markdown widget's content.
+        Fetches issue details and uses issue_view.build_issue to generate Markdown.
+        """
         self.ticket = ticket
-        self.config = config or {}
+        if config is not None:  # Update config only if a new one is provided
+            self.config = config
+            # If jayrah_obj needs to be reconfigured with new config:
+            # self.jayrah_obj = boards.Boards(self.config)
 
-        # Retrieve the single label
-        label = self.query_one("#detail-label", Label)
+        # header_widget = self.query_one("#detail-header", Static)
+        markdown_widget = self.query_one("#detail-markdown", Markdown)
 
-        # Update based on presence of ticket
         if not ticket:
-            label.update("Select an issue to view details")
-        else:
-            label.update(f"Issue {ticket} selected.")
+            markdown_widget.update("Select an issue to view details")
+            return
+
+        try:
+            # Display a loading message while fetching data
+            markdown_widget.update(f"🔄 Loading details for {ticket}...")
+            self.app.refresh()
+
+            issue_data = self.jayrah_obj.jira.get_issue(ticket, fields=None)
+
+            # Generate Markdown output using your existing issue_view logic
+            # The '0' argument is based on your original call: output = issue_view.build_issue(issue, self.config, 0)
+            header_content, markdown_content = issue_view.build_issue(
+                issue_data, self.config, 0
+            )
+            markdown_widget.update(header_content + "\n" + markdown_content)
+        except Exception as e:
+            error_message = f"⚠️ Error loading issue {ticket}:\n\n```\n{str(e)}\n```\n\nPlease check the ticket ID and your connection."
+            markdown_widget.update(error_message)
+            self.app.log.error(f"Failed to load or build issue {ticket}: {e}")
+
+    async def on_mount(self) -> None:
+        """Load initial ticket details if a ticket was provided during initialization."""
+        if self.ticket:
+            # If update_issue involves blocking I/O, consider running it in a worker thread:
+            # self.run_worker(lambda: self.update_issue(self.ticket, self.config), exclusive=True)
+            # For simplicity, calling directly. If update_issue is async, await it.
+            self.update_issue(self.ticket, self.config)
 
 
 class IssueBrowserApp(App):
@@ -48,23 +103,14 @@ class IssueBrowserApp(App):
     CSS = """
     /* Main layout */
     #main-panel {
-        height: 60%;
+        height: 30%;
         width: 100%;
     }
     #bottom-panel {
-        height: 40%;
+        height: 70%;
         width: 100%;
         border-top: solid $primary;
         padding: 1;
-    }
-
-    /* Header styling */
-    #title {
-        background: $accent;
-        color: $text;
-        padding: 1;
-        width: 100%;
-        text-align: center;
     }
 
     /* Issue table styling */
@@ -72,8 +118,8 @@ class IssueBrowserApp(App):
         height: 100%;
         border: solid $primary;
     }
-    #issues-table .datatable--header-cell-Type    { width: 5;  }
-    #issues-table .datatable--header-cell-Key     { width: 12; }
+    #issues-table .datatable--header-cell-Type    { width: 2;  }
+    #issues-table .datatable--header-cell-Ticket     { width: 12; }
     #issues-table .datatable--header-cell-Summary { width: 40%;}
     #issues-table .datatable--header-cell-Assignee{ width: 15; }
     #issues-table .datatable--header-cell-Reporter{ width: 15; }
@@ -83,7 +129,7 @@ class IssueBrowserApp(App):
 
     /* Issue detail panel */
     #detail-label {
-        padding: 1;
+        padding: 0;
         height: 100%;
         width: 100%;
         overflow: auto;
@@ -99,10 +145,14 @@ class IssueBrowserApp(App):
     BINDINGS = [
         Binding("q", "quit", "Quit"),
         Binding("r", "reload", "Reload"),
-        Binding("o", "open_issue", "Open in Browser"),
+        Binding("o", "open_issue", "Open"),
         Binding("a", "action_menu", "Actions"),
         Binding("f", "filter", "Filter"),
         Binding("h", "help", "Help"),
+        Binding("j", "cursor_down", "Down"),
+        Binding("k", "cursor_up", "Up"),
+        Binding("J", "scroll_down", "PrevDown"),
+        Binding("K", "scroll_up", "PrevUp"),
     ]
 
     ### ─────────────────────────  Lifecycle  ──────────────────────────
@@ -123,7 +173,6 @@ class IssueBrowserApp(App):
         yield Header(show_clock=True)
         with Container():
             with Vertical():
-                yield Label("🔍 Jayrah – Jira Issues", id="title")
                 # Main content area
                 with Vertical(id="main-panel"):
                     yield self._create_datatable()
@@ -138,8 +187,8 @@ class IssueBrowserApp(App):
         table.cursor_type = "row"  # Highlights whole rows
 
         table.add_columns(
-            "Type",
-            "Key",
+            "",
+            "Ticket",
             "Summary",
             "Assignee",
             "Reporter",
@@ -192,16 +241,12 @@ class IssueBrowserApp(App):
             self.selected_issue = issue_key
             self.query_one(IssueDetailPanel).update_issue(issue_key, self.config)
 
-    ### ─────────────────────────  Actions  ──────────────────────────
     def action_action_menu(self) -> None:  # noqa: D401
         if not self.selected_issue:
             self.notify("No issue selected", severity="error")
             return
         self.notify("Starting action menu…")
         self.exit()  # Switch back to shell for the action menu
-        subprocess.run(
-            [self.config.get("jayrah_path"), "issue", "action", self.selected_issue]
-        )
 
     def action_reload(self) -> None:  # noqa: D401
         self.notify("Reloading issues…")
@@ -212,6 +257,40 @@ class IssueBrowserApp(App):
 
     def action_filter(self) -> None:  # noqa: D401
         self.notify("Filter functionality coming soon…")
+
+    def action_cursor_down(self) -> None:  # noqa: D401
+        """Move cursor down in the issues table."""
+        table = self.query_one("#issues-table", DataTable)
+        table.action_cursor_down()
+
+    def action_cursor_up(self) -> None:  # noqa: D401
+        """Move cursor up in the issues table."""
+        table = self.query_one("#issues-table", DataTable)
+        table.action_cursor_up()
+
+    def action_scroll_down(self) -> None:  # noqa: D401
+        """Scroll down the issue detail panel content."""
+        detail_panel = self.query_one(IssueDetailPanel)
+        markdown_widget = detail_panel.query_one("#detail-markdown")
+        markdown_widget.scroll_down()
+
+    def action_scroll_up(self) -> None:  # noqa: D401
+        """Scroll up the issue detail panel content."""
+        detail_panel = self.query_one(IssueDetailPanel)
+        markdown_widget = detail_panel.query_one("#detail-markdown")
+        markdown_widget.scroll_up()
+
+    def action_page_scroll_down(self) -> None:  # noqa: D401
+        """Scroll down one page in the issue detail panel content."""
+        detail_panel = self.query_one(IssueDetailPanel)
+        markdown_widget = detail_panel.query_one("#detail-markdown")
+        markdown_widget.scroll_page_down()
+
+    def action_page_scroll_up(self) -> None:  # noqa: D401
+        """Scroll up one page in the issue detail panel content."""
+        detail_panel = self.query_one(IssueDetailPanel)
+        markdown_widget = detail_panel.query_one("#detail-markdown")
+        markdown_widget.scroll_page_up()
 
     def action_open_issue(self) -> None:  # noqa: D401
         if not self.selected_issue:

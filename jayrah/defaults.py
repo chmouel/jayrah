@@ -74,7 +74,7 @@ ISSUE_TYPE_EMOJIS = {
     "Component Upgrade Subtask": ("🔄", "CU"),
     "Component Upgrade": ("🔄", "CO"),
     "Story": ("📖", "SO"),
-    "Epic": ("🏞️", "EP"),
+    "Epic": ("️🌌", "EP"),
     "Risk": ("⚠️", "RI"),
     "Weakness": ("🔍", "WE"),
     "Vulnerability": ("🔒", "VU"),

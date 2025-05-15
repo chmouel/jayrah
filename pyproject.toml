@@ -24,3 +24,7 @@ py-modules = ["jayrah"]
 
 [tool.uv]
 package = true
+
+[[tool.mypy.overrides]]
+module = ["textual.*"]
+ignore_missing_imports = true
