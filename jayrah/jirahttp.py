@@ -82,7 +82,7 @@ class JiraHTTP:
 
         return " ".join(curl_parts)
 
-    def _request(self, method, endpoint, params=None, jeez=None):
+    def _request(self, method, endpoint, params=None, jeez=None, label=None):
         """Helper method to make HTTP requests."""
         url = f"{self.base_url}/{endpoint}"
 
@@ -131,14 +131,32 @@ class JiraHTTP:
             if jeez:
                 # Fix: Use json.dumps instead of jeez.dumps
                 data = json.dumps(jeez).encode("utf-8")
-
-            # Send the request
-            with urllib.request.urlopen(request, data=data) as response:
-                status_code = response.status
-                response_text = response.read().decode("utf-8")
-                response_data = json.loads(response_text) if response_text else {}
-
-            if self.verbose:
+            if not label:
+                label = f"Requesting {method} {url} {params} {jeez}"
+            # Show a spinner while making the request (if not in verbose mode)
+            if not self.verbose:
+                with click.progressbar(
+                    length=1,
+                    label=label,
+                    show_eta=False,
+                    show_percent=False,
+                    fill_char="⣾⣷⣯⣟⡿⢿⣻⣽"[0],  # Use first char of spinner sequence
+                    empty_char=" ",
+                ) as bar:
+                    # Send the request
+                    with urllib.request.urlopen(request, data=data) as response:
+                        status_code = response.status
+                        response_text = response.read().decode("utf-8")
+                        response_data = (
+                            json.loads(response_text) if response_text else {}
+                        )
+                    bar.update(1)
+            else:
+                # Send the request without spinner in verbose mode
+                with urllib.request.urlopen(request, data=data) as response:
+                    status_code = response.status
+                    response_text = response.read().decode("utf-8")
+                    response_data = json.loads(response_text) if response_text else {}
                 click.echo(f"Response status: {status_code}", err=True)
 
             # Cache the response for GET requests
@@ -146,7 +164,6 @@ class JiraHTTP:
                 if self.verbose:
                     click.echo(f"Caching response for: {url}", err=True)
                 self.cache.set(url, response_data, params, jeez)
-
             return response_data
         except urllib.error.HTTPError as e:
             click.echo(f"HTTP error occurred: {e}", err=True)
@@ -184,7 +201,15 @@ class JiraHTTP:
         if self.verbose:
             click.echo(f"Start at: {start_at}, Max results: {max_results}", err=True)
 
-        return self._request("GET", endpoint, params=params)
+        label = "🚣🏻‍♀️ Fetching Jira issues"
+        if start_at != 0:
+            label += f" from {start_at} to {start_at + max_results}"
+        return self._request(
+            "GET",
+            endpoint,
+            params=params,
+            label=label,
+        )
 
     # pylint: disable=too-many-positional-arguments
     def create_issue(
@@ -277,7 +302,7 @@ class JiraHTTP:
     def get_transitions(self, issue_key):
         endpoint = f"issue/{issue_key}/transitions"
 
-        return self._request("GET", endpoint)
+        return self._request("GET", endpoint, label="All transitions")
 
     def transition_issue(self, issue_key, transition_id):
         """
