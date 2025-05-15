@@ -1,5 +1,4 @@
 """CSS loader for Textual UI components"""
-import importlib.resources
 import pathlib
 
 

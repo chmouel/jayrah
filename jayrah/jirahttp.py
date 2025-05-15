@@ -98,7 +98,7 @@ class JiraHTTP:
             cached_response = self.cache.get(url, params, jeez)
             if cached_response:
                 if self.verbose:
-                    click.echo(f"Using cached response from SQLite database", err=True)
+                    click.echo("Using cached response from SQLite database", err=True)
                 return cached_response
 
             if self.verbose:
