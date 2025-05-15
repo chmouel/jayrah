@@ -1,6 +1,6 @@
 import json
-import ssl
 import sqlite3
+import ssl
 import urllib.error
 import urllib.request
 from urllib.parse import urlencode
@@ -129,10 +129,7 @@ class JiraHTTP:
             # Add JSON data if provided
             data = None
             if jeez:
-                # Fix: Use json.dumps instead of jeez.dumps
                 data = json.dumps(jeez).encode("utf-8")
-            if not label:
-                label = f"Requesting {method} {url} {params} {jeez}"
             # Show a spinner while making the request (if not in verbose mode)
             if not self.verbose:
                 with click.progressbar(

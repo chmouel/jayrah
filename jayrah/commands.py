@@ -25,6 +25,9 @@ from . import (
     "--no-fzf", is_flag=True, help="Output directly to stdout without interactive UI"
 )
 @click.option(
+    "--fzf", is_flag=True, help="Force use of fzf UI for selection"
+)
+@click.option(
     "--ui-type",
     type=click.Choice(["fzf", "textual"]),
     default="textual",
@@ -64,6 +67,7 @@ def cli(
     ctx,
     no_cache,
     no_fzf,
+    fzf,
     ui_type,
     verbose,
     insecure,
@@ -75,6 +79,11 @@ def cli(
     config_file,
 ):
     """Jira Helper Tool"""
+
+    # If --fzf is set, override ui_type and no_fzf
+    if fzf:
+        ui_type = "fzf"
+        no_fzf = False
 
     flag_config = {
         "jira_server": jira_server,
