@@ -186,44 +186,49 @@ class Boards:
                 key = issue["key"]
                 summary = issue["fields"]["summary"]
                 status = issue["fields"]["status"]["name"]
-                print(f"{i+1}. {key}: {summary} ({status})")
+                print(f"{i + 1}. {key}: {summary} ({status})")
             return None
 
         # Choose UI based on config or default to Textual
         ui_type = self.config.get("ui_type", "textual")
-        
+
         if ui_type == "textual":
             try:
                 # Import here to avoid circular imports
                 from .ui.issue_browser import run_textual_browser
-                
+
                 # Start the Textual UI and get the selected issue
                 selected_key = run_textual_browser(issues, self.config, self.command)
-                
+
                 if self.verbose and selected_key:
                     click.echo(f"User selected: {selected_key}", err=True)
-                
+
                 return selected_key
-                
+
             except ImportError as e:
                 # Fall back to fzf if Textual is not available
-                click.secho(f"Modern UI not available: {e}. Falling back to fzf.", fg="yellow", err=True)
+                click.secho(
+                    f"Modern UI not available: {e}. Falling back to fzf.",
+                    fg="yellow",
+                    err=True,
+                )
                 ui_type = "fzf"  # Fall back to fzf
             except Exception as e:
                 click.secho(f"Error occurred with Textual UI: {e}", fg="red", err=True)
                 ui_type = "fzf"  # Fall back to fzf
-        
+
         # If ui_type is fzf or fallback from Textual, use fzf
         if ui_type == "fzf":
             try:
                 # Import here to avoid circular imports
                 from .boards_fzf import fzf_search
+
                 # Call the function with self as first argument
                 return fzf_search(self, issues)
             except Exception as e:
                 click.secho(f"Error with fzf UI: {e}", fg="red", err=True)
                 return None
-        
+
         # Should never reach here, but just in case
         click.secho("No suitable UI found", fg="red", err=True)
         return None
