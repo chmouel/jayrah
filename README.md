@@ -23,8 +23,8 @@ uv run jayrah
 
 ## What you'll need
 
-* **uv** - Get it here: <https://docs.astral.sh/uv/getting-started/installation>
-* **fzf** - Install through your system's package manager
+- **uv** - Get it here: <https://docs.astral.sh/uv/getting-started/installation>
+- **fzf** - Install through your system's package manager
 
 ## Setting it up
 
@@ -54,10 +54,10 @@ boards:
 
 You can also set these via environment variables:
 
-* `JIRA_SERVER`
-* `JIRA_USER`
-* `JIRA_PASSWORD`
-* `JIRA_COMPONENT`
+- `JIRA_SERVER`
+- `JIRA_USER`
+- `JIRA_PASSWORD`
+- `JIRA_COMPONENT`
 
 ## How to use it
 
@@ -200,26 +200,26 @@ This runs in stdio mode by default for VS Code.
 
 The server exposes these Jira operations:
 
-* Browse issues (with pagination support)
-  * `limit` - Control how many issues to display (default: 10)
-  * `page` - Select which page of results to view (starts at 1)
-  * `page_size` - Number of issues per page (default: 100)
-* Create/view issues
-* Change issue status
-* Get possible status changes
-* Open issues in browser
-* List your boards
+- Browse issues (with pagination support)
+  - `limit` - Control how many issues to display (default: 10)
+  - `page` - Select which page of results to view (starts at 1)
+  - `page_size` - Number of issues per page (default: 100)
+- Create/view issues
+- Change issue status
+- Get possible status changes
+- Open issues in browser
+- List your boards
 
 ### VS Code setup
 
 Follow these steps to set up Jayrah with VS Code:
 
-* Clone the repo somewhere (e.g., `/path/to/jayrah`)
-* Make sure you have Copilot in VS Code
-* Hit `F1` and pick `MCP: Add server`
-* Choose `Command Stdio`
-* Enter: `uv run --directory=/path/to/jayrah jayrah mcp`
-* Save the config (e.g., to `.vscode/mcp.json`):
+- Clone the repo somewhere (e.g., `/path/to/jayrah`)
+- Make sure you have Copilot in VS Code
+- Hit `F1` and pick `MCP: Add server`
+- Choose `Command Stdio`
+- Enter: `uv run --directory=/path/to/jayrah jayrah mcp`
+- Save the config (e.g., to `.vscode/mcp.json`):
 
 ```json
 {
@@ -239,7 +239,7 @@ Follow these steps to set up Jayrah with VS Code:
 }
 ```
 
-* In Copilot Chat, select the tools button (often a sparkle icon or similar) to see and use Jayrah's available actions.
+- In Copilot Chat, select the tools button (often a sparkle icon or similar) to see and use Jayrah's available actions.
 
 ### Using MCP with Pagination and Filtering
 
@@ -293,6 +293,6 @@ Run `jayrah help` for all the details.
 
 ### Chmouel Boudjnah
 
-* Fediverse - <[@chmouel@chmouel.com](https://fosstodon.org/@chmouel)>
-* Twitter - <[@chmouel](https://twitter.com/chmouel)>
-* Blog - <[https://blog.chmouel.com](https://blog.chmouel.com)>
+- Fediverse - <[@chmouel@chmouel.com](https://fosstodon.org/@chmouel)>
+- Twitter - <[@chmouel](https://twitter.com/chmouel)>
+- Blog - <[https://blog.chmouel.com](https://blog.chmouel.com)>

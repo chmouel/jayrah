@@ -1,5 +1,6 @@
 import json
 import ssl
+import sqlite3
 import urllib.error
 import urllib.request
 from urllib.parse import urlencode
@@ -96,6 +97,8 @@ class JiraHTTP:
         if method.upper() == "GET" and not self.config.get("no_cache"):
             cached_response = self.cache.get(url, params, jeez)
             if cached_response:
+                if self.verbose:
+                    click.echo(f"Using cached response from SQLite database", err=True)
                 return cached_response
 
             if self.verbose:
@@ -297,3 +300,57 @@ class JiraHTTP:
             )
 
         return self._request("POST", endpoint, jeez=payload)
+
+    def get_cache_stats(self):
+        """
+        Get statistics about the SQLite cache usage.
+
+        Returns:
+            dict: Statistics about the cache usage
+        """
+        if self.verbose:
+            click.echo("Fetching cache statistics...", err=True)
+
+        try:
+            # Connect to the SQLite database
+            conn = self.cache._get_connection()
+            cursor = conn.cursor()
+
+            # Get total number of entries
+            cursor.execute("SELECT COUNT(*) FROM cache")
+            total_entries = cursor.fetchone()[0]
+
+            # Get total size in bytes (sum of the BLOB sizes)
+            cursor.execute("SELECT SUM(length(data)) FROM cache")
+            total_size = cursor.fetchone()[0] or 0
+
+            # Get oldest cache entry
+            cursor.execute("SELECT MIN(timestamp) FROM cache")
+            oldest_timestamp = cursor.fetchone()[0]
+
+            # Get newest cache entry
+            cursor.execute("SELECT MAX(timestamp) FROM cache")
+            newest_timestamp = cursor.fetchone()[0]
+
+            conn.close()
+
+            # Calculate additional stats
+            size_mb = round(total_size / (1024 * 1024), 2) if total_size else 0
+
+            stats = {
+                "entries": total_entries,
+                "size_bytes": total_size,
+                "size_mb": size_mb,
+                "oldest_entry": oldest_timestamp,
+                "newest_entry": newest_timestamp,
+                "cache_ttl": self.cache.cache_ttl,
+                "db_path": str(self.cache.db_path),
+                "serialization": "pickle",  # Added to show we're using pickle serialization
+            }
+
+            return stats
+
+        except sqlite3.Error as e:
+            if self.verbose:
+                click.echo(f"Error getting cache stats: {e}", err=True)
+            return {"error": str(e)}

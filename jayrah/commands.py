@@ -2,6 +2,7 @@ import asyncio
 import os
 import pathlib
 import sys
+import time
 
 import click
 
@@ -12,6 +13,7 @@ from . import (
     help,
     issue_action,
     issue_view,
+    jirahttp,
     mcp_server,
     utils,
 )
@@ -19,8 +21,15 @@ from . import (
 
 @click.group()
 @click.option("--no-cache", "-n", is_flag=True, help="Disable caching of API responses")
-@click.option("--no-fzf", is_flag=True, help="Output directly to stdout without interactive UI")
-@click.option("--ui-type", type=click.Choice(["fzf", "textual"]), default="textual", help="Choose UI type (fzf or textual)")
+@click.option(
+    "--no-fzf", is_flag=True, help="Output directly to stdout without interactive UI"
+)
+@click.option(
+    "--ui-type",
+    type=click.Choice(["fzf", "textual"]),
+    default="textual",
+    help="Choose UI type (fzf or textual)",
+)
 @click.option("--verbose", "-v", is_flag=True, help="Enable verbose output")
 @click.option("--insecure", is_flag=True, help="Disable SSL verification for requests")
 @click.option(
@@ -270,3 +279,56 @@ def git_branch(jayrah_obj, search_terms, use_or, filters):
     except click.Abort:
         # Already handled by the suggest_git_branch method
         pass
+
+
+@cli.command(name="cache")
+@click.option("--clear", is_flag=True, help="Clear the cache")
+@click.option("--prune", is_flag=True, help="Prune expired cache entries")
+@click.option("--stats", is_flag=True, help="Show cache statistics")
+@click.option(
+    "--max-age", type=int, help="Maximum age of cache entries in seconds (for pruning)"
+)
+@click.pass_obj
+def cache_command(jayrah_obj, clear, prune, stats, max_age):
+    """Manage Jira API cache."""
+
+    config = jayrah_obj.config
+    jira = jirahttp.JiraHTTP(config)
+
+    if clear:
+        jira.cache.clear()
+        click.echo("Cache cleared")
+        return
+
+    if prune:
+        pruned_count = jira.cache.prune(max_age)
+        click.echo(f"Pruned {pruned_count} cache entries")
+        return
+
+    if not clear and not prune:
+        cache_stats = jira.get_cache_stats()
+
+        if "error" in cache_stats:
+            click.echo(f"Error getting cache stats: {cache_stats['error']}", err=True)
+            sys.exit(1)
+
+        click.echo("Cache Statistics:")
+        click.echo(f"  Entries: {cache_stats['entries']}")
+        click.echo(f"  Size: {cache_stats['size_mb']} MB")
+        click.echo(f"  Database Path: {cache_stats['db_path']}")
+        click.echo(f"  Cache TTL: {cache_stats['cache_ttl']} seconds")
+        click.echo(f"  Serialization: {cache_stats.get('serialization', 'pickle')}")
+
+        if cache_stats.get("oldest_entry"):
+            oldest_time = time.strftime(
+                "%Y-%m-%d %H:%M:%S", time.localtime(cache_stats["oldest_entry"])
+            )
+            click.echo(f"  Oldest Entry: {oldest_time}")
+
+        if cache_stats.get("newest_entry"):
+            newest_time = time.strftime(
+                "%Y-%m-%d %H:%M:%S", time.localtime(cache_stats["newest_entry"])
+            )
+            click.echo(f"  Newest Entry: {newest_time}")
+
+        return

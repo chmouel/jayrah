@@ -1,231 +1,195 @@
 import hashlib
 import json
-import os
+import pickle
+import sqlite3
 import time
 from pathlib import Path
-
-from . import defaults, utils
+from typing import Any, Dict, Optional
 
 
 class JiraCache:
-    """Cache handler for Jira API responses"""
+    """Cache for Jira API requests."""
 
-    def __init__(
-        self,
-        config,
-        cache_dir=None,
-    ):
-        """
-        Initialize the cache handler
+    def __init__(self, config):
+        """Initialize the cache."""
+        self.config = config
+        self.cache_ttl = config.get("cache_ttl", 3600)  # Default: 1 hour
 
-        Args:
-            cache_dir (str): Directory to store cache files (defaults to ~/.cache/jayrah/)
-            cache_ttl (int): Time to live for cache entries in seconds (default: 1 hour)
-            verbose (bool): Enable verbose logging
-        """
-        if cache_dir is None:
-            cache_dir = os.path.expanduser("~/.cache/jayrah")
-
-        self.cache_dir = Path(cache_dir)
-        self.cache_ttl = config.get("cache_ttl", defaults.CACHE_DURATION)
-        self.verbose = config.get("verbose", False)
-
-        # Ensure cache directory exists
+        # Create cache directory if it doesn't exist
+        self.cache_dir = Path(
+            config.get("cache_dir", Path.home() / ".cache" / "jayrah")
+        )
         self.cache_dir.mkdir(parents=True, exist_ok=True)
 
-        if self.verbose:
-            cache_files = list(self.cache_dir.glob("*.json"))
-            utils.log(
-                f"Cache initialized: directory={self.cache_dir}, TTL={self.cache_ttl}s",
-                "DEBUG",
-                verbose_only=True,
-                verbose=self.verbose,
-            )
-            utils.log(
-                f"Found {len(cache_files)} existing cache files",
-                "DEBUG",
-                verbose_only=True,
-                verbose=self.verbose,
-            )
+        # SQLite database for cache
+        self.db_path = self.cache_dir / "cache.db"
+        self._init_db()
 
-    def _get_cache_key(self, url, params=None, json_data=None):
-        """Generate a cache key from request details"""
+    def _init_db(self):
+        """Initialize the SQLite database."""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+
+        # Create cache table if it doesn't exist
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS cache (
+                key TEXT PRIMARY KEY,
+                data BLOB,
+                timestamp REAL
+            )
+        """)
+
+        conn.commit()
+        conn.close()
+
+    def _get_connection(self):
+        """Get a connection to the SQLite database."""
+        return sqlite3.connect(self.db_path)
+
+    def _generate_key(
+        self, url: str, params: Optional[Dict] = None, data: Optional[Dict] = None
+    ) -> str:
+        """Generate a unique key for the cache entry."""
+        # Create a string representation of the request
         key_parts = [url]
 
         if params:
-            key_parts.append(str(sorted(params.items())))
+            key_parts.append(json.dumps(params, sort_keys=True))
 
-        if json_data:
-            key_parts.append(
-                str(
-                    sorted(json_data.items())
-                    if isinstance(json_data, dict)
-                    else json_data
-                )
-            )
+        if data:
+            key_parts.append(json.dumps(data, sort_keys=True))
 
-        key_string = "".join(key_parts)
-        hash_key = hashlib.md5(key_string.encode()).hexdigest()
+        key_str = "|".join(key_parts)
 
-        if self.verbose:
-            utils.log(
-                f"Generated cache key: {hash_key} for URL: {url}",
-                "DEBUG",
-                verbose_only=True,
-                verbose=self.verbose,
-            )
+        # Generate a hash of the key string
+        return hashlib.md5(key_str.encode("utf-8")).hexdigest()
 
-        return hash_key
-
-    def _get_cache_path(self, cache_key):
-        """Get the file path for a cache key"""
-        return self.cache_dir / f"{cache_key}.json"
-
-    def get(self, url, params=None, json_data=None):
-        """
-        Get a cached response if available and not expired
-
-        Returns:
-            dict: The cached response or None if not found/expired
-        """
-        cache_key = self._get_cache_key(url, params, json_data)
-        cache_path = self._get_cache_path(cache_key)
-
-        if self.verbose:
-            utils.log(
-                f"Looking for cache at: {cache_path}",
-                "DEBUG",
-                verbose_only=True,
-                verbose=self.verbose,
-            )
-
-        if not cache_path.exists():
-            if self.verbose:
-                utils.log(
-                    "Cache miss: File not found",
-                    "DEBUG",
-                    verbose_only=True,
-                    verbose=self.verbose,
-                )
+    def get(
+        self, url: str, params: Optional[Dict] = None, data: Optional[Dict] = None
+    ) -> Optional[Dict]:
+        """Get a cached response."""
+        # If caching is disabled, return None
+        if self.config.get("no_cache"):
             return None
 
+        key = self._generate_key(url, params, data)
+
         try:
-            with open(cache_path, "r", encoding="utf-8") as f:
-                cached_data = json.load(f)
+            conn = self._get_connection()
+            cursor = conn.cursor()
 
-            if self.verbose:
-                cached_time = time.strftime(
-                    "%Y-%m-%d %H:%M:%S", time.localtime(cached_data["timestamp"])
-                )
-                utils.log(
-                    f"Cache file found, created at: {cached_time}",
-                    "DEBUG",
-                    verbose_only=True,
-                    verbose=self.verbose,
-                )
+            # Get the cache entry
+            cursor.execute("SELECT data, timestamp FROM cache WHERE key = ?", (key,))
+            result = cursor.fetchone()
+            conn.close()
 
-            # Check if cache has expired
-            age = time.time() - cached_data["timestamp"]
-            if age > self.cache_ttl:
-                if self.verbose:
-                    utils.log(
-                        f"Cache expired: Age is {int(age)}s, TTL is {self.cache_ttl}s",
-                        "DEBUG",
-                        verbose_only=True,
-                        verbose=self.verbose,
-                    )
+            # If no cache entry, return None
+            if not result:
                 return None
 
-            if self.verbose:
-                utils.log(
-                    f"Cache hit: Using cached data ({int(age)}s old)",
-                    "SUCCESS",
-                    verbose_only=True,
-                    verbose=self.verbose,
-                )
+            cached_data, timestamp = result
 
-            return cached_data["data"]
-        except (json.JSONDecodeError, KeyError, FileNotFoundError) as e:
-            if self.verbose:
-                utils.log(
-                    f"Cache error: {e}",
-                    "WARNING",
-                    verbose_only=True,
-                    verbose=self.verbose,
-                )
-            # Invalid or corrupt cache
+            # Check if the cache entry has expired
+            if time.time() - timestamp > self.cache_ttl:
+                self._remove_entry(key)
+                return None
+
+            # Deserialize the cached data
+            return pickle.loads(cached_data)
+
+        except (sqlite3.Error, pickle.PickleError) as e:
+            print(f"Error retrieving from cache: {e}")
             return None
 
-    def set(self, url, response_data, params=None, json_data=None):
-        """Save response data to cache"""
-        cache_key = self._get_cache_key(url, params, json_data)
-        cache_path = self._get_cache_path(cache_key)
+    def set(
+        self,
+        url: str,
+        data: Any,
+        params: Optional[Dict] = None,
+        request_data: Optional[Dict] = None,
+    ) -> None:
+        """Set a cached response."""
+        # If caching is disabled, do nothing
+        if self.config.get("no_cache"):
+            return
 
-        if self.verbose:
-            utils.log(
-                f"Saving response to cache: {cache_path}",
-                "DEBUG",
-                verbose_only=True,
-                verbose=self.verbose,
-            )
-
-        cached_data = {"timestamp": time.time(), "data": response_data}
+        key = self._generate_key(url, params, request_data)
+        timestamp = time.time()
 
         try:
-            with open(cache_path, "w", encoding="utf-8") as f:
-                json.dump(cached_data, f)
+            # Serialize the data with pickle for better performance
+            pickled_data = pickle.dumps(data, protocol=pickle.HIGHEST_PROTOCOL)
 
-            if self.verbose:
-                utils.log(
-                    f"Successfully wrote {len(str(response_data))} bytes to cache",
-                    "SUCCESS",
-                    verbose_only=True,
-                    verbose=self.verbose,
-                )
-        except Exception as e:
-            if self.verbose:
-                utils.log(
-                    f"Error saving to cache: {e}",
-                    "ERROR",
-                    verbose_only=True,
-                    verbose=self.verbose,
-                )
+            conn = self._get_connection()
+            cursor = conn.cursor()
 
-    def clear(self):
-        """Clear all cached data"""
-        if self.verbose:
-            utils.log(
-                f"Clearing all cache files from {self.cache_dir}",
-                "WARNING",
-                verbose_only=True,
-                verbose=self.verbose,
+            # Insert or replace the cache entry
+            cursor.execute(
+                "INSERT OR REPLACE INTO cache (key, data, timestamp) VALUES (?, ?, ?)",
+                (key, pickled_data, timestamp),
             )
 
-        count = 0
-        for cache_file in self.cache_dir.glob("*.json"):
-            try:
-                cache_file.unlink()
-                count += 1
-                if self.verbose:
-                    utils.log(
-                        f"Deleted: {cache_file}",
-                        "DEBUG",
-                        verbose_only=True,
-                        verbose=self.verbose,
-                    )
-            except OSError as e:
-                if self.verbose:
-                    utils.log(
-                        f"Failed to delete {cache_file}: {e}",
-                        "ERROR",
-                        verbose_only=True,
-                        verbose=self.verbose,
-                    )
+            conn.commit()
+            conn.close()
 
-        if self.verbose:
-            utils.log(
-                f"Cleared {count} cache files",
-                "SUCCESS",
-                verbose_only=True,
-                verbose=self.verbose,
-            )
+        except (sqlite3.Error, pickle.PickleError) as e:
+            print(f"Error setting cache: {e}")
+
+    def _remove_entry(self, key: str) -> None:
+        """Remove a cache entry."""
+        try:
+            conn = self._get_connection()
+            cursor = conn.cursor()
+
+            cursor.execute("DELETE FROM cache WHERE key = ?", (key,))
+
+            conn.commit()
+            conn.close()
+
+        except sqlite3.Error as e:
+            print(f"Error removing cache entry: {e}")
+
+    def clear(self) -> None:
+        """Clear all cache entries."""
+        try:
+            conn = self._get_connection()
+            cursor = conn.cursor()
+
+            cursor.execute("DELETE FROM cache")
+
+            conn.commit()
+            conn.close()
+
+        except sqlite3.Error as e:
+            print(f"Error clearing cache: {e}")
+
+    def prune(self, max_age: Optional[int] = None) -> int:
+        """
+        Remove expired cache entries.
+
+        Args:
+            max_age: Maximum age of cache entries in seconds (default: cache_ttl)
+
+        Returns:
+            Number of pruned entries
+        """
+        if max_age is None:
+            max_age = self.cache_ttl
+
+        cutoff_time = time.time() - max_age
+
+        try:
+            conn = self._get_connection()
+            cursor = conn.cursor()
+
+            cursor.execute("DELETE FROM cache WHERE timestamp < ?", (cutoff_time,))
+            pruned_count = cursor.rowcount
+
+            conn.commit()
+            conn.close()
+
+            return pruned_count
+
+        except sqlite3.Error as e:
+            print(f"Error pruning cache: {e}")
+            return 0

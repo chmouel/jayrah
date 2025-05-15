@@ -1,122 +1,169 @@
+import tempfile
 import time
-
+from pathlib import Path
+from unittest import TestCase, mock
 
 from jayrah.cache import JiraCache
 
 
-def test_init_creates_cache_dir(tmp_path):
-    """Test that init creates the cache directory if it doesn't exist."""
-    cache_dir = tmp_path / "nonexistent_dir"
-    config = {"cache_ttl": 3600, "verbose": True}
-    JiraCache(config, cache_dir=cache_dir)
-    assert cache_dir.exists()
-    assert cache_dir.is_dir()
+class TestJiraCache(TestCase):
+    def setUp(self):
+        # Create a temporary directory for testing
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.cache_dir = Path(self.temp_dir.name)
 
+        # Mock config
+        self.config = {
+            "cache_dir": self.cache_dir,
+            "cache_ttl": 300,  # 5 minutes
+        }
 
-def test_get_cache_key_generation():
-    """Test generation of cache keys from URL and parameters."""
-    config = {"cache_ttl": 3600}
-    cache = JiraCache(config)
+        self.cache = JiraCache(self.config)
 
-    # Test with just URL
-    key1 = cache._get_cache_key("https://jira.example.com/api/issue")
-    assert isinstance(key1, str)
-    assert len(key1) > 0
+    def tearDown(self):
+        # Close the temporary directory
+        self.temp_dir.cleanup()
 
-    # Test with URL and params
-    key2 = cache._get_cache_key(
-        "https://jira.example.com/api/issue", {"id": "TEST-123"}
-    )
-    assert key2 != key1  # Different params should yield different keys
+    def test_init(self):
+        """Test cache initialization."""
+        # Check if the cache directory was created
+        self.assertTrue(self.cache_dir.exists())
 
-    # Test with URL, params, and JSON data
-    key3 = cache._get_cache_key(
-        "https://jira.example.com/api/issue",
-        {"id": "TEST-123"},
-        {"summary": "Test issue"},
-    )
-    assert key3 != key2  # Different JSON should yield different keys
+        # Check if the database file was created
+        db_path = self.cache_dir / "cache.db"
+        self.assertTrue(db_path.exists())
 
+    def test_cache_set_get(self):
+        """Test setting and getting cache entries."""
+        url = "http://example.com/api/v1/test"
+        data = {"key1": "value1", "key2": [1, 2, 3, 4]}
+        params = {"param1": "value1", "param2": "value2"}
 
-def test_set_and_get_cache(tmp_path):
-    """Test setting and retrieving data from cache."""
-    cache_dir = tmp_path / "cache"
-    config = {"cache_ttl": 3600}
-    cache = JiraCache(config, cache_dir=cache_dir)
+        # Set the cache entry
+        self.cache.set(url, data, params)
 
-    url = "https://jira.example.com/api/issue/TEST-123"
-    test_data = {"key": "TEST-123", "summary": "Test issue"}
+        # Get the cache entry
+        cached_data = self.cache.get(url, params)
 
-    # Set data in cache
-    cache.set(url, test_data)
+        # Check if the cached data matches the original data
+        self.assertEqual(cached_data, data)
 
-    # Get data from cache
-    cached_data = cache.get(url)
-    assert cached_data == test_data
+    def test_cache_expiration(self):
+        """Test cache expiration."""
+        url = "http://example.com/api/v1/test"
+        data = {"key": "value"}
 
+        # Set the cache entry
+        self.cache.set(url, data)
 
-def test_cache_expiration(tmp_path):
-    """Test that expired cache entries are not returned."""
-    cache_dir = tmp_path / "cache"
-    config = {"cache_ttl": 1}  # 1 second TTL for quick testing
-    cache = JiraCache(config, cache_dir=cache_dir)
+        # Get the cache entry (should be cached)
+        cached_data1 = self.cache.get(url)
+        self.assertEqual(cached_data1, data)
 
-    url = "https://jira.example.com/api/issue/TEST-123"
-    test_data = {"key": "TEST-123", "summary": "Test issue"}
+        # Mock time.time() to simulate cache expiration
+        with mock.patch(
+            "time.time", return_value=time.time() + 600
+        ):  # 10 minutes later
+            # Get the cache entry (should be expired)
+            cached_data2 = self.cache.get(url)
+            self.assertIsNone(cached_data2)
 
-    # Set data in cache
-    cache.set(url, test_data)
+    def test_cache_with_different_params(self):
+        """Test cache with different parameters."""
+        url = "http://example.com/api/v1/test"
+        data = {"key": "value"}
 
-    # Get data immediately (should be found)
-    assert cache.get(url) == test_data
+        params1 = {"param": "value1"}
+        params2 = {"param": "value2"}
 
-    # Wait for cache to expire
-    time.sleep(1.1)
+        # Set cache entry with params1
+        self.cache.set(url, data, params1)
 
-    # Get data after expiration (should return None)
-    assert cache.get(url) is None
+        # Get cache entry with params1 (should be cached)
+        cached_data1 = self.cache.get(url, params1)
+        self.assertEqual(cached_data1, data)
 
+        # Get cache entry with params2 (should not be cached)
+        cached_data2 = self.cache.get(url, params2)
+        self.assertIsNone(cached_data2)
 
-def test_cache_clear(tmp_path):
-    """Test clearing all cache files."""
-    cache_dir = tmp_path / "cache"
-    config = {"cache_ttl": 3600, "verbose": True}
-    cache = JiraCache(config, cache_dir=cache_dir)
+    def test_cache_clear(self):
+        """Test clearing the cache."""
+        url1 = "http://example.com/api/v1/test1"
+        url2 = "http://example.com/api/v1/test2"
+        data = {"key": "value"}
 
-    # Create some cache entries
-    urls = [
-        "https://jira.example.com/api/issue/TEST-123",
-        "https://jira.example.com/api/issue/TEST-124",
-        "https://jira.example.com/api/issue/TEST-125",
-    ]
+        # Set cache entries
+        self.cache.set(url1, data)
+        self.cache.set(url2, data)
 
-    for i, url in enumerate(urls):
-        cache.set(url, {"key": f"TEST-{123 + i}", "summary": f"Test issue {i + 1}"})
+        # Clear the cache
+        self.cache.clear()
 
-    # Check all cache files exist
-    assert len(list(cache_dir.glob("*.json"))) == 3
+        # Get cache entries (should be None)
+        cached_data1 = self.cache.get(url1)
+        cached_data2 = self.cache.get(url2)
 
-    # Clear cache
-    cache.clear()
+        self.assertIsNone(cached_data1)
+        self.assertIsNone(cached_data2)
 
-    # Check all cache files are gone
-    assert len(list(cache_dir.glob("*.json"))) == 0
+    def test_cache_prune(self):
+        """Test pruning the cache."""
+        url1 = "http://example.com/api/v1/test1"
+        url2 = "http://example.com/api/v1/test2"
+        data = {"key": "value"}
 
+        # Set cache entries
+        with mock.patch("time.time", return_value=time.time() - 600):  # 10 minutes ago
+            self.cache.set(url1, data)
 
-def test_invalid_cache_data(tmp_path):
-    """Test handling of invalid cache data."""
-    cache_dir = tmp_path / "cache"
-    config = {"cache_ttl": 3600}
-    cache = JiraCache(config, cache_dir=cache_dir)
+        self.cache.set(url2, data)
 
-    url = "https://jira.example.com/api/issue/TEST-123"
+        # Prune the cache with max_age of 5 minutes
+        pruned_count = self.cache.prune(300)
 
-    # Create an invalid cache file
-    cache_key = cache._get_cache_key(url)
-    cache_path = cache._get_cache_path(cache_key)
+        # url1 should be pruned, url2 should still be cached
+        self.assertEqual(pruned_count, 1)
 
-    with open(cache_path, "w") as f:
-        f.write("This is not valid JSON")
+        cached_data1 = self.cache.get(url1)
+        cached_data2 = self.cache.get(url2)
 
-    # Try to get the data (should return None due to invalid JSON)
-    assert cache.get(url) is None
+        self.assertIsNone(cached_data1)
+        self.assertEqual(cached_data2, data)
+
+    def test_complex_data_structures(self):
+        """Test caching complex data structures."""
+        url = "http://example.com/api/v1/test"
+        data = {
+            "string": "test",
+            "number": 123,
+            "list": [1, 2, 3, {"key": "value"}],
+            "dict": {"key1": "value1", "key2": [4, 5, 6]},
+            "nested": {"level1": {"level2": {"level3": ["nested", "list"]}}},
+        }
+
+        # Set the cache entry
+        self.cache.set(url, data)
+
+        # Get the cache entry
+        cached_data = self.cache.get(url)
+
+        # Check if the cached data matches the original data
+        self.assertEqual(cached_data, data)
+
+    def test_no_cache_config(self):
+        """Test with no_cache config option."""
+        config = {"cache_dir": self.cache_dir, "no_cache": True}
+
+        cache = JiraCache(config)
+
+        url = "http://example.com/api/v1/test"
+        data = {"key": "value"}
+
+        # Set cache entry
+        cache.set(url, data)
+
+        # Get cache entry (should be None because caching is disabled)
+        cached_data = cache.get(url)
+
+        self.assertIsNone(cached_data)
