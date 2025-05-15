@@ -2,7 +2,8 @@ from textual import log, on
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Container, Vertical
-from textual.widgets import DataTable, Footer, Header, Markdown
+from textual.screen import ModalScreen
+from textual.widgets import DataTable, Footer, Header, Input, Label, Markdown
 
 from jayrah import boards, defaults, issue_view, utils
 
@@ -82,9 +83,13 @@ class IssueDetailPanel(Vertical):
                 issue_data, self.config, 0
             )
             markdown_widget.update(header_content + "\n" + markdown_content)
+            # Reset scroll position to the top after updating content
+            markdown_widget.scroll_home(animate=False, immediate=True)
         except Exception as e:
             error_message = f"⚠️ Error loading issue {ticket}:\n\n```\n{str(e)}\n```\n\nPlease check the ticket ID and your connection."
             markdown_widget.update(error_message)
+            # Reset scroll position to the top even for error messages
+            markdown_widget.scroll_home()
             self.app.log.error(f"Failed to load or build issue {ticket}: {e}")
 
     async def on_mount(self) -> None:
@@ -147,7 +152,7 @@ class IssueBrowserApp(App):
         Binding("r", "reload", "Reload"),
         Binding("o", "open_issue", "Open"),
         Binding("a", "action_menu", "Actions"),
-        Binding("f", "filter", "Filter"),
+        Binding("/", "filter", "Fuzzy Filter"),
         Binding("h", "help", "Help"),
         Binding("j", "cursor_down", "Down"),
         Binding("k", "cursor_up", "Up"),
@@ -256,7 +261,80 @@ class IssueBrowserApp(App):
         self.notify("Showing help…")
 
     def action_filter(self) -> None:  # noqa: D401
-        self.notify("Filter functionality coming soon…")
+        """Open a simple filter dialog to search across all visible fields."""
+
+        class FuzzyFilterScreen(ModalScreen):
+            """Modal screen for fuzzy filtering issues."""
+
+            BINDINGS = [
+                Binding("escape", "cancel", "Cancel"),
+                Binding("enter", "apply", "Apply"),
+                Binding("f1", "help", "Help"),
+            ]
+
+            CSS = """
+            #filter-container {
+                dock: bottom;
+                padding: 1;
+                width: 100%;
+                height: auto;
+                background: $surface;
+                border-top: thick $primary;
+                margin: 0;
+            }
+            
+            #filter-title {
+                text-align: center;
+                text-style: bold;
+                width: 100%;
+                height: 1;
+                content-align: center middle;
+            }
+            
+            #filter-text {
+                width: 100%;
+                margin: 0;
+            }
+            
+            #filter-help {
+                text-align: center;
+                color: $text-muted;
+                margin-top: 0;
+            }
+            """
+
+            def __init__(self, parent: IssueBrowserApp):
+                super().__init__()
+                self._parent = parent
+
+            def compose(self) -> ComposeResult:
+                with Vertical(id="filter-container"):
+                    yield Label("Filter", id="filter-title")
+                    yield Input(
+                        placeholder="Search in issues (fuzzy matching across all fields)",
+                        id="filter-text",
+                        value="",
+                    )
+                    yield Label(
+                        "Press Enter to search, Escape to cancel", id="filter-help"
+                    )
+
+            def on_input_submitted(self, event: Input.Submitted) -> None:
+                """Handle when user presses Enter in the input field."""
+                self.action_apply()
+
+            def action_apply(self) -> None:
+                """Apply the fuzzy filter."""
+                filter_text = self.query_one("#filter-text", Input).value
+                self._parent.apply_fuzzy_filter(filter_text)
+                self._parent.pop_screen()
+
+            def action_cancel(self) -> None:
+                """Cancel filtering."""
+                self._parent.pop_screen()
+
+        # Show the filter screen
+        self.push_screen(FuzzyFilterScreen(self))
 
     def action_cursor_down(self) -> None:  # noqa: D401
         """Move cursor down in the issues table."""
@@ -305,6 +383,220 @@ class IssueBrowserApp(App):
 
     def action_quit(self) -> None:  # noqa: D401
         self.exit()  # *app.selected_issue* persists after exit
+
+    def apply_filters(
+        self,
+        text: str = "",
+        field: str = "summary",
+        status: str = "",
+        assignee: str = "",
+    ) -> None:
+        """Apply filters to the issues table based on selected criteria."""
+        # Reset the table
+        table = self.query_one("#issues-table", DataTable)
+        table.clear()
+
+        # Add the headers back
+        table.add_columns(
+            "",
+            "Ticket",
+            "Summary",
+            "Assignee",
+            "Reporter",
+            "Created",
+            "Updated",
+            "Status",
+        )
+
+        # Filter issues
+        filtered_issues = []
+        for issue in self.issues:
+            # Status filter
+            if status and issue["fields"]["status"]["name"] != status:
+                continue
+
+            # Assignee filter
+            if assignee:
+                issue_assignee = "None"
+                if assignee_field := issue["fields"].get("assignee"):
+                    issue_assignee = utils.parse_email(assignee_field)
+                if issue_assignee != assignee:
+                    continue
+
+            # Text filter
+            if text:
+                if field == "summary":
+                    if text.lower() not in issue["fields"]["summary"].lower():
+                        continue
+                elif field == "key":
+                    if text.lower() not in issue["key"].lower():
+                        continue
+                elif field == "assignee":
+                    issue_assignee = "None"
+                    if assignee_field := issue["fields"].get("assignee"):
+                        issue_assignee = utils.parse_email(assignee_field)
+                    if text.lower() not in issue_assignee.lower():
+                        continue
+                elif field == "reporter":
+                    reporter = utils.parse_email(issue["fields"].get("reporter", ""))
+                    if text.lower() not in reporter.lower():
+                        continue
+                elif field == "status":
+                    if text.lower() not in issue["fields"]["status"]["name"].lower():
+                        continue
+
+            filtered_issues.append(issue)
+
+        # Add filtered issues to the table
+        for issue in filtered_issues:
+            issue_type = issue["fields"]["issuetype"]["name"]
+            issue_type = defaults.ISSUE_TYPE_EMOJIS.get(issue_type, (issue_type[:4],))[
+                0
+            ]
+
+            key = issue["key"]
+
+            summary = issue["fields"]["summary"]
+            if len(summary) > defaults.SUMMARY_MAX_LENGTH:
+                summary = f"{summary[: defaults.SUMMARY_MAX_LENGTH - 1]}…"
+
+            assignee = "None"
+            if assignee_field := issue["fields"].get("assignee"):
+                assignee = utils.parse_email(assignee_field)
+
+            reporter = utils.parse_email(issue["fields"].get("reporter", ""))
+            created = utils.show_time(issue["fields"].get("created", ""))
+            updated = utils.show_time(issue["fields"].get("updated", ""))
+            status = issue["fields"]["status"]["name"]
+
+            table.add_row(
+                issue_type, key, summary, assignee, reporter, created, updated, status
+            )
+
+        # Update UI with filter information
+        filter_description = []
+        if text:
+            filter_description.append(f"{field}:'{text}'")
+        if status:
+            filter_description.append(f"status:'{status}'")
+        if assignee:
+            filter_description.append(f"assignee:'{assignee}'")
+
+        if filter_description:
+            filter_msg = f"Filtered by {', '.join(filter_description)}"
+            self.notify(filter_msg)
+        else:
+            self.notify("Showing all issues")
+
+        # Clear the selected issue if it doesn't exist in the filtered results
+        if self.selected_issue:
+            found = False
+            for issue in filtered_issues:
+                if issue["key"] == self.selected_issue:
+                    found = True
+                    break
+            if not found:
+                self.selected_issue = None
+                detail_panel = self.query_one(IssueDetailPanel)
+                detail_panel.update_issue(None, self.config)
+
+    def apply_fuzzy_filter(self, text: str = "") -> None:
+        """Apply a fuzzy filter to all visible fields in the issues table."""
+        # Reset the table
+        table = self.query_one("#issues-table", DataTable)
+        table.clear()
+
+        # Add the headers back
+        table.add_columns(
+            "",
+            "Ticket",
+            "Summary",
+            "Assignee",
+            "Reporter",
+            "Created",
+            "Updated",
+            "Status",
+        )
+
+        # Empty filter shows all issues
+        if not text.strip():
+            self.notify("Showing all issues")
+            # Re-add all rows
+            for issue in self.issues:
+                self._add_issue_to_table(issue, table)
+            return
+
+        # Filter issues
+        filtered_issues = []
+
+        for issue in self.issues:
+            # Prepare all searchable fields as strings
+            issue_key = issue["key"].lower()
+            summary = issue["fields"]["summary"].lower()
+
+            assignee = "none"
+            if assignee_field := issue["fields"].get("assignee"):
+                assignee = utils.parse_email(assignee_field).lower()
+
+            reporter = utils.parse_email(issue["fields"].get("reporter", "")).lower()
+            status = issue["fields"]["status"]["name"].lower()
+
+            # Search across all fields
+            search_text = text.lower()
+            if (
+                search_text in issue_key
+                or search_text in summary
+                or search_text in assignee
+                or search_text in reporter
+                or search_text in status
+            ):
+                filtered_issues.append(issue)
+
+        # Add filtered issues to the table
+        for issue in filtered_issues:
+            self._add_issue_to_table(issue, table)
+
+        # Update UI with filter information
+        if filtered_issues:
+            self.notify(f"Found {len(filtered_issues)} issues matching '{text}'")
+        else:
+            self.notify(f"No issues match '{text}'", severity="warning")
+
+        # Clear the selected issue if it doesn't exist in the filtered results
+        if self.selected_issue:
+            found = False
+            for issue in filtered_issues:
+                if issue["key"] == self.selected_issue:
+                    found = True
+                    break
+            if not found:
+                self.selected_issue = None
+                detail_panel = self.query_one(IssueDetailPanel)
+                detail_panel.update_issue(None, self.config)
+
+    def _add_issue_to_table(self, issue: dict, table: DataTable) -> None:
+        """Helper method to add an issue to the DataTable."""
+        issue_type = issue["fields"]["issuetype"]["name"]
+        issue_type = defaults.ISSUE_TYPE_EMOJIS.get(issue_type, (issue_type[:4],))[0]
+
+        key = issue["key"]
+
+        summary = issue["fields"]["summary"]
+        if len(summary) > defaults.SUMMARY_MAX_LENGTH:
+            summary = f"{summary[: defaults.SUMMARY_MAX_LENGTH - 1]}…"
+
+        assignee = "None"
+        if assignee_field := issue["fields"].get("assignee"):
+            assignee = utils.parse_email(assignee_field)
+
+        reporter = utils.parse_email(issue["fields"].get("reporter", ""))
+        created = utils.show_time(issue["fields"].get("created", ""))
+        updated = utils.show_time(issue["fields"].get("updated", ""))
+        status = issue["fields"]["status"]["name"]
+
+        table.add_row(
+            issue_type, key, summary, assignee, reporter, created, updated, status
+        )
 
 
 ### ─────────────────────────  Public helper  ──────────────────────────
