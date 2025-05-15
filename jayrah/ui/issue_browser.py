@@ -13,11 +13,9 @@ class IssueDetailPanel(Vertical):
 
     DEFAULT_CSS = """
     IssueDetailPanel {
-        padding: 1;
-        border: round $primary;
-        width: 1fr; /* Take available width */
-        height: 1fr; /* Take available height */
-        /* overflow: hidden; Prevent IssueDetailPanel itself from scrolling if Markdown handles it */
+        width: 1fr;
+        height: 1fr;
+        overflow: hidden;
     }
 
     #detail-header {
@@ -36,6 +34,7 @@ class IssueDetailPanel(Vertical):
         super().__init__()
         self.ticket = ticket
         self.config = config or {}
+        self.ticket_cache = {}
         # Initialize your Jira connection object
         # Ensure 'boards.Boards' is the correct way to get your Jira API handler
         self.jayrah_obj = boards.Boards(self.config)
@@ -75,20 +74,22 @@ class IssueDetailPanel(Vertical):
             markdown_widget.update(f"🔄 Loading details for {ticket}...")
             self.app.refresh()
 
-            issue_data = self.jayrah_obj.jira.get_issue(ticket, fields=None)
+            all_content = ""
+            if ticket not in self.ticket_cache:
+                issue_data = self.jayrah_obj.jira.get_issue(ticket, fields=None)
+                header_content, markdown_content = issue_view.build_issue(
+                    issue_data, self.config, 0
+                )
+                all_content = header_content + "\n" + markdown_content
+                self.ticket_cache[ticket] = all_content
+            else:
+                all_content = self.ticket_cache.get(ticket, "")
 
-            # Generate Markdown output using your existing issue_view logic
-            # The '0' argument is based on your original call: output = issue_view.build_issue(issue, self.config, 0)
-            header_content, markdown_content = issue_view.build_issue(
-                issue_data, self.config, 0
-            )
-            markdown_widget.update(header_content + "\n" + markdown_content)
-            # Reset scroll position to the top after updating content
+            markdown_widget.update(all_content)
             markdown_widget.scroll_home(animate=False, immediate=True)
         except Exception as e:
             error_message = f"⚠️ Error loading issue {ticket}:\n\n```\n{str(e)}\n```\n\nPlease check the ticket ID and your connection."
             markdown_widget.update(error_message)
-            # Reset scroll position to the top even for error messages
             markdown_widget.scroll_home()
             self.app.log.error(f"Failed to load or build issue {ticket}: {e}")
 
@@ -152,7 +153,7 @@ class IssueBrowserApp(App):
         Binding("r", "reload", "Reload"),
         Binding("o", "open_issue", "Open"),
         Binding("a", "action_menu", "Actions"),
-        Binding("/", "filter", "Fuzzy Filter"),
+        Binding("f", "filter", "Fuzzy Filter"),
         Binding("h", "help", "Help"),
         Binding("j", "cursor_down", "Down"),
         Binding("k", "cursor_up", "Up"),
