@@ -21,7 +21,7 @@ def sample_config():
             {
                 "name": "myissue",
                 "jql": "assignee = currentUser() AND resolution = Unresolved",
-                    "order_by": "updated",
+                "order_by": "updated",
                 "description": "My current issues",
             },
             {

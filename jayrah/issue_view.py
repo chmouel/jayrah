@@ -32,6 +32,7 @@ def get_terminal_width() -> int:
 
     return terminal_width
 
+
 def wrap_markdown(text):
     """Wrap markdown text to terminal width"""
     if not text:

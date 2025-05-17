@@ -5,6 +5,7 @@ import click
 
 from . import utils, defaults
 
+
 def fzf_search(self, issues):
     """Use fzf to interactively select an issue."""
     if self.verbose:

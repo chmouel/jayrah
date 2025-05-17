@@ -24,9 +24,7 @@ from . import (
 @click.option(
     "--no-fzf", is_flag=True, help="Output directly to stdout without interactive UI"
 )
-@click.option(
-    "--fzf", is_flag=True, help="Force use of fzf UI for selection"
-)
+@click.option("--fzf", is_flag=True, help="Force use of fzf UI for selection")
 @click.option(
     "--ui-type",
     type=click.Choice(["fzf", "textual"]),
