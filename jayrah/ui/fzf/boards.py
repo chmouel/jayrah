@@ -1,9 +1,10 @@
 import subprocess
 import tempfile
 from functools import reduce
+
 import click
 
-from . import utils, defaults
+from .... import defaults, utils
 
 
 def fzf_search(self, issues):

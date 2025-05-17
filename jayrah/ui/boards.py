@@ -4,7 +4,7 @@ import typing
 import click
 import click.shell_completion
 
-from . import config, defaults, jirahttp, utils
+from .. import config, defaults, jirahttp, utils
 
 
 class BoardType(click.ParamType):
@@ -194,7 +194,7 @@ class Boards:
 
         if ui_type == "textual":
             try:
-                from .ui.tui.issue_browser import run_textual_browser
+                from .tui.issue_browser import run_textual_browser
 
                 selected_key = run_textual_browser(issues, self.config, self.command)
                 if self.verbose and selected_key:
@@ -214,7 +214,7 @@ class Boards:
 
         if ui_type == "fzf":
             try:
-                from .ui.fzf.boards import fzf_search
+                from .fzf.boards import fzf_search
 
                 return fzf_search(self, issues)
             except Exception as e:

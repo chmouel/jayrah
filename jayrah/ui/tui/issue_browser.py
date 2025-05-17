@@ -5,7 +5,9 @@ from textual.containers import Container, Vertical
 from textual.screen import ModalScreen
 from textual.widgets import DataTable, Footer, Header, Input, Label, Markdown
 
-from jayrah import boards, defaults, issue_view, utils
+from jayrah import defaults, issue_view, utils
+
+from .. import boards
 
 
 class IssueDetailPanel(Vertical):

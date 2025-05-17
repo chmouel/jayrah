@@ -6,17 +6,10 @@ import time
 
 import click
 
-from . import (
-    boards,
-    config,
-    defaults,
-    help,
-    issue_action,
-    issue_view,
-    jirahttp,
-    mcp_server,
-    utils,
-)
+from jayrah.ui import boards
+
+from . import (config, defaults, help, issue_action, issue_view, jirahttp,
+               mcp_server, utils)
 
 
 @click.group()
