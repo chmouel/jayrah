@@ -3,7 +3,6 @@ import urllib.error
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from jayrah.jirahttp import JiraHTTP
 
 
@@ -36,13 +35,18 @@ def test_search_issues(sample_config, mock_urlopen, mock_jira_client):
     with patch.object(client, "_request") as mock_request:
         mock_request.return_value = {"issues": [{"key": "TEST-123"}]}
 
-        result = client.search_issues("project = TEST", start_at=0, max_results=10)
+        result = client.search_issues(
+            "project = TEST",
+            start_at=0,
+            max_results=10,
+        )
 
         # Check _request was called with expected arguments
         mock_request.assert_called_once_with(
             "GET",
             "search",
             params={"jql": "project = TEST", "startAt": 0, "maxResults": 10},
+            label="✨ Fetching Jira issues",
         )
         assert result["issues"][0]["key"] == "TEST-123"
 
@@ -149,7 +153,9 @@ def test_get_transitions(sample_config, mock_urlopen, mock_jira_client):
         result = client.get_transitions("TEST-123")
 
         # Check _request was called with expected arguments
-        mock_request.assert_called_once_with("GET", "issue/TEST-123/transitions")
+        mock_request.assert_called_once_with(
+            "GET", "issue/TEST-123/transitions", label="All transitions"
+        )
         assert len(result["transitions"]) == 1
         assert result["transitions"][0]["name"] == "In Progress"
 

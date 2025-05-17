@@ -198,7 +198,7 @@ class JiraHTTP:
         if self.verbose:
             click.echo(f"Start at: {start_at}, Max results: {max_results}", err=True)
 
-        label = "🚣🏻‍♀️ Fetching Jira issues"
+        label = "✨ Fetching Jira issues"
         if start_at != 0:
             label += f" from {start_at} to {start_at + max_results}"
         return self._request(
