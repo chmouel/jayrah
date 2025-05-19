@@ -3,7 +3,7 @@ import urllib.error
 from unittest.mock import MagicMock, patch
 
 import pytest
-from jayrah.jirahttp import JiraHTTP
+from jayrah.api.jira import JiraHTTP
 
 
 @pytest.fixture

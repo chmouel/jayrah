@@ -46,7 +46,7 @@ def temp_config_file(tmp_path, sample_config):
 @pytest.fixture
 def mock_jira_client():
     """Return a mocked Jira HTTP client."""
-    with patch("jayrah.jirahttp.JiraHTTP") as mock_jira:
+    with patch("jayrah.api.jira.JiraHTTP") as mock_jira:
         client_instance = MagicMock()
         mock_jira.return_value = client_instance
         yield client_instance

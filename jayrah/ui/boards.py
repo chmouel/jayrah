@@ -4,8 +4,9 @@ import typing
 import click
 import click.shell_completion
 
-from .. import config, defaults, utils
+from .. import config, utils
 from ..api import jira as jirahttp
+from ..config import defaults
 
 
 class BoardType(click.ParamType):

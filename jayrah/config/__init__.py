@@ -1,11 +1,10 @@
 import pathlib
+import re
 
 import click
-import re
 import yaml
-from rich.prompt import Prompt
-
 from jayrah import utils
+from rich.prompt import Prompt
 
 from . import defaults
 

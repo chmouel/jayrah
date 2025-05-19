@@ -1,6 +1,6 @@
 """Tests for the search functionality in the boards module."""
 
-from jayrah import boards
+from jayrah.ui import boards
 
 
 def test_build_search_jql():

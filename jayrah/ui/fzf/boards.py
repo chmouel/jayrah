@@ -3,8 +3,9 @@ import tempfile
 from functools import reduce
 
 import click
+from jayrah.config import defaults
 
-from .... import defaults, utils
+from ... import utils
 
 
 def fzf_search(self, issues):

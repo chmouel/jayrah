@@ -4,9 +4,8 @@ Tests for the CLI commands.
 
 import pytest
 from click.testing import CliRunner
-
 from jayrah import commands
-from jayrah import boards
+from jayrah.ui import boards
 
 
 @pytest.fixture

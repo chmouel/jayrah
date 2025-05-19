@@ -1,8 +1,8 @@
 from unittest.mock import patch
 
 import yaml
-
-from jayrah import config, defaults
+from jayrah import config
+from jayrah.config import defaults
 
 
 # Add a patch for the read_config function to handle the NoneType issue

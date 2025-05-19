@@ -8,7 +8,7 @@ from pathlib import Path
 # Add parent directory to import path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from jayrah import boards
+from jayrah.ui import boards
 
 
 def test_build_search_jql():

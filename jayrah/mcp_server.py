@@ -6,9 +6,11 @@ from mcp.server import NotificationOptions, Server
 from mcp.server.models import InitializationOptions
 from pydantic import AnyUrl
 
+import jayrah.config as config
+from jayrah.config import defaults
 from jayrah.ui import boards
 
-from . import config, defaults, utils
+from . import utils
 
 # Initialize config and boards for Jira access
 config_file = defaults.CONFIG_FILE

@@ -8,8 +8,9 @@ import click
 
 from jayrah.ui import boards
 
-from . import config, defaults, help, issue_action, issue_view, mcp_server, utils
+from . import config, help, issue_action, issue_view, mcp_server, utils
 from .api import jira as jirahttp
+from .config import defaults
 
 
 @click.group()
