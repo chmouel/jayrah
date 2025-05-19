@@ -3,7 +3,7 @@ import time
 from pathlib import Path
 from unittest import TestCase, mock
 
-from jayrah.cache import JiraCache
+from jayrah.utils.cache import JiraCache
 
 
 class TestJiraCache(TestCase):

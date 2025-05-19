@@ -5,7 +5,7 @@ import click
 
 from jayrah import utils
 
-from .config import defaults
+from ..config import defaults
 
 
 def transition_issue(ticketj, obj):

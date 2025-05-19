@@ -5,7 +5,9 @@ from textual.containers import Container, Vertical
 from textual.screen import ModalScreen
 from textual.widgets import DataTable, Footer, Header, Input, Label, Markdown
 
-from jayrah import defaults, issue_view, utils
+from jayrah import utils
+from jayrah.commands import issue_view
+from jayrah.utils import defaults
 
 from .. import boards
 

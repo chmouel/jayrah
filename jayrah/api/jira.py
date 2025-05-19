@@ -7,7 +7,7 @@ from urllib.parse import urlencode
 
 import click
 
-from .. import cache
+from ..utils import cache
 
 
 class JiraHTTP:
