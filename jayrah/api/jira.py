@@ -82,7 +82,9 @@ class JiraHTTP:
 
         return " ".join(curl_parts)
 
-    def _request(self, method, endpoint, params=None, jeez=None, label=None):
+    def _request(
+        self, method, endpoint, params=None, jeez=None, label=None, use_cache=True
+    ):
         """Helper method to make HTTP requests."""
         url = f"{self.base_url}/{endpoint}"
 
@@ -95,11 +97,14 @@ class JiraHTTP:
 
         # Only use cache for GET requests
         if method.upper() == "GET" and not self.config.get("no_cache"):
-            cached_response = self.cache.get(url, params, jeez)
-            if cached_response:
-                if self.verbose:
-                    click.echo("Using cached response from SQLite database", err=True)
-                return cached_response
+            if use_cache:
+                cached_response = self.cache.get(url, params, jeez)
+                if cached_response:
+                    if self.verbose:
+                        click.echo(
+                            "Using cached response from SQLite database", err=True
+                        )
+                    return cached_response
 
             if self.verbose:
                 click.echo(f"No cache found for: {url}", err=True)
@@ -170,7 +175,9 @@ class JiraHTTP:
             click.echo(f"URL error occurred: {e}", err=True)
             raise click.ClickException(f"URL error: {e}")
 
-    def search_issues(self, jql, start_at=0, max_results=50, fields=None):
+    def search_issues(
+        self, jql, start_at=0, max_results=50, fields=None, use_cache: bool = True
+    ):
         """
         Search for issues using JQL.
 
@@ -206,6 +213,7 @@ class JiraHTTP:
             endpoint,
             params=params,
             label=label,
+            use_cache=use_cache,
         )
 
     # pylint: disable=too-many-positional-arguments

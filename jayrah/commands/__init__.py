@@ -142,7 +142,7 @@ def browse(jayrah_obj, board, search_terms, use_or, filters):
         jql, search_terms, use_or, jayrah_obj.verbose, filters
     )
 
-    issues = jayrah_obj.list_issues(jql, order_by=order_by)
+    issues = jayrah_obj.issues_client.list_issues(jql, order_by=order_by)
 
     if not issues:
         boards.show_no_issues_message(search_terms, use_or, filters)

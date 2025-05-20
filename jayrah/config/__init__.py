@@ -3,8 +3,9 @@ import re
 
 import click
 import yaml
-from jayrah import utils
 from rich.prompt import Prompt
+
+from jayrah import utils
 
 from . import defaults
 
@@ -113,7 +114,7 @@ def write_config(config, config_file: pathlib.Path):
     config_file.parent.mkdir(parents=True, exist_ok=True)
 
     # Prepare the config structure
-    yaml_config = {"general": {}}
+    yaml_config: dict[str, dict] = {"general": {}}
     for key in [
         "jira_server",
         "jira_user",

@@ -7,6 +7,7 @@ import click.shell_completion
 from .. import config, utils
 from ..api import jira as jirahttp
 from ..config import defaults
+from . import issues
 
 
 class BoardType(click.ParamType):
@@ -70,61 +71,9 @@ class Boards:
         if self.verbose:
             click.echo("Jayrah initialized with verbose logging enabled", err=True)
 
+        self.issues_client = issues.Issues(self.config, self.jira)
+
     # pylint: disable=too-many-positional-arguments
-    def list_issues(
-        self,
-        jql,
-        order_by="updated",
-        limit=100,
-        all_pages=True,
-        fields=None,
-        start_at=None,
-    ):
-        """List issues using JQL query."""
-        # Handle the dangerous default value
-        if fields is None:
-            fields = list(defaults.FIELDS)  # Create a copy of the default list
-
-        if self.verbose:
-            click.echo(f"Listing issues with JQL: {jql}", err=True)
-            click.echo(
-                f"Order by: {order_by}, Limit: {limit}, All pages: {all_pages}",
-                err=True,
-            )
-            click.echo(f"Fields: {fields}", err=True)
-
-        issues = []
-        current_start_at = 0 if start_at is None else start_at
-        while True:
-            if self.verbose:
-                click.echo(f"Fetching batch starting at {current_start_at}", err=True)
-
-            result = self.jira.search_issues(
-                jql,
-                start_at=current_start_at,
-                max_results=limit,
-                fields=fields,
-            )
-
-            batch_issues = result.get("issues", [])
-            issues.extend(batch_issues)
-
-            if self.verbose:
-                utils.log(
-                    f"Retrieved {len(batch_issues)} issues (total: {len(issues)})",
-                    "DEBUG",
-                    verbose_only=True,
-                    verbose=self.verbose,
-                )
-
-            total = result.get("total", 0)
-            if not all_pages or current_start_at + limit >= total:
-                break
-
-            current_start_at += limit
-
-        return issues
-
     def _build_issue_table(
         self,
         issue,
@@ -277,7 +226,7 @@ class Boards:
         # Use the common function to build the search JQL
         jql = build_search_jql(base_jql, search_terms, use_or, self.verbose, filters)
 
-        issues = self.list_issues(jql)
+        issues = self.issues_client.list_issues(jql)
 
         if not issues:
             show_no_issues_message(search_terms, use_or, filters)

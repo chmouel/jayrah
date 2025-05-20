@@ -38,9 +38,7 @@ class IssueDetailPanel(Vertical):
         super().__init__()
         self.ticket = ticket
         self.config = config or {}
-        self.ticket_cache = {}
-        # Initialize your Jira connection object
-        # Ensure 'boards.Boards' is the correct way to get your Jira API handler
+        self.ticket_cache: dict = {}
         self.jayrah_obj = boards.Boards(self.config)
 
     def compose(self) -> ComposeResult:  # type: ignore[override]
@@ -50,7 +48,6 @@ class IssueDetailPanel(Vertical):
             if self.ticket
             else "Select an issue to view details"
         )
-        # Use Markdown widget instead of Label
         with Container():
             with Vertical(id="detail-label"):
                 yield Markdown(initial_message, id="detail-markdown")
@@ -63,8 +60,6 @@ class IssueDetailPanel(Vertical):
         self.ticket = ticket
         if config is not None:  # Update config only if a new one is provided
             self.config = config
-            # If jayrah_obj needs to be reconfigured with new config:
-            # self.jayrah_obj = boards.Boards(self.config)
 
         # header_widget = self.query_one("#detail-header", Static)
         markdown_widget = self.query_one("#detail-markdown", Markdown)
@@ -177,6 +172,7 @@ class IssueBrowserApp(App):
         self.config = config or {}
         self.command = command or ""
         self.selected_issue: str | None = None
+        self.jayrah_obj = boards.Boards(self.config)
 
     def compose(self) -> ComposeResult:  # type: ignore[override]
         """Create the widget tree."""
@@ -259,8 +255,8 @@ class IssueBrowserApp(App):
         self.exit()  # Switch back to shell for the action menu
 
     def action_reload(self) -> None:  # noqa: D401
-        self.notify("Reloading issues…")
-        # Placeholder for real refresh logic
+        self.jayrah_obj.issues_client.list_issues("", use_cache=False)
+        self.apply_fuzzy_filter("", msg="Reloading issues")
 
     def action_help(self) -> None:  # noqa: D401
         self.notify("Showing help…")
@@ -389,123 +385,9 @@ class IssueBrowserApp(App):
     def action_quit(self) -> None:  # noqa: D401
         self.exit()  # *app.selected_issue* persists after exit
 
-    def apply_filters(
-        self,
-        text: str = "",
-        field: str = "summary",
-        status: str = "",
-        assignee: str = "",
+    def apply_fuzzy_filter(
+        self, text: str = "", msg: str = "Showing all issues"
     ) -> None:
-        """Apply filters to the issues table based on selected criteria."""
-        # Reset the table
-        table = self.query_one("#issues-table", DataTable)
-        table.clear()
-
-        # Add the headers back
-        table.add_columns(
-            "",
-            "Ticket",
-            "Summary",
-            "Assignee",
-            "Reporter",
-            "Created",
-            "Updated",
-            "Status",
-        )
-
-        # Filter issues
-        filtered_issues = []
-        for issue in self.issues:
-            # Status filter
-            if status and issue["fields"]["status"]["name"] != status:
-                continue
-
-            # Assignee filter
-            if assignee:
-                issue_assignee = "None"
-                if assignee_field := issue["fields"].get("assignee"):
-                    issue_assignee = utils.parse_email(assignee_field)
-                if issue_assignee != assignee:
-                    continue
-
-            # Text filter
-            if text:
-                if field == "summary":
-                    if text.lower() not in issue["fields"]["summary"].lower():
-                        continue
-                elif field == "key":
-                    if text.lower() not in issue["key"].lower():
-                        continue
-                elif field == "assignee":
-                    issue_assignee = "None"
-                    if assignee_field := issue["fields"].get("assignee"):
-                        issue_assignee = utils.parse_email(assignee_field)
-                    if text.lower() not in issue_assignee.lower():
-                        continue
-                elif field == "reporter":
-                    reporter = utils.parse_email(issue["fields"].get("reporter", ""))
-                    if text.lower() not in reporter.lower():
-                        continue
-                elif field == "status":
-                    if text.lower() not in issue["fields"]["status"]["name"].lower():
-                        continue
-
-            filtered_issues.append(issue)
-
-        # Add filtered issues to the table
-        for issue in filtered_issues:
-            issue_type = issue["fields"]["issuetype"]["name"]
-            issue_type = defaults.ISSUE_TYPE_EMOJIS.get(issue_type, (issue_type[:4],))[
-                0
-            ]
-
-            key = issue["key"]
-
-            summary = issue["fields"]["summary"]
-            if len(summary) > defaults.SUMMARY_MAX_LENGTH:
-                summary = f"{summary[: defaults.SUMMARY_MAX_LENGTH - 1]}…"
-
-            assignee = "None"
-            if assignee_field := issue["fields"].get("assignee"):
-                assignee = utils.parse_email(assignee_field)
-
-            reporter = utils.parse_email(issue["fields"].get("reporter", ""))
-            created = utils.show_time(issue["fields"].get("created", ""))
-            updated = utils.show_time(issue["fields"].get("updated", ""))
-            status = issue["fields"]["status"]["name"]
-
-            table.add_row(
-                issue_type, key, summary, assignee, reporter, created, updated, status
-            )
-
-        # Update UI with filter information
-        filter_description = []
-        if text:
-            filter_description.append(f"{field}:'{text}'")
-        if status:
-            filter_description.append(f"status:'{status}'")
-        if assignee:
-            filter_description.append(f"assignee:'{assignee}'")
-
-        if filter_description:
-            filter_msg = f"Filtered by {', '.join(filter_description)}"
-            self.notify(filter_msg)
-        else:
-            self.notify("Showing all issues")
-
-        # Clear the selected issue if it doesn't exist in the filtered results
-        if self.selected_issue:
-            found = False
-            for issue in filtered_issues:
-                if issue["key"] == self.selected_issue:
-                    found = True
-                    break
-            if not found:
-                self.selected_issue = None
-                detail_panel = self.query_one(IssueDetailPanel)
-                detail_panel.update_issue(None, self.config)
-
-    def apply_fuzzy_filter(self, text: str = "") -> None:
         """Apply a fuzzy filter to all visible fields in the issues table."""
         # Reset the table
         table = self.query_one("#issues-table", DataTable)
@@ -525,7 +407,8 @@ class IssueBrowserApp(App):
 
         # Empty filter shows all issues
         if not text.strip():
-            self.notify("Showing all issues")
+            if msg.strip():
+                self.notify(msg)
             # Re-add all rows
             for issue in self.issues:
                 self._add_issue_to_table(issue, table)

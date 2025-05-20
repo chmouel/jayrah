@@ -70,7 +70,7 @@ async def _read_board_resource(board_name: str) -> str:
     if not jql or not order_by:
         return json.dumps({"error": f"Invalid board or missing JQL: {board_name}"})
 
-    issues = boards_obj.list_issues(jql, order_by=order_by)
+    issues = boards_obj.issues_client.list_issues(jql, order_by=order_by)
     return json.dumps({"board": board_name, "issues": issues})
 
 
@@ -391,7 +391,7 @@ async def _handle_browse(arguments: dict) -> list[types.TextContent]:
     start_at = (page - 1) * page_size
 
     # Always fetch a single page at a time for pagination control
-    issues = boards_obj.list_issues(
+    issues = boards_obj.issues_client.list_issues(
         jql, order_by=order_by, limit=page_size, all_pages=False, start_at=start_at
     )
 
@@ -440,10 +440,10 @@ def _format_issues_summary(
     limit: int = 10,
     page: int = 1,
     page_size: int = 100,
-    search_terms: list = None,
+    search_terms: list | None = None,
     use_or: bool = False,
-    filters: list = None,
-    search_term: str = None,  # For backward compatibility
+    filters: list | None = None,
+    search_term: str | None = None,  # For backward compatibility
 ) -> str:
     """Format a list of issues into a readable summary."""
     # Get the total number of issues (from the page)
