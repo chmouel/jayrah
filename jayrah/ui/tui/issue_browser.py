@@ -1,13 +1,12 @@
+from jayrah import utils
+from jayrah.commands import issue_view
+from jayrah.utils import defaults
 from textual import log, on
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Container, Vertical
 from textual.screen import ModalScreen
 from textual.widgets import DataTable, Footer, Header, Input, Label, Markdown
-
-from jayrah import utils
-from jayrah.commands import issue_view
-from jayrah.utils import defaults
 
 from .. import boards
 
@@ -166,6 +165,8 @@ class IssueBrowserApp(App):
         issues: list | None = None,
         config: dict | None = None,
         command: str | None = None,
+        jql: str | None = None,
+        order_by: str | None = None,
     ):
         super().__init__()
         self.issues = issues or []
@@ -173,6 +174,9 @@ class IssueBrowserApp(App):
         self.command = command or ""
         self.selected_issue: str | None = None
         self.jayrah_obj = boards.Boards(self.config)
+        self.verbose = self.config.get("verbose", False)
+        self.jql = jql
+        self.order_by: str | None = order_by
 
     def compose(self) -> ComposeResult:  # type: ignore[override]
         """Create the widget tree."""
@@ -255,7 +259,11 @@ class IssueBrowserApp(App):
         self.exit()  # Switch back to shell for the action menu
 
     def action_reload(self) -> None:  # noqa: D401
-        self.jayrah_obj.issues_client.list_issues("", use_cache=False)
+        self.issues = self.jayrah_obj.issues_client.list_issues(
+            self.jql, order_by=self.order_by, use_cache=False
+        )
+        if self.verbose:
+            self.log(f"Reloaded Issues are {self.issues}")
         self.apply_fuzzy_filter("", msg="Reloading issues")
 
     def action_help(self) -> None:  # noqa: D401
@@ -411,6 +419,8 @@ class IssueBrowserApp(App):
                 self.notify(msg)
             # Re-add all rows
             for issue in self.issues:
+                if self.verbose:
+                    self.log(f"Adding issue {issue['key']} to table")
                 self._add_issue_to_table(issue, table)
             return
 
@@ -488,8 +498,10 @@ class IssueBrowserApp(App):
 
 
 ### ─────────────────────────  Public helper  ──────────────────────────
-def run_textual_browser(issues: list, config: dict, command: str):
+def run_textual_browser(
+    issues: list, config: dict, command: str, jql: str, order_by: str
+):
     """Launch the **IssueBrowserApp** and return the ticket selected by the user."""
-    app = IssueBrowserApp(issues, config, command)
+    app = IssueBrowserApp(issues, config, command, jql, order_by)
     app.run()
     return app.selected_issue

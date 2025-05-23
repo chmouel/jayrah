@@ -42,18 +42,18 @@ def check(board, config) -> typing.Tuple[str, str]:
     if board is not None and board not in [
         x.get("name") for x in chosen_boards if x.get("name") == board
     ]:
-        click.secho("Invalid board: ", fg="red", err=True, nl=False)
-        click.echo(f"{board}", err=True)
+        click.secho("Invalid board: ", fg="red", nl=False)
+        print(f"{board}")
         show(config)
         return "", ""
 
     jql = chosen_boards[0].get("jql", "").strip() if chosen_boards else None
     if not jql:
-        click.secho(f"Board {board} has no JQL defined", fg="red", err=True)
+        click.secho(f"Board {board} has no JQL defined", fg="red")
         return "", ""
     order_by = chosen_boards[0].get("order_by", defaults.ORDER_BY)
     if config.get("verbose"):
-        click.echo(f"Running query: {jql} ORDER BY: {order_by}", err=True)
+        print(f"Running query: {jql} ORDER BY: {order_by}")
     return jql, order_by
 
 
@@ -62,6 +62,8 @@ class Boards:
     command: str = ""
     obj = None
     verbose: bool = False
+    jql: str = ""
+    order_by: str = ""
 
     def __init__(self, config: dict):
         self.config = config
@@ -69,7 +71,7 @@ class Boards:
         self.verbose = self.config.get("verbose", False)
 
         if self.verbose:
-            click.echo("Jayrah initialized with verbose logging enabled", err=True)
+            print("Jayrah initialized with verbose logging enabled")
 
         self.issues_client = issues.Issues(self.config, self.jira)
 
@@ -147,20 +149,21 @@ class Boards:
             try:
                 from .tui.issue_browser import run_textual_browser
 
-                selected_key = run_textual_browser(issues, self.config, self.command)
+                selected_key = run_textual_browser(
+                    issues, self.config, self.command, self.jql, self.order_by
+                )
                 if self.verbose and selected_key:
-                    click.echo(f"User selected: {selected_key}", err=True)
+                    print(f"User selected: {selected_key}")
 
                 return selected_key
             except ImportError as e:
                 click.secho(
                     f"Modern UI not available: {e}. Falling back to fzf.",
                     fg="yellow",
-                    err=True,
                 )
                 ui_type = "fzf"  # Fall back to fzf
             except Exception as e:
-                click.secho(f"Error occurred with Textual UI: {e}", fg="red", err=True)
+                click.secho(f"Error occurred with Textual UI: {e}", fg="red")
                 ui_type = "fzf"
 
         if ui_type == "fzf":
@@ -169,10 +172,10 @@ class Boards:
 
                 return fzf_search(self, issues)
             except Exception as e:
-                click.secho(f"Error with fzf UI: {e}", fg="red", err=True)
+                click.secho(f"Error with fzf UI: {e}", fg="red")
                 return None
 
-        click.secho("No suitable UI found", fg="red", err=True)
+        click.secho("No suitable UI found", fg="red")
         return None
 
     # pylint: disable=too-many-positional-arguments
@@ -234,18 +237,18 @@ class Boards:
 
         selected = self.fuzzy_search(issues)
         if not selected:
-            click.secho("No issue selected", fg="yellow", err=True)
+            click.secho("No issue selected", fg="yellow")
             raise click.Abort("No issue selected")
 
         if self.verbose:
-            click.echo(f"Getting issue details for {selected}", err=True)
+            print(f"Getting issue details for {selected}")
 
         issue = self.jira.get_issue(selected, fields=["summary"])
         summary = issue["fields"]["summary"]
 
         branch = f"{selected}-{summary.replace(' ', '-').lower()[:75]}"
         click.secho(f"Suggested branch name: {branch}", fg="blue")
-        click.echo(branch)
+        print(branch)
 
 
 def build_search_jql(
@@ -310,7 +313,6 @@ def build_search_jql(
                     click.secho(
                         f"Warning: Ignoring invalid filter format: {filter_expr}",
                         fg="yellow",
-                        err=True,
                     )
 
         if filter_conditions:
@@ -320,12 +322,12 @@ def build_search_jql(
 
             # Show filter message if verbose
             if verbose:
-                click.secho(f"Applied filters: {filter_jql}", fg="blue", err=True)
+                click.secho(f"Applied filters: {filter_jql}", fg="blue")
 
     # Show search message if verbose
     if verbose and search_terms:
         terms_text = format_search_terms(search_terms, use_or)
-        click.secho(f"Searching for: {terms_text}", fg="blue", err=True)
+        click.secho(f"Searching for: {terms_text}", fg="blue")
 
     return extended_jql
 
@@ -369,8 +371,6 @@ def show_no_issues_message(
 
     if message_parts:
         combined_message = " with " + ", ".join(message_parts)
-        click.secho(
-            f"No issues found matching{combined_message}", fg="yellow", err=True
-        )
+        click.secho(f"No issues found matching{combined_message}", fg="yellow")
     else:
-        click.secho("No issues found", fg="yellow", err=True)
+        click.secho("No issues found", fg="yellow")

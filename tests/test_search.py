@@ -9,6 +9,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from jayrah.ui import boards
+from jayrah.utils import log
 
 
 def test_build_search_jql():
@@ -37,7 +38,7 @@ def test_build_search_jql():
     expected = f'({base_jql}) AND ((summary ~ "test1" OR description ~ "test1") OR (summary ~ "test2" OR description ~ "test2"))'
     assert result == expected, f"Expected {expected}, got {result}"
 
-    print("All build_search_jql tests passed!")
+    log("All build_search_jql tests passed!")
 
 
 def test_build_search_jql_with_filters():
@@ -69,7 +70,7 @@ def test_build_search_jql_with_filters():
     expected = f'(({base_jql}) AND ((summary ~ "test" OR description ~ "test"))) AND (status = Open)'
     assert result == expected, f"Expected {expected}, got {result}"
 
-    print("All build_search_jql_with_filters tests passed!")
+    log("All build_search_jql_with_filters tests passed!")
 
 
 def test_format_search_terms():
@@ -96,15 +97,4 @@ def test_format_search_terms():
     expected = "'test1' OR 'test2'"
     assert result == expected, f"Expected {expected}, got {result}"
 
-    print("All format_search_terms tests passed!")
-
-
-if __name__ == "__main__":
-    try:
-        test_build_search_jql()
-        test_build_search_jql_with_filters()  # Added new test
-        test_format_search_terms()
-        print("\nAll tests passed successfully!")
-    except AssertionError as e:
-        print(f"\nTest failed: {e}", file=sys.stderr)
-        sys.exit(1)
+    log("All format_search_terms tests passed!")

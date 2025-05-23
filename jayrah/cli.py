@@ -1,6 +1,8 @@
 import sys
+
 import click
-from . import commands
+
+from . import commands, utils
 
 
 def main():
@@ -12,12 +14,12 @@ def main():
         # pylint: disable=no-value-for-parameter
         commands.cli()
     except KeyboardInterrupt:
-        click.secho("Operation cancelled by user", fg="yellow", err=True)
+        click.secho("Operation cancelled by user", fg="yellow")
         sys.exit(1)
     except Exception as e:
-        click.secho(f"Error: {e}", fg="red", err=True)
+        click.secho(f"Error: {e}", fg="red")
         if verbose:
-            print("Verbose mode enabled. Full error details:")
+            utils.log("Verbose mode enabled. Full error details:")
             raise e
         sys.exit(1)
 

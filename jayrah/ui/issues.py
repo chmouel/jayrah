@@ -1,5 +1,3 @@
-import click
-
 from .. import utils
 from ..config import defaults
 
@@ -14,7 +12,7 @@ class Issues:
     def list_issues(
         self,
         jql,
-        order_by="updated",
+        order_by: str | None = "updated",
         limit=100,
         all_pages=True,
         fields=None,
@@ -27,18 +25,17 @@ class Issues:
             fields = list(defaults.FIELDS)  # Create a copy of the default list
 
         if self.verbose:
-            click.echo(f"Listing issues with JQL: {jql}", err=True)
-            click.echo(
+            utils.log(f"Listing issues with JQL: {jql}")
+            utils.log(
                 f"Order by: {order_by}, Limit: {limit}, All pages: {all_pages}, Cache: {use_cache}",
-                err=True,
             )
-            click.echo(f"Fields: {fields}", err=True)
+            utils.log(f"Fields: {fields}")
 
         issues = []
         current_start_at = 0 if start_at is None else start_at
         while True:
             if self.verbose:
-                click.echo(f"Fetching batch starting at {current_start_at}", err=True)
+                utils.log(f"Fetching batch starting at {current_start_at}")
 
             result = self.jira.search_issues(
                 jql,

@@ -1,11 +1,9 @@
 import pathlib
 import re
 
-import click
 import yaml
-from rich.prompt import Prompt
-
 from jayrah import utils
+from rich.prompt import Prompt
 
 from . import defaults
 
@@ -45,7 +43,7 @@ def make_config(config: dict, config_file: pathlib.Path) -> dict:
     # Save the config if modified
     if config_modified:
         write_config(config, config_path)
-        click.echo(f"Configuration saved to {config_file}", err=True)
+        utils.log(f"Configuration saved to {config_file}")
 
     return config
 

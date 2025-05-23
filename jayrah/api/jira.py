@@ -4,10 +4,10 @@ import ssl
 import urllib.error
 import urllib.request
 from urllib.parse import urlencode
-
 import click
 
 from ..utils import cache
+from ..utils import log
 
 
 class JiraHTTP:
@@ -24,9 +24,8 @@ class JiraHTTP:
         self.insecure = self.config.get("insecure", False)
 
         if self.verbose:
-            click.echo(
+            log(
                 f"Initialized JiraHTTP: server={server}, project={self.config.get('jira_component')}, no_cache={self.config.get('no_cache')}, insecure={self.insecure}",
-                err=True,
             )
 
         self.headers = {
@@ -49,7 +48,7 @@ class JiraHTTP:
             urllib.request.install_opener(opener)
 
             if self.verbose:
-                click.echo("WARNING: SSL certificate verification disabled", err=True)
+                log("WARNING: SSL certificate verification disabled")
 
     def _get_curl_command(self, method, url, headers, params=None, json_data=None):
         """Generate an equivalent curl command for debugging purposes."""
@@ -89,11 +88,11 @@ class JiraHTTP:
         url = f"{self.base_url}/{endpoint}"
 
         if self.verbose:
-            click.echo(f"API Request: {method} {url}", err=True)
+            log(f"API Request: {method} {url}")
             if params:
-                click.echo(f"Parameters: {params}", err=True)
+                log(f"Parameters: {params}")
             if jeez:
-                click.echo(f"Request body: {jeez}", err=True)
+                log(f"Request body: {jeez}")
 
         # Only use cache for GET requests
         if method.upper() == "GET" and not self.config.get("no_cache"):
@@ -101,21 +100,19 @@ class JiraHTTP:
                 cached_response = self.cache.get(url, params, jeez)
                 if cached_response:
                     if self.verbose:
-                        click.echo(
-                            "Using cached response from SQLite database", err=True
-                        )
+                        log("Using cached response from SQLite database")
                     return cached_response
 
             if self.verbose:
-                click.echo(f"No cache found for: {url}", err=True)
+                log(f"No cache found for: {url}")
 
         try:
             if self.verbose:
-                click.echo(f"Sending request to {url}...", err=True)
+                log(f"Sending request to {url}...")
                 curl_cmd = self._get_curl_command(
                     method, url, self.headers, params, jeez
                 )
-                click.echo(f"curl command :\n{curl_cmd}", err=True)
+                log(f"curl command :\n{curl_cmd}")
 
             # Construct the full URL with parameters
             if params:
@@ -159,20 +156,20 @@ class JiraHTTP:
                     status_code = response.status
                     response_text = response.read().decode("utf-8")
                     response_data = json.loads(response_text) if response_text else {}
-                click.echo(f"Response status: {status_code}", err=True)
+                log(f"Response status: {status_code}")
 
             # Cache the response for GET requests
             if method.upper() == "GET":
                 if self.verbose:
-                    click.echo(f"Caching response for: {url}", err=True)
+                    log(f"Caching response for: {url}")
                 self.cache.set(url, response_data, params, jeez)
             return response_data
         except urllib.error.HTTPError as e:
-            click.echo(f"HTTP error occurred: {e}", err=True)
-            click.echo(f"Response: {e.read().decode('utf-8')}", err=True)
+            log(f"HTTP error occurred: {e}")
+            log(f"Response: {e.read().decode('utf-8')}")
             raise click.ClickException(f"HTTP error: {e}")
         except urllib.error.URLError as e:
-            click.echo(f"URL error occurred: {e}", err=True)
+            log(f"URL error occurred: {e}")
             raise click.ClickException(f"URL error: {e}")
 
     def search_issues(
@@ -196,14 +193,13 @@ class JiraHTTP:
             params["fields"] = ",".join(fields)
 
         if self.verbose:
-            click.echo(
+            log(
                 f"Searching issues with JQL: '{click.style(jql, fg='cyan')}' "
                 f"Params: '{click.style(params.get('fields', ''), fg='cyan')}'",
-                err=True,
             )
 
         if self.verbose:
-            click.echo(f"Start at: {start_at}, Max results: {max_results}", err=True)
+            log(f"Start at: {start_at}, Max results: {max_results}")
 
         label = "✨ Fetching Jira issues"
         if start_at != 0:
@@ -280,7 +276,7 @@ class JiraHTTP:
             params["fields"] = ",".join(fields)
 
         if self.verbose:
-            click.echo(f"Getting issue: {issue_key} with fields: {fields}", err=True)
+            log(f"Getting issue: {issue_key} with fields: {fields}")
 
         return self._request("GET", endpoint, params=params)
 
@@ -299,8 +295,8 @@ class JiraHTTP:
         payload = {"fields": fields}
 
         if self.verbose:
-            click.echo(f"Updating issue: {issue_key}", err=True)
-            click.echo(f"Fields to update: {list(fields.keys())}", err=True)
+            log(f"Updating issue: {issue_key}")
+            log(f"Fields to update: {list(fields.keys())}")
 
         return self._request("PUT", endpoint, jeez=payload)
 
@@ -324,9 +320,8 @@ class JiraHTTP:
         payload = {"transition": {"id": transition_id}}
 
         if self.verbose:
-            click.echo(
+            log(
                 f"Transitioning issue: {issue_key} with transition ID: {transition_id}",
-                err=True,
             )
 
         return self._request("POST", endpoint, jeez=payload)
@@ -339,7 +334,7 @@ class JiraHTTP:
             dict: Statistics about the cache usage
         """
         if self.verbose:
-            click.echo("Fetching cache statistics...", err=True)
+            log("Fetching cache statistics...")
 
         try:
             # Connect to the SQLite database
@@ -382,5 +377,5 @@ class JiraHTTP:
 
         except sqlite3.Error as e:
             if self.verbose:
-                click.echo(f"Error getting cache stats: {e}", err=True)
+                log(f"Error getting cache stats: {e}")
             return {"error": str(e)}

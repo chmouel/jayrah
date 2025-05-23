@@ -11,7 +11,7 @@ from ..api import jira as jirahttp
 from ..commands import issue_action, issue_view, mcp_server
 from ..config import defaults
 from ..ui import boards
-from ..utils import help
+from ..utils import help, log
 
 
 @click.group()
@@ -93,8 +93,7 @@ def cli(
         "ctx": ctx,
     }
     wconfig = config.make_config(flag_config, pathlib.Path(config_file))
-    if verbose:
-        click.echo(f"Using config: {wconfig}", err=True)
+    log(f"Using config: {wconfig}", verbose=verbose, verbose_only=True)
     ctx.obj = boards.Boards(wconfig)
 
 
@@ -104,7 +103,7 @@ def help_command(jayrah_obj):
     """Display help content"""
     # Display help content in a formatted way
     help_text = help.get_help_text()
-    click.echo(help_text, err=True)
+    click.echo(help_text)
 
 
 @cli.command("browse")
@@ -147,6 +146,9 @@ def browse(jayrah_obj, board, search_terms, use_or, filters):
     if not issues:
         boards.show_no_issues_message(search_terms, use_or, filters)
         return
+
+    jayrah_obj.jql = jql
+    jayrah_obj.order_by = order_by
 
     selected = jayrah_obj.fuzzy_search(issues)
     if selected:
@@ -225,7 +227,7 @@ def edit_description(jayrah_obj, ticket):
     edit_success = issue_action.edit_description(ticketj, jayrah_obj)
     ticket_number = ticketj["key"]
     if edit_success and jayrah_obj.verbose:
-        click.echo(f"Description updated for {ticket_number}", err=True)
+        log(f"Description updated for {ticket_number}")
 
 
 @issue.command("transition")
@@ -249,7 +251,7 @@ def mcp_server_cmd(ctx, host, port):
     try:
         asyncio.run(mcp_server.main())
     except KeyboardInterrupt:
-        click.secho("MCP server stopped by user", fg="yellow", err=True)
+        click.secho("MCP server stopped by user", fg="yellow")
 
 
 @cli.command("git-branch")
@@ -299,38 +301,38 @@ def cache_command(jayrah_obj, clear, prune, stats, max_age):
 
     if clear:
         jira.cache.clear()
-        click.echo("Cache cleared")
+        log("Cache cleared")
         return
 
     if prune:
         pruned_count = jira.cache.prune(max_age)
-        click.echo(f"Pruned {pruned_count} cache entries")
+        log(f"Pruned {pruned_count} cache entries")
         return
 
     if not clear and not prune:
         cache_stats = jira.get_cache_stats()
 
         if "error" in cache_stats:
-            click.echo(f"Error getting cache stats: {cache_stats['error']}", err=True)
+            log(f"Error getting cache stats: {cache_stats['error']}")
             sys.exit(1)
 
-        click.echo("Cache Statistics:")
-        click.echo(f"  Entries: {cache_stats['entries']}")
-        click.echo(f"  Size: {cache_stats['size_mb']} MB")
-        click.echo(f"  Database Path: {cache_stats['db_path']}")
-        click.echo(f"  Cache TTL: {cache_stats['cache_ttl']} seconds")
-        click.echo(f"  Serialization: {cache_stats.get('serialization', 'pickle')}")
+        log("Cache Statistics:")
+        log(f"  Entries: {cache_stats['entries']}")
+        log(f"  Size: {cache_stats['size_mb']} MB")
+        log(f"  Database Path: {cache_stats['db_path']}")
+        log(f"  Cache TTL: {cache_stats['cache_ttl']} seconds")
+        log(f"  Serialization: {cache_stats.get('serialization', 'pickle')}")
 
         if cache_stats.get("oldest_entry"):
             oldest_time = time.strftime(
                 "%Y-%m-%d %H:%M:%S", time.localtime(cache_stats["oldest_entry"])
             )
-            click.echo(f"  Oldest Entry: {oldest_time}")
+            log(f"  Oldest Entry: {oldest_time}")
 
         if cache_stats.get("newest_entry"):
             newest_time = time.strftime(
                 "%Y-%m-%d %H:%M:%S", time.localtime(cache_stats["newest_entry"])
             )
-            click.echo(f"  Newest Entry: {newest_time}")
+            log(f"  Newest Entry: {newest_time}")
 
         return

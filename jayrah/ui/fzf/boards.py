@@ -117,10 +117,10 @@ def fzf_search(self, issues):
                 )
 
             if self.verbose and result.stdout:
-                click.echo(f"User selected: {result.stdout.strip()}", err=True)
+                utils.log(f"User selected: {result.stdout.strip()}")
 
         except subprocess.CalledProcessError as e:
-            click.secho(f"Error occurred: {e}", fg="red", err=True)
+            click.secho(f"Error occurred: {e}", fg="red")
             return None
 
         return result.stdout.strip().split("\t")[0] if result.stdout else None

@@ -6,6 +6,8 @@ import time
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+from jayrah import utils
+
 
 class JiraCache:
     """Cache for Jira API requests."""
@@ -98,7 +100,7 @@ class JiraCache:
             return pickle.loads(cached_data)
 
         except (sqlite3.Error, pickle.PickleError) as e:
-            print(f"Error retrieving from cache: {e}")
+            utils.log(f"Error retrieving from cache: {e}")
             return None
 
     def set(
@@ -133,7 +135,7 @@ class JiraCache:
             conn.close()
 
         except (sqlite3.Error, pickle.PickleError) as e:
-            print(f"Error setting cache: {e}")
+            utils.log(f"Error setting cache: {e}")
 
     def _remove_entry(self, key: str) -> None:
         """Remove a cache entry."""
@@ -147,7 +149,7 @@ class JiraCache:
             conn.close()
 
         except sqlite3.Error as e:
-            print(f"Error removing cache entry: {e}")
+            utils.log(f"Error removing cache entry: {e}")
 
     def clear(self) -> None:
         """Clear all cache entries."""
@@ -161,7 +163,7 @@ class JiraCache:
             conn.close()
 
         except sqlite3.Error as e:
-            print(f"Error clearing cache: {e}")
+            utils.log(f"Error clearing cache: {e}")
 
     def prune(self, max_age: Optional[int] = None) -> int:
         """
@@ -191,5 +193,5 @@ class JiraCache:
             return pruned_count
 
         except sqlite3.Error as e:
-            print(f"Error pruning cache: {e}")
+            utils.log(f"Error pruning cache: {e}")
             return 0

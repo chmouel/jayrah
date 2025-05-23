@@ -6,6 +6,7 @@ import click
 from jayrah import utils
 
 from ..config import defaults
+from ..utils import log
 
 
 def transition_issue(ticketj, obj):
@@ -18,9 +19,7 @@ def transition_issue(ticketj, obj):
         or "transitions" not in transitionj
         or not transitionj["transitions"]
     ):
-        click.secho(
-            f"No transitions available for {ticket_number}", fg="yellow", err=True
-        )
+        click.secho(f"No transitions available for {ticket_number}", fg="yellow")
         return None
 
     transitions = transitionj["transitions"]
@@ -86,14 +85,13 @@ def transition_issue(ticketj, obj):
                 click.secho(
                     f"✅ Issue {ticket_number} successfully transitioned to '{selected_name}'",
                     fg="green",
-                    err=True,
                 )
             else:
-                click.secho("Transition canceled", fg="yellow", err=True)
+                click.secho("Transition canceled", fg="yellow")
                 return None
 
         except subprocess.CalledProcessError as e:
-            click.secho(f"Error occurred: {e}", fg="red", err=True)
+            click.secho(f"Error occurred: {e}", fg="red")
             return None
 
 
@@ -122,7 +120,7 @@ def edit_description(ticketj, obj):
 
     # Strip whitespace from both descriptions for comparison
     if cleaned_description.strip() == current_description.strip():
-        click.secho("No changes made to description", fg="yellow", err=True)
+        click.secho("No changes made to description", fg="yellow")
         return False
 
     # Confirm with the user before submitting
@@ -130,15 +128,13 @@ def edit_description(ticketj, obj):
         try:
             # Update the issue with the new description
             obj.jira.update_issue(ticket_number, {"description": cleaned_description})
-            click.secho(
-                f"✅ Description updated for {ticket_number}", fg="green", err=True
-            )
+            click.secho(f"✅ Description updated for {ticket_number}", fg="green")
             return True
         except Exception as e:
-            click.secho(f"Error updating description: {e}", fg="red", err=True)
+            click.secho(f"Error updating description: {e}", fg="red")
             return False
     else:
-        click.secho("Update canceled", fg="yellow", err=True)
+        click.secho("Update canceled", fg="yellow")
         return False
 
 
@@ -157,7 +153,7 @@ def action_menu(ticketj, obj):
             # Call our new edit_description function
             edit_success = edit_description(ticketj, obj)
             if edit_success and obj.config.get("verbose"):
-                click.echo(f"Description updated for {ticket_number}", err=True)
+                log(f"Description updated for {ticket_number}")
             return
         case "transition_issue":
             transition_id = transition_issue(ticketj, obj)
@@ -167,13 +163,12 @@ def action_menu(ticketj, obj):
                     click.secho(
                         f"✅ Issue {ticket_number} successfully transitioned",
                         fg="green",
-                        err=True,
                     )
                 except Exception as e:
-                    click.secho(f"Error transitioning issue: {e}", fg="red", err=True)
+                    click.secho(f"Error transitioning issue: {e}", fg="red")
             return
         case "add_comment":
-            click.secho("Add comment functionality coming soon", fg="yellow", err=True)
+            click.secho("Add comment functionality coming soon", fg="yellow")
             return
 
 
@@ -185,13 +180,12 @@ def choose_action(ticketj, obj):
 
     ticket_number = ticketj["key"]
     # Placeholder for the action menu logic
-    if verbose:
-        utils.log(
-            f"Preparing fuzzy search interface for ticket {ticket_number}",
-            "DEBUG",
-            verbose_only=True,
-            verbose=verbose,
-        )
+    log(
+        f"Preparing fuzzy search interface for ticket {ticket_number}",
+        "DEBUG",
+        verbose_only=True,
+        verbose=verbose,
+    )
 
     with tempfile.NamedTemporaryFile("w+") as tmp:
         actions = {
@@ -238,10 +232,10 @@ def choose_action(ticketj, obj):
                 )
 
             if verbose and result.stdout:
-                click.echo(f"User selected: {result.stdout.strip()}", err=True)
+                log(f"User selected: {result.stdout.strip()}")
 
         except subprocess.CalledProcessError as e:
-            click.secho(f"Error occurred: {e}", fg="red", err=True)
+            click.secho(f"Error occurred: {e}", fg="red")
             return None
 
         return result.stdout.strip().split("\t")[0] if result.stdout else None

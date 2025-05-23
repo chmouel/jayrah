@@ -32,7 +32,7 @@ def browser_open_ticket(ticket, config):
     try:
         webbrowser.open(make_full_url(ticket, server))
     except Exception as e:
-        click.secho(f"Failed to open URL {ticket}: {e}", fg="red", err=True)
+        click.secho(f"Failed to open URL {ticket}: {e}", fg="red")
 
 
 def log(message, level="INFO", verbose_only=False, verbose=False, file=sys.stdout):
@@ -49,13 +49,12 @@ def log(message, level="INFO", verbose_only=False, verbose=False, file=sys.stdou
     if verbose_only and not verbose:
         return
 
-    color = defaults.LOG_LEVELS.get(level, "reset")
     prefix = f"[{level}] " if level else ""
 
     if file == sys.stderr:
-        click.secho(f"{prefix}{message}", fg=color.lower(), err=True)
+        sys.stderr.write(f"{prefix}{message}\n")
     else:
-        click.secho(f"{prefix}{message}", fg=color.lower())
+        sys.stdout.write(f"{prefix}{message}\n")
 
 
 def colorize(color, text):
@@ -81,7 +80,7 @@ def get_pass_key(passCmd, s):
     try:
         return subprocess.check_output(cmd, text=True).strip()
     except subprocess.CalledProcessError:
-        click.secho(f"Failed to retrieve password for {s}", fg="red", err=True)
+        click.secho(f"Failed to retrieve password for {s}", fg="red")
         return None
 
 
@@ -97,7 +96,7 @@ def edit_text_with_editor(initial_text, extension=".md"):
 
     try:
         # Open the editor with the temporary file
-        click.echo(f"Opening editor ({editor}) to edit description...", err=True)
+        click.echo(f"Opening editor ({editor}) to edit description...")
         subprocess.run([editor, tf_path], check=True)
 
         # Read the edited content

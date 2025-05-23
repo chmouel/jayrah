@@ -192,7 +192,7 @@ def display_issue(issue, config, comments_count):
 
     # Header with fancy UTF box-drawing characters
     print(plain_title)
-    click.echo("─" * 80 + "\n")
+    print("─" * 80 + "\n")
 
     # Calculate correct padding accounting for all displayed elements
     # Left border + space (2) + emoji (typical width 2) + issue key + colon & space (2) + summary
@@ -207,66 +207,64 @@ def display_issue(issue, config, comments_count):
     )
     click.secho(f"{status_emoji} Status: ", bold=True, nl=False)
     click.secho(issue_status, fg=status_color, nl=False)
-    click.echo(" | ", nl=False)
+    print(" | ", nl=False)
     click.secho(f"{priority_emoji} Priority: ", bold=True, nl=False)
     priority_color = defaults.PRIORITY_COLORS.get(issue_priority, "")
     print(f"{priority_color}{issue_priority}\033[0m", end="")
-    click.echo(" | ", nl=False)
+    print(" | ", nl=False)
     click.secho("🏷️ Type: ", bold=True, nl=False)
-    click.echo(issue_type)
+    print(issue_type)
 
     # Fix versions
     if fields.get("fixVersions"):
         fix_versions = [v["name"] for v in fields["fixVersions"]]
         click.secho("📦 Fix Version: ", bold=True, nl=False)
-        click.echo(", ".join(fix_versions))
+        print(", ".join(fix_versions))
 
     # Components
     if fields.get("components"):
         components = [c["name"] for c in fields["components"]]
         click.secho("🧩 Component: ", bold=True, nl=False)
-        click.echo(", ".join(components))
+        print(", ".join(components))
 
     # Labels
     if fields.get("labels"):
         click.secho("🏷️ Labels: ", bold=True, nl=False)
-        click.echo(", ".join(fields["labels"]))
+        print(", ".join(fields["labels"]))
 
     # People information
-    click.echo("\n" + "─" * 80)
+    print("\n" + "─" * 80)
     click.secho("People", fg="cyan", bold=True)
     if fields.get("assignee"):
         click.secho("👤 Assignee: ", fg="cyan", nl=False)
-        click.echo(
-            f"{fields['assignee']['displayName']} <{fields['assignee']['name']}>"
-        )
+        print(f"{fields['assignee']['displayName']} <{fields['assignee']['name']}>")
 
     click.secho("📣 Reporter: ", fg="cyan", nl=False)
-    click.echo(f"{fields['reporter']['displayName']} <{fields['reporter']['name']}>")
+    print(f"{fields['reporter']['displayName']} <{fields['reporter']['name']}>")
 
     # Dates
     date_format = "%Y-%m-%dT%H:%M:%S.%f%z"
     created_date = datetime.strptime(fields["created"], date_format)
     updated_date = datetime.strptime(fields["updated"], date_format)
 
-    click.echo("\n" + "─" * 80)
+    print("\n" + "─" * 80)
     click.secho("Dates", fg="cyan", bold=True)
     click.secho("📅 Created: ", fg="cyan", nl=False)
-    click.echo(created_date.strftime("%Y-%m-%d %H:%M:%S"))
+    print(created_date.strftime("%Y-%m-%d %H:%M:%S"))
     click.secho("🔄 Updated: ", fg="cyan", nl=False)
-    click.echo(updated_date.strftime("%Y-%m-%d %H:%M:%S"))
+    print(updated_date.strftime("%Y-%m-%d %H:%M:%S"))
 
     # Description
-    click.echo("\n" + "─" * 80)
+    print("\n" + "─" * 80)
     click.secho("📝 Description:", fg="blue", bold=True)
-    click.echo("")
+    print("")
     if fields.get("description"):
         # Convert Jira markdown to standard markdown and format with gum if available
         markdown_description = jira2markdown.convert(fields["description"])
         markdown_description = wrap_markdown(markdown_description)
         format_with_rich(markdown_description)
     else:
-        click.echo("No description provided")
+        print("No description provided")
 
     # Comments
     if comments_count > 0 and "comment" in fields and fields["comment"]["comments"]:
@@ -274,7 +272,7 @@ def display_issue(issue, config, comments_count):
         total = fields["comment"]["total"]
         shown = min(comments_count, total)
 
-        click.echo("\n" + "─" * 80)
+        print("\n" + "─" * 80)
         click.secho(f"💬 Comments ({shown} of {total}):", fg="blue", bold=True)
 
         for i, comment in enumerate(comments[:comments_count]):
@@ -283,17 +281,17 @@ def display_issue(issue, config, comments_count):
                 "%Y-%m-%d %H:%M:%S"
             )
 
-            click.echo("┌" + "─" * 78 + "┐")
-            click.echo("| ", nl=False)
+            print("┌" + "─" * 78 + "┐")
+            print("| ", nl=False)
             click.secho(f"Comment {i + 1}", fg="cyan", nl=False)
-            click.echo(" - ", nl=False)
+            print(" - ", nl=False)
             click.secho(author, fg="yellow", nl=False)
-            click.echo(
+            print(
                 f" ({created})"
                 + " " * (77 - len(f"Comment {i + 1} - {author} ({created})"))
                 + "│"
             )
-            click.echo("╚" + "─" * 78 + "╝")
+            print("╚" + "─" * 78 + "╝")
 
             # Simple formatting for comment body
             format_with_rich(comment["body"])
