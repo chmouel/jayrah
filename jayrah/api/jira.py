@@ -88,7 +88,7 @@ class JiraHTTP:
         url = f"{self.base_url}/{endpoint}"
 
         if self.verbose:
-            log(f"API Request: {method} {url}")
+            log(f"API call Requested: {method} {url}")
             if params:
                 log(f"Parameters: {params}")
             if jeez:

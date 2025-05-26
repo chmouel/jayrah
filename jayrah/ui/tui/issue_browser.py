@@ -200,11 +200,11 @@ class IssueBrowserApp(App):
             "",
             "Ticket",
             "Summary",
+            "Status",
             "Assignee",
             "Reporter",
             "Created",
             "Updated",
-            "Status",
         )
 
         for issue in self.issues:
@@ -229,7 +229,14 @@ class IssueBrowserApp(App):
             status = issue["fields"]["status"]["name"]
 
             table.add_row(
-                issue_type, key, summary, assignee, reporter, created, updated, status
+                issue_type,
+                key,
+                summary,
+                status,
+                assignee,
+                reporter,
+                created,
+                updated,
             )
         return table
 
@@ -402,16 +409,17 @@ class IssueBrowserApp(App):
         table.clear()
 
         # Add the headers back
-        table.add_columns(
-            "",
-            "Ticket",
-            "Summary",
-            "Assignee",
-            "Reporter",
-            "Created",
-            "Updated",
-            "Status",
-        )
+        if not table.columns:
+            table.add_columns(
+                "",
+                "Ticket",
+                "Summary",
+                "Status",
+                "Assignee",
+                "Reporter",
+                "Created",
+                "Updated",
+            )
 
         # Empty filter shows all issues
         if not text.strip():
