@@ -53,50 +53,56 @@ class IssueDetailPanel(Vertical):
 
     def update_issue(self, ticket: str | None, config: dict | None) -> None:
         """
-        Refresh the panel by updating the Markdown widget's content.
-        Fetches issue details and uses issue_view.build_issue to generate Markdown.
+        Schedule fetching and updating the Markdown widget's content in a background worker.
         """
         self.ticket = ticket
-        if config is not None:  # Update config only if a new one is provided
+        if config is not None:
             self.config = config
-
-        # header_widget = self.query_one("#detail-header", Static)
         markdown_widget = self.query_one("#detail-markdown", Markdown)
-
         if not ticket:
             markdown_widget.update("Select an issue to view details")
             return
+        # Show loading message immediately
+        markdown_widget.update(f"🔄 Loading details for {ticket}...")
+        self.app.refresh()
+        # Run the blocking fetch in a worker (threaded)
+        self.run_worker(
+            lambda: self._fetch_and_update_issue(ticket, self.config),
+            exclusive=True,
+            thread=True,
+        )
 
+    def _fetch_and_update_issue(self, ticket: str, config: dict) -> None:
+        markdown_widget = self.query_one("#detail-markdown", Markdown)
         try:
-            # Display a loading message while fetching data
-            markdown_widget.update(f"🔄 Loading details for {ticket}...")
-            self.app.refresh()
-
             all_content = ""
             if ticket not in self.ticket_cache:
                 issue_data = self.jayrah_obj.jira.get_issue(ticket, fields=None)
                 header_content, markdown_content = issue_view.build_issue(
-                    issue_data, self.config, 0
+                    issue_data, config, 0
                 )
                 all_content = header_content + "\n" + markdown_content
                 self.ticket_cache[ticket] = all_content
             else:
                 all_content = self.ticket_cache.get(ticket, "")
-
-            markdown_widget.update(all_content)
-            markdown_widget.scroll_home(animate=False, immediate=True)
+            # Update the UI in the main thread
+            self.app.call_from_thread(
+                lambda: self._update_markdown(markdown_widget, all_content)
+            )
         except Exception as e:
             error_message = f"⚠️ Error loading issue {ticket}:\n\n```\n{str(e)}\n```\n\nPlease check the ticket ID and your connection."
-            markdown_widget.update(error_message)
-            markdown_widget.scroll_home()
+            self.app.call_from_thread(
+                lambda: self._update_markdown(markdown_widget, error_message)
+            )
             self.app.log.error(f"Failed to load or build issue {ticket}: {e}")
+
+    def _update_markdown(self, markdown_widget, content):
+        markdown_widget.update(content)
+        markdown_widget.scroll_home(animate=False, immediate=True)
 
     async def on_mount(self) -> None:
         """Load initial ticket details if a ticket was provided during initialization."""
         if self.ticket:
-            # If update_issue involves blocking I/O, consider running it in a worker thread:
-            # self.run_worker(lambda: self.update_issue(self.ticket, self.config), exclusive=True)
-            # For simplicity, calling directly. If update_issue is async, await it.
             self.update_issue(self.ticket, self.config)
 
 
@@ -240,7 +246,7 @@ class IssueBrowserApp(App):
             )
         return table
 
-    def on_mount(self) -> None:  # noqa: D401 – Textual lifecycle method
+    def on_mount(self) -> None:  # noqa: D401 – Textual lifecycle method
         self.title = "Jayrah – Jira Issues"
 
     ### ─────────────────────────  Events  ──────────────────────────
