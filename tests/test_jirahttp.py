@@ -3,6 +3,7 @@ import urllib.error
 from unittest.mock import MagicMock, patch
 
 import pytest
+
 from jayrah.api.jira import JiraHTTP
 
 
@@ -47,6 +48,7 @@ def test_search_issues(sample_config, mock_urlopen, mock_jira_client):
             "search",
             params={"jql": "project = TEST", "startAt": 0, "maxResults": 10},
             label="✨ Fetching Jira issues",
+            use_cache=True,
         )
         assert result["issues"][0]["key"] == "TEST-123"
 

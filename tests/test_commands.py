@@ -6,6 +6,7 @@ import pytest
 from click.testing import CliRunner
 from jayrah import commands
 from jayrah.ui import boards
+from unittest.mock import MagicMock
 
 
 @pytest.fixture
@@ -26,6 +27,7 @@ def mock_boards(monkeypatch):
             self.list_issues_called = False
             self.list_issues_jql = None
             self.fuzzy_search_called = False
+            self.issues_client = MagicMock()
 
         def list_issues(self, jql, order_by=None):
             self.list_issues_called = True

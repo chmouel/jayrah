@@ -371,6 +371,8 @@ def show_no_issues_message(
 
     if message_parts:
         combined_message = " with " + ", ".join(message_parts)
-        click.secho(f"No issues found matching{combined_message}", fg="yellow")
+        click.secho(
+            f"No issues found matching{combined_message}", fg="yellow", err=True
+        )
     else:
-        click.secho("No issues found", fg="yellow")
+        click.secho("No issues found", fg="yellow", err=True)
