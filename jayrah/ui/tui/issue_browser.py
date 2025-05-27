@@ -283,17 +283,51 @@ class IssueBrowserApp(App):
         self.exit()  # Switch back to shell for the action menu
 
     def action_reload(self) -> None:  # noqa: D401
-        self.jayrah_obj.jira.cache.clear()
-        self.issues = self.jayrah_obj.issues_client.list_issues(
-            self.jql, order_by=self.order_by, use_cache=False
+        """Reload issues asynchronously with loading state."""
+        # Show loading state
+        self.notify("🔄 Reloading issues...")
+
+        # Run the reload in a worker thread
+        self.run_worker(
+            self._reload_issues,
+            exclusive=True,
+            thread=True,
         )
+
+    def _reload_issues(self) -> None:
+        """Worker method to reload issues."""
+        try:
+            # Clear cache and fetch new issues
+            self.jayrah_obj.jira.cache.clear()
+            new_issues = self.jayrah_obj.issues_client.list_issues(
+                self.jql, order_by=self.order_by, use_cache=False
+            )
+
+            # Update the UI in the main thread
+            self.app.call_from_thread(
+                lambda: self._update_issues_after_reload(new_issues)
+            )
+        except Exception as e:
+            err = str(e)
+            self.app.call_from_thread(
+                lambda err=err: self.notify(
+                    f"Error reloading issues: {err}", severity="error"
+                )
+            )
+
+    def _update_issues_after_reload(self, new_issues: list) -> None:
+        """Update the UI after reloading issues."""
         if self.verbose:
-            self.log(f"Reloaded Issues are {self.issues}")
+            self.log(f"Reloaded Issues are {new_issues}")
+
+        self.issues = new_issues
         self.apply_fuzzy_filter("", msg="Reloading issues and clearing cache")
 
         detail_panel = self.query_one(IssueDetailPanel)
         detail_panel.ticket_cache = {}
         detail_panel.update_issue(detail_panel.ticket, self.config, use_cache=False)
+
+        self.notify("✅ Issues reloaded successfully")
 
     def action_help(self) -> None:  # noqa: D401
         self.notify("Showing help…")
@@ -426,11 +460,9 @@ class IssueBrowserApp(App):
         self, text: str = "", msg: str = "Showing all issues"
     ) -> None:
         """Apply a fuzzy filter to all visible fields in the issues table."""
-        # Reset the table
         table = self.query_one("#issues-table", DataTable)
-        table.clear()
 
-        # Add the headers back
+        # Add the headers if they don't exist
         if not table.columns:
             table.add_columns(
                 "",
@@ -443,67 +475,83 @@ class IssueBrowserApp(App):
                 "Updated",
             )
 
-        # Empty filter shows all issues
-        if not text.strip():
-            if msg.strip():
-                self.notify(msg)
-            # Re-add all rows
-            for issue in self.issues:
-                if self.verbose:
-                    self.log(f"Adding issue {issue['key']} to table")
-                self._add_issue_to_table(issue, table)
-            return
+        # Get current visible rows
+        current_rows = {}
+        for row_key in table.rows:
+            row = table.get_row(row_key)
+            if row and len(row) > 1:
+                current_rows[row_key] = row  # Use DataTable's row_key
 
         # Filter issues
         filtered_issues = []
+        if text.strip():
+            for issue in self.issues:
+                # Prepare all searchable fields as strings
+                issue_key = issue["key"].lower()
+                summary = issue["fields"]["summary"].lower()
 
-        for issue in self.issues:
-            # Prepare all searchable fields as strings
-            issue_key = issue["key"].lower()
-            summary = issue["fields"]["summary"].lower()
+                assignee = "none"
+                if assignee_field := issue["fields"].get("assignee"):
+                    assignee = utils.parse_email(assignee_field).lower()
 
-            assignee = "none"
-            if assignee_field := issue["fields"].get("assignee"):
-                assignee = utils.parse_email(assignee_field).lower()
+                reporter = utils.parse_email(
+                    issue["fields"].get("reporter", "")
+                ).lower()
+                status = issue["fields"]["status"]["name"].lower()
 
-            reporter = utils.parse_email(issue["fields"].get("reporter", "")).lower()
-            status = issue["fields"]["status"]["name"].lower()
-
-            # Search across all fields
-            search_text = text.lower()
-            if (
-                search_text in issue_key
-                or search_text in summary
-                or search_text in assignee
-                or search_text in reporter
-                or search_text in status
-            ):
-                filtered_issues.append(issue)
-
-        # Add filtered issues to the table
-        for issue in filtered_issues:
-            self._add_issue_to_table(issue, table)
+                # Search across all fields
+                search_text = text.lower()
+                if (
+                    search_text in issue_key
+                    or search_text in summary
+                    or search_text in assignee
+                    or search_text in reporter
+                    or search_text in status
+                ):
+                    filtered_issues.append(issue)
+        else:
+            filtered_issues = self.issues
 
         # Update UI with filter information
         if filtered_issues:
-            self.notify(f"Found {len(filtered_issues)} issues matching '{text}'")
+            txt_message = f"Found {len(filtered_issues)} issues"
+            if text.strip():
+                txt_message += f" matching '{text}'"
+            self.notify(txt_message)
         else:
             self.notify(f"No issues match '{text}'", severity="warning")
 
-        # Clear the selected issue if it doesn't exist in the filtered results
-        if self.selected_issue:
-            found = False
-            for issue in filtered_issues:
-                if issue["key"] == self.selected_issue:
-                    found = True
-                    break
-            if not found:
-                self.selected_issue = None
-                detail_panel = self.query_one(IssueDetailPanel)
-                detail_panel.update_issue(None, self.config)
+        # Create a set of filtered issue keys for quick lookup
+        filtered_keys = {issue["key"] for issue in filtered_issues}
 
-    def _add_issue_to_table(self, issue: dict, table: DataTable) -> None:
-        """Helper method to add an issue to the DataTable."""
+        # Remove rows that are no longer in the filtered set
+        for row_key in list(current_rows.keys()):
+            if row_key not in filtered_keys:
+                table.remove_row(row_key)
+
+        # Add or update rows for filtered issues
+        for issue in filtered_issues:
+            key = issue["key"]
+            row_data = self._get_row_data(issue)
+
+            if key in current_rows:
+                # Update existing row if data has changed
+                current_row = current_rows[key]
+                if current_row != row_data:
+                    table.remove_row(key)
+                    table.add_row(*row_data, key=key)
+            else:
+                # Add new row
+                table.add_row(*row_data, key=key)
+
+        # Clear the selected issue if it doesn't exist in the filtered results
+        if self.selected_issue and self.selected_issue not in filtered_keys:
+            self.selected_issue = None
+            detail_panel = self.query_one(IssueDetailPanel)
+            detail_panel.update_issue(None, self.config)
+
+    def _get_row_data(self, issue: dict) -> tuple:
+        """Helper method to get row data for an issue."""
         issue_type = issue["fields"]["issuetype"]["name"]
         issue_type = defaults.ISSUE_TYPE_EMOJIS.get(issue_type, (issue_type[:4],))[0]
 
@@ -522,7 +570,7 @@ class IssueBrowserApp(App):
         updated = utils.show_time(issue["fields"].get("updated", ""))
         status = issue["fields"]["status"]["name"]
 
-        table.add_row(
+        return (
             issue_type,
             key,
             summary,
