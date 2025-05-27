@@ -1,7 +1,7 @@
 from jayrah import utils
 from jayrah.commands import issue_view
 from jayrah.utils import defaults
-from textual import log, on
+from textual import on
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Container, Vertical
@@ -183,6 +183,10 @@ class IssueBrowserApp(App):
         self.verbose = self.config.get("verbose", False)
         self.jql = jql
         self.order_by: str | None = order_by
+        if not self.config.get("no_cache"):
+            self.jayrah_obj.jira.cache.preload_cache()
+            if self.verbose:
+                self.log("Preloaded Jira cache into memory for fast access.")
 
     def compose(self) -> ComposeResult:  # type: ignore[override]
         """Create the widget tree."""
@@ -257,10 +261,8 @@ class IssueBrowserApp(App):
         row = table.get_row(event.row_key)
         issue_key = str(row[1]) if row and len(row) > 1 else None
 
-        # Log inside the Textual log (visible with `textual run --dev`)
-
         if issue_key and issue_key != self.selected_issue:
-            log(f"Row highlighted → {issue_key}")
+            self.log(f"Row highlighted → {issue_key}")
             self.selected_issue = issue_key
             self.query_one(IssueDetailPanel).update_issue(issue_key, self.config)
 
@@ -507,7 +509,14 @@ class IssueBrowserApp(App):
         status = issue["fields"]["status"]["name"]
 
         table.add_row(
-            issue_type, key, summary, assignee, reporter, created, updated, status
+            issue_type,
+            key,
+            summary,
+            status,
+            assignee,
+            reporter,
+            created,
+            updated,
         )
 
 
