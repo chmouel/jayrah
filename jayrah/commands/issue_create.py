@@ -78,11 +78,9 @@ def get_description(jayrah_obj, summary, issuetype=None, template=None):
     # Try to load template by type from config if not explicitly provided
     if not template and issuetype:
         template = issuetype.lower()
-    content = (
-        load_template(jayrah_obj, template)
-        if template
-        else create_default_template(summary, issuetype)
-    )
+    content = load_template(jayrah_obj, template) if template else None
+    if not content:
+        content = create_default_template(summary, issuetype)
     editor_text = ("---\ntitle: {summary}\ntype: {issuetype}\n---\n\n{content}").format(
         summary=summary, issuetype=issuetype or "", content=content
     )
@@ -90,20 +88,35 @@ def get_description(jayrah_obj, summary, issuetype=None, template=None):
 
 
 def create_default_template(summary, issuetype=None):
-    """Create a default template with common sections, markdownlint clean."""
+    """Create a professional, helpful default template with clear sections, markdownlint clean."""
     return (
         "\n"
         "## Description\n"
         "\n"
-        "(Describe the issue here)\n"
+        "Please provide a clear and concise description of the issue or feature.\n"
         "\n"
-        "## Acceptance Criteria\n"
+        "## Steps to Reproduce (for bugs)\n"
         "\n"
-        "- [ ] (Add acceptance criteria here)\n"
+        "1. Step one\n"
+        "2. Step two\n"
+        "3. ...\n"
+        "\n"
+        "## Expected Behavior\n"
+        "\n"
+        "Describe what you expected to happen.\n"
+        "\n"
+        "## Actual Behavior\n"
+        "\n"
+        "Describe what actually happened.\n"
+        "\n"
+        "## Acceptance Criteria (for stories/features)\n"
+        "\n"
+        "- [ ] Clearly defined acceptance criterion\n"
+        "- [ ] ...\n"
         "\n"
         "## Additional Information\n"
         "\n"
-        "(Add any additional information here)\n"
+        "Add any other context, screenshots, or information here.\n"
     )
 
 
