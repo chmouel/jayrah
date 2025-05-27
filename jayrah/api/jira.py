@@ -4,10 +4,10 @@ import ssl
 import urllib.error
 import urllib.request
 from urllib.parse import urlencode
+
 import click
 
-from ..utils import cache
-from ..utils import log
+from ..utils import cache, log
 
 
 class JiraHTTP:
