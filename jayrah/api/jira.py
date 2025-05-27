@@ -259,7 +259,7 @@ class JiraHTTP:
             payload["fields"]["labels"] = labels
         return self._request("POST", endpoint, jeez=payload)
 
-    def get_issue(self, issue_key, fields=None):
+    def get_issue(self, issue_key, fields=None, use_cache: bool = True):
         """
         Get a specific issue by key.
 
@@ -278,7 +278,7 @@ class JiraHTTP:
         if self.verbose:
             log(f"Getting issue: {issue_key} with fields: {fields}")
 
-        return self._request("GET", endpoint, params=params)
+        return self._request("GET", endpoint, params=params, use_cache=use_cache)
 
     def update_issue(self, issue_key, fields):
         """

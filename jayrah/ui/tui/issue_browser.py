@@ -51,7 +51,9 @@ class IssueDetailPanel(Vertical):
             with Vertical(id="detail-label"):
                 yield Markdown(initial_message, id="detail-markdown")
 
-    def update_issue(self, ticket: str | None, config: dict | None) -> None:
+    def update_issue(
+        self, ticket: str | None, config: dict | None, use_cache: bool = True
+    ) -> None:
         """
         Schedule fetching and updating the Markdown widget's content in a background worker.
         """
@@ -67,17 +69,24 @@ class IssueDetailPanel(Vertical):
         self.app.refresh()
         # Run the blocking fetch in a worker (threaded)
         self.run_worker(
-            lambda: self._fetch_and_update_issue(ticket, self.config),
+            lambda: self._fetch_and_update_issue(ticket, self.config, use_cache),
             exclusive=True,
             thread=True,
         )
 
-    def _fetch_and_update_issue(self, ticket: str, config: dict) -> None:
+    def _fetch_and_update_issue(
+        self, ticket: str, config: dict, use_cache: bool = True
+    ) -> None:
         markdown_widget = self.query_one("#detail-markdown", Markdown)
+        self.log(f"Ticket cache: {self.ticket_cache}")
+        self.log(f"Use cache: {use_cache}")
+        self.log(f"Ticket: {ticket}")
         try:
             all_content = ""
-            if ticket not in self.ticket_cache:
-                issue_data = self.jayrah_obj.jira.get_issue(ticket, fields=None)
+            if ticket not in self.ticket_cache or not use_cache:
+                issue_data = self.jayrah_obj.jira.get_issue(
+                    ticket, fields=None, use_cache=use_cache
+                )
                 header_content, markdown_content = issue_view.build_issue(
                     issue_data, config, 0
                 )
@@ -274,12 +283,17 @@ class IssueBrowserApp(App):
         self.exit()  # Switch back to shell for the action menu
 
     def action_reload(self) -> None:  # noqa: D401
+        self.jayrah_obj.jira.cache.clear()
         self.issues = self.jayrah_obj.issues_client.list_issues(
             self.jql, order_by=self.order_by, use_cache=False
         )
         if self.verbose:
             self.log(f"Reloaded Issues are {self.issues}")
-        self.apply_fuzzy_filter("", msg="Reloading issues")
+        self.apply_fuzzy_filter("", msg="Reloading issues and clearing cache")
+
+        detail_panel = self.query_one(IssueDetailPanel)
+        detail_panel.ticket_cache = {}
+        detail_panel.update_issue(detail_panel.ticket, self.config, use_cache=False)
 
     def action_help(self) -> None:  # noqa: D401
         self.notify("Showing help…")
