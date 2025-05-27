@@ -379,3 +379,37 @@ class JiraHTTP:
             if self.verbose:
                 log(f"Error getting cache stats: {e}")
             return {"error": str(e)}
+
+    def get_issue_types(self):
+        """Get all available issue types for the project."""
+        endpoint = "issuetype"
+        return self._request("GET", endpoint, label="Fetching issue types")
+
+    def get_priorities(self):
+        """Get all available priorities."""
+        endpoint = "priority"
+        return self._request("GET", endpoint, label="Fetching priorities")
+
+    def get_users(self):
+        """Get all available users."""
+        return self._request(
+            "GET", "user/search", params={"maxResults": 1000}, label="Fetching users"
+        )
+
+    def get_labels(self):
+        """Get all available labels."""
+        # Search for issues with labels and extract unique labels
+        jql = "project = " + self.config.get("jira_project")
+        response = self._request(
+            "GET",
+            "search",
+            params={"jql": jql, "maxResults": 1000, "fields": "labels"},
+            label="Fetching labels",
+        )
+
+        # Extract unique labels from all issues
+        labels = set()
+        for issue in response.get("issues", []):
+            labels.update(issue.get("fields", {}).get("labels", []))
+
+        return sorted(list(labels))

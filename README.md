@@ -50,6 +50,42 @@ boards:
   mytodo:
     jql: "assignee = currentUser() AND status = 'To Do' ORDER BY updated DESC"
     order_by: "priority DESC"
+
+templates:
+  bug: |
+    ## 🐞 Bug Description
+
+    Please describe the bug.
+
+    ## Steps to Reproduce
+
+    1. 
+    2. 
+
+    ## Expected Behavior
+
+    What did you expect to happen?
+
+    ## Actual Behavior
+
+    What actually happened?
+
+    ## Additional Information
+
+    (Add any other context here)
+
+  story: |
+    ## ✨ Story
+
+    Describe the user story here.
+
+    ## Acceptance Criteria
+
+    - [ ] 
+
+    ## Additional Information
+
+    (Add any other context here)
 ```
 
 You can also set these via environment variables:
@@ -104,8 +140,83 @@ Pick a board from your config file. Add search terms as arguments to filter issu
 ### ✨ Make a new issue
 
 ```bash
-jayrah create --type "Story" --summary "What needs doing" --description "Details here"
+# Interactive mode (default when no arguments provided)
+jayrah create
+
+# Quick create with editor
+jayrah create --title "New Feature" --editor
+
+# Use a template
+jayrah create --title "Bug Report" --template bug
+
+# Read description from file
+jayrah create --title "Documentation" --body-file docs.md
+
+# Full command line
+jayrah create --type "Task" --title "Update README" --body "Update installation instructions" --priority "High" --assignee "john.doe" --labels "documentation" "priority-high"
 ```
+
+#### 📝 Issue Creation Features
+
+- **Interactive Mode**: When no arguments are provided, Jayrah guides you through creating an issue with smart defaults and fuzzy selection.
+- **Editor Integration**: Use `--editor/-e` to write descriptions in your default editor.
+- **Templates**: Use `--template/-T` to load issue templates from:
+  - User's config directory (`~/.config/jayrah/templates/`)
+  - Repository templates (`.github/ISSUE_TEMPLATE/`, `.gitlab/issue_templates/`, etc.)
+  - Default template if none found
+- **Smart Defaults**:
+  - Issue type defaults to "Story"
+  - Priority defaults to "Medium"
+  - Assignee defaults to current user
+  - Git branch name is used for title suggestions
+- **Preview**: Shows a preview of the issue before creation
+- **Validation**: Ensures all required fields are filled
+
+#### 📝 Custom Issue Templates by Type
+
+You can define custom default templates for each issue type in your config file. Add a `templates` section to your `~/.config/jayrah/config.yaml` like this:
+
+```yaml
+templates:
+  bug: |
+    ## 🐞 Bug Description
+
+    Please describe the bug.
+
+    ## Steps to Reproduce
+
+    1. 
+    2. 
+
+    ## Expected Behavior
+
+    What did you expect to happen?
+
+    ## Actual Behavior
+
+    What actually happened?
+
+    ## Additional Information
+
+    (Add any other context here)
+
+  story: ~/.config/jayrah/story_template.md   # Reference to a file
+  task: |
+    ## Task
+
+    - [ ] Task details here
+```
+
+- If the value is a string and a valid file path, Jayrah will load the template from that file.
+- If the value is a string and not a file path, Jayrah will use the string as the template content.
+
+**How it works:**
+When you create a new issue, Jayrah will automatically use the template matching the selected type (e.g., `bug`, `story`).
+If no template is found for the type, the built-in default will be used.
+You do **not** need to specify `--template`—it's automatic!
+
+- If you do not specify a template for a type in your config, but a file exists at `~/.config/jayrah/templates/{type}.md` (e.g., `bug.md`), Jayrah will use that file automatically for that type.
+- If neither a config template nor a file exists, Jayrah will use the built-in default template.
 
 ### 🛠️ Work with issues
 
