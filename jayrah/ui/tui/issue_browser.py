@@ -266,14 +266,23 @@ class IssueBrowserApp(App):
     @on(DataTable.RowHighlighted)
     def _handle_row_highlighted(self, event: DataTable.RowHighlighted) -> None:  # type: ignore[name-defined]
         """Update the detail pane whenever the cursor highlights a new row."""
-        table: DataTable = self.query_one("#issues-table")
-        row = table.get_row(event.row_key)
-        issue_key = str(row[1]) if row and len(row) > 1 else None
+        if not self.issues:
+            return
 
-        if issue_key and issue_key != self.selected_issue:
-            self.log(f"Row highlighted → {issue_key}")
-            self.selected_issue = issue_key
-            self.query_one(IssueDetailPanel).update_issue(issue_key, self.config)
+        table: DataTable = self.query_one("#issues-table")
+        if event.row_key is None:
+            return
+
+        try:
+            row = table.get_row(event.row_key)
+            issue_key = str(row[1]) if row and len(row) > 1 else None
+
+            if issue_key and issue_key != self.selected_issue:
+                self.log(f"Row highlighted → {issue_key}")
+                self.selected_issue = issue_key
+                self.query_one(IssueDetailPanel).update_issue(issue_key, self.config)
+        except Exception as e:
+            self.log(f"Error handling row highlight: {e}")
 
     def action_action_menu(self) -> None:  # noqa: D401
         if not self.selected_issue:
