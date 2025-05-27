@@ -2,6 +2,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 import yaml
+import getpass
 
 
 @pytest.fixture
@@ -121,3 +122,17 @@ def mock_browser_open():
     """Mock the webbrowser.open function."""
     with patch("webbrowser.open") as mock_open:
         yield mock_open
+
+
+@pytest.fixture(autouse=True)
+def mock_getpass(monkeypatch):
+    monkeypatch.setattr(getpass, "getpass", lambda prompt="": "fakepassword")
+
+
+@pytest.fixture(autouse=True)
+def mock_prompt_ask(monkeypatch):
+    try:
+        from rich.prompt import Prompt
+    except ImportError:
+        return
+    monkeypatch.setattr(Prompt, "ask", lambda *args, **kwargs: "fakeinput")

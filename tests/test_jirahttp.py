@@ -67,7 +67,9 @@ def test_get_issue(sample_config, mock_urlopen, mock_jira_client):
         result = client.get_issue("TEST-123")
 
         # Check _request was called with expected arguments
-        mock_request.assert_called_once_with("GET", "issue/TEST-123", params={})
+        mock_request.assert_called_once_with(
+            "GET", "issue/TEST-123", params={}, use_cache=True
+        )
         assert result["key"] == "TEST-123"
         assert result["fields"]["summary"] == "Test issue"
 

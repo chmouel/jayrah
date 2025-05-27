@@ -7,7 +7,7 @@ import webbrowser
 
 import click
 
-from jayrah.config import defaults  # Third-party imports next
+from jayrah.config import defaults as defaults  # Third-party imports next
 
 
 def make_osc8_link(text, url):
