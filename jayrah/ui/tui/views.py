@@ -5,8 +5,69 @@ from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Container, Vertical
 from textual.widgets import Input, Label, Markdown
+from textual.suggester import SuggestFromList
 
 from .base import BaseModalScreen
+
+import re
+
+EXCLUDE_LABELS_RE = re.compile(
+    r"^(CVE-*|flawuuid|flaw.*#|periodic-ci|20\d+|CY\d+|pscomponent:)"
+)
+
+
+class SuggestFromListComma(SuggestFromList):
+    """Give completion suggestions based on a fixed list of options with comma support.
+
+    This suggester works with comma-separated values, providing suggestions
+    for the current item being typed after the last comma.
+    """
+
+    async def get_suggestion(self, value: str) -> str | None:
+        """Gets a completion from the given possibilities for comma-separated values.
+
+        Args:
+            value: The current value.
+
+        Returns:
+            A valid completion suggestion or `None`.
+        """
+        if not value:
+            # If empty, suggest the first item
+            return self._suggestions[0] if self._suggestions else None
+
+        # Split by comma and space, then get the last part (current item being typed)
+        if ", " in value:
+            parts = value.split(", ")
+            current_part = parts[-1]
+        else:
+            # Handle case where there's no comma-space yet (first item or just comma)
+            parts = [value]
+            current_part = value
+
+        # If the current part is empty (user just typed a comma), suggest first item
+        if not current_part:
+            return self._suggestions[0] if self._suggestions else None
+
+        # Look for suggestions that start with the current part
+        current_part_for_comparison = (
+            current_part if self.case_sensitive else current_part.casefold()
+        )
+
+        for idx, suggestion in enumerate(self._for_comparison):
+            if suggestion.startswith(current_part_for_comparison):
+                # Return the full value with the suggestion replacing the current part
+                full_suggestion = self._suggestions[idx]
+                # Reconstruct the full value with the suggestion
+                if len(parts) > 1:
+                    # Join all previous parts with the new suggestion using ", "
+                    previous_parts = parts[:-1]
+                    return ", ".join(previous_parts) + ", " + full_suggestion
+                else:
+                    # First item, just return the suggestion
+                    return full_suggestion
+
+        return None
 
 
 class IssueDetailPanel(Vertical):
@@ -174,6 +235,13 @@ class LabelsEditScreen(BaseModalScreen):
         current_labels_text = (
             ", ".join(self.current_labels) if self.current_labels else "No labels"
         )
+        all_labels = self._parent.jayrah_obj.jira.get_labels()
+        all_labels = [
+            label
+            for label in all_labels
+            if label and not EXCLUDE_LABELS_RE.match(label)
+        ]
+        print(f"All labels: {all_labels}")
 
         with Vertical(id="labels-container"):
             yield Label(f"Edit Labels for {self.issue_key}", id="labels-title")
@@ -182,6 +250,10 @@ class LabelsEditScreen(BaseModalScreen):
                 placeholder="Enter labels separated by commas (e.g., bug, frontend, urgent)",
                 id="labels-input",
                 value=", ".join(self.current_labels),
+                suggester=SuggestFromListComma(
+                    all_labels,
+                    case_sensitive=False,
+                ),
             )
             yield Label("Press Enter to update, Escape to cancel", id="labels-help")
 
