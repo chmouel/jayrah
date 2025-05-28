@@ -149,12 +149,7 @@ def browse(jayrah_obj, board, search_terms, use_or, filters):
 
     jayrah_obj.jql = jql
     jayrah_obj.order_by = order_by
-
-    selected = jayrah_obj.fuzzy_search(issues)
-    if selected:
-        click.secho(f"Selected issue: {selected}", fg="green")
-        # You can also auto-open the issue if needed
-        # utils.browser_open_ticket(selected, jayrah_obj.config)
+    jayrah_obj.fuzzy_search(issues)
 
 
 @cli.command("create")

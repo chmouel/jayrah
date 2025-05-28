@@ -43,6 +43,11 @@ class IssueBrowserApp(App, JayrahAppMixin, IssueBrowserActions):
     #issues-table .datatable--header-cell-Updated { width: 10; }
     #issues-table .datatable--header-cell-Status  { width: 10; }
 
+    #issues-table {
+        overflow-y: hidden;
+        overflow-x: auto;
+    }
+
     /* Issue detail panel */
     #detail-label {
         padding: 0;
