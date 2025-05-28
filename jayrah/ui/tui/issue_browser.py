@@ -90,7 +90,9 @@ class IssueDetailPanel(Vertical):
                 header_content, markdown_content = issue_view.build_issue(
                     issue_data, config, 0
                 )
-                all_content = header_content + "\n" + markdown_content
+                if isinstance(markdown_content, list):
+                    markdown_content = "\n".join(markdown_content)
+                all_content = str(header_content) + "\n" + str(markdown_content)
                 self.ticket_cache[ticket] = all_content
             else:
                 all_content = self.ticket_cache.get(ticket, "")
@@ -113,6 +115,117 @@ class IssueDetailPanel(Vertical):
         """Load initial ticket details if a ticket was provided during initialization."""
         if self.ticket:
             self.update_issue(self.ticket, self.config)
+
+
+class LabelsEditScreen(ModalScreen):
+    """Modal screen for editing issue labels."""
+
+    BINDINGS = [
+        Binding("escape", "cancel", "Cancel"),
+        Binding("enter", "apply", "Apply"),
+        Binding("f1", "help", "Help"),
+    ]
+
+    CSS = """
+    #labels-container {
+        dock: bottom;
+        padding: 1;
+        width: 100%;
+        height: auto;
+        background: $surface;
+        border-top: thick $primary;
+        margin: 0;
+    }
+    
+    #labels-title {
+        text-align: center;
+        text-style: bold;
+        width: 100%;
+        height: 1;
+        content-align: center middle;
+    }
+    
+    #labels-current {
+        width: 100%;
+        margin: 0 0 1 0;
+        text-align: center;
+        color: $text-muted;
+    }
+    
+    #labels-input {
+        width: 100%;
+        margin: 0;
+    }
+    
+    #labels-help {
+        text-align: center;
+        color: $text-muted;
+        margin-top: 0;
+    }
+    """
+
+    def __init__(self, parent: "IssueBrowserApp", issue_key: str, current_labels: list):
+        super().__init__()
+        self._parent = parent
+        self.issue_key = issue_key
+        self.current_labels = current_labels or []
+
+    def compose(self) -> ComposeResult:
+        current_labels_text = (
+            ", ".join(self.current_labels) if self.current_labels else "No labels"
+        )
+
+        with Vertical(id="labels-container"):
+            yield Label(f"Edit Labels for {self.issue_key}", id="labels-title")
+            yield Label(f"Current: {current_labels_text}", id="labels-current")
+            yield Input(
+                placeholder="Enter labels separated by commas (e.g., bug, frontend, urgent)",
+                id="labels-input",
+                value=", ".join(self.current_labels),
+            )
+            yield Label("Press Enter to update, Escape to cancel", id="labels-help")
+
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        """Handle when user presses Enter in the input field."""
+        self.action_apply()
+
+    def action_apply(self) -> None:
+        """Apply the label changes."""
+        labels_input = self.query_one("#labels-input", Input).value.strip()
+
+        # Parse the labels from input (split by comma and strip whitespace)
+        if labels_input:
+            new_labels = [
+                label.strip() for label in labels_input.split(",") if label.strip()
+            ]
+        else:
+            new_labels = []
+
+        # Update the issue with new labels
+        try:
+            self._parent.jayrah_obj.jira.update_issue(
+                self.issue_key, {"labels": new_labels}
+            )
+
+            # Update the issue cache to reflect changes
+            detail_panel = self._parent.query_one(IssueDetailPanel)
+            if detail_panel.ticket == self.issue_key:
+                detail_panel.update_issue(
+                    self.issue_key, self._parent.config, use_cache=False
+                )
+
+            # Show success notification
+            labels_text = ", ".join(new_labels) if new_labels else "No labels"
+            self._parent.notify(f"✅ Labels updated: {labels_text}")
+
+        except Exception as exc:
+            self._parent.notify(f"Error updating labels: {exc}", severity="error")
+
+        self._parent.pop_screen()
+
+    def action_cancel(self) -> None:
+        """Cancel label editing."""
+        self._parent.pop_screen()
 
 
 class IssueBrowserApp(App):
@@ -165,7 +278,7 @@ class IssueBrowserApp(App):
         Binding("q", "quit", "Quit"),
         Binding("r", "reload", "Reload"),
         Binding("o", "open_issue", "Open"),
-        Binding("a", "action_menu", "Actions"),
+        Binding("l", "add_labels", "Labels"),
         Binding("f", "filter", "Fuzzy Filter"),
         Binding("h", "help", "Help"),
         Binding("j", "cursor_down", "Down"),
@@ -269,7 +382,7 @@ class IssueBrowserApp(App):
         if not self.issues:
             return
 
-        table: DataTable = self.query_one("#issues-table")
+        table = self.query_one("#issues-table", DataTable)
         if event.row_key is None:
             return
 
@@ -284,13 +397,6 @@ class IssueBrowserApp(App):
         except Exception as e:
             self.log(f"Error handling row highlight: {e}")
 
-    def action_action_menu(self) -> None:  # noqa: D401
-        if not self.selected_issue:
-            self.notify("No issue selected", severity="error")
-            return
-        self.notify("Starting action menu…")
-        self.exit()  # Switch back to shell for the action menu
-
     def action_reload(self) -> None:  # noqa: D401
         """Reload issues asynchronously with loading state."""
         # Show loading state
@@ -302,6 +408,24 @@ class IssueBrowserApp(App):
             exclusive=True,
             thread=True,
         )
+
+    def action_add_labels(self) -> None:  # noqa: D401
+        """Open modal to edit labels for the selected issue."""
+        if not self.selected_issue:
+            self.notify("No issue selected", severity="warning")
+            return
+
+        # Get the current issue data to retrieve existing labels
+        try:
+            issue_data = self.jayrah_obj.jira.get_issue(self.selected_issue)
+            current_labels = issue_data.get("fields", {}).get("labels", [])
+
+            # Show the labels edit screen
+            self.push_screen(
+                LabelsEditScreen(self, self.selected_issue, current_labels)
+            )
+        except Exception as exc:
+            self.notify(f"Error loading issue data: {exc}", severity="error")
 
     def _reload_issues(self) -> None:
         """Worker method to reload issues."""
