@@ -75,6 +75,9 @@ def read_config(ret: dict, config_file: pathlib.Path) -> dict:
         if "boards" not in ret:
             ret["boards"] = defaults.BOARDS
 
+        if "create" not in ret:
+            ret["create"] = {}
+
         if "insecure" not in ret:
             ret["insecure"] = False
 
@@ -102,6 +105,8 @@ def read_config(ret: dict, config_file: pathlib.Path) -> dict:
                 ret[x] = set_general(x) if set_general(x) is not None else ret.get(x)
         if config.get("boards"):
             ret["boards"] = config["boards"]
+        if config.get("create"):
+            ret["create"] = config["create"]
     checks()
     return ret
 

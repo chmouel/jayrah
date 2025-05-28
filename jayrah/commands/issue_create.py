@@ -1,123 +1,109 @@
 import os
-import subprocess
 
 import click
+import jira2markdown
 from rich.prompt import Prompt
 
 from .. import utils
-from ..ui.fzf import fzf_select
+from ..ui.fzf import select as select
+from .issue_view import format_with_rich, wrap_markdown
+
+issue_template = """---
+title: {summary}
+type: {issuetype}
+components: {components}
+---
+{content}"""
+
+default_content = """## Description
+
+Please provide a clear and concise description of the issue or feature.
+
+## Steps to Reproduce (for bugs)
+
+1. Step one
+2. Step two
+3. ...
+
+## Expected Behavior
+
+Describe what you expected to happen.
+
+## Actual Behavior
+
+Describe what actually happened.
+
+## Acceptance Criteria (for stories/features)
+
+- [ ] Clearly defined acceptance criterion
+- [ ] ...
+
+## Additional Information
+
+Add any other context, screenshots, or information here.
+"""
 
 
 def get_smart_defaults(jayrah_obj):
     """Get smart defaults based on context."""
     defaults = {
-        "issuetype": jayrah_obj.config.get("default_issuetype", "Story"),
-        "assignee": jayrah_obj.config.get("default_assignee"),
-        "priority": jayrah_obj.config.get("default_priority"),
-        "labels": jayrah_obj.config.get("default_labels", []),
+        "issuetype": "Story",
+        "assignee": None,
+        "priority": None,
+        "labels": [],
+        "components": [],
     }
 
-    # Try to get branch name for title suggestion
-    try:
-        branch = (
-            subprocess.check_output(["git", "branch", "--show-current"])
-            .decode()
-            .strip()
-        )
-        if branch:
-            defaults["title_suggestion"] = branch.replace("-", " ").title()
-    except Exception:
-        pass
+    user_config = jayrah_obj.config
+    if user_config.get("create") and isinstance(user_config.get("create"), dict):
+        defaults["issuetype"] = user_config["create"].get("type", defaults["issuetype"])
+        defaults["priority"] = user_config["create"].get("priority")
+        defaults["components"] = user_config["create"].get("components", [])
+        defaults["labels"] = user_config["create"].get("labels", defaults["labels"])
+
+    cmdline_config = jayrah_obj.cmdline
+    if cmdline_config:
+        defaults["issuetype"] = cmdline_config.get("issuetype", defaults["issuetype"])
+        defaults["priority"] = cmdline_config.get("priority")
+        defaults["components"] = cmdline_config.get("component", defaults["components"])
+        defaults["labels"] = cmdline_config.get("labels", defaults["labels"])
 
     return defaults
 
 
-def select_issue_type(jayrah_obj):
-    """Select issue type using fzf."""
-    issue_types = jayrah_obj.jira.get_issue_types()
-    return fzf_select(
-        "Select issue type",
-        [it["name"] for it in issue_types],
-        default=jayrah_obj.config.get("default_issuetype", "Story"),
-    )
-
-
-def select_priority(jayrah_obj):
-    """Select priority using fzf."""
-    priorities = jayrah_obj.jira.get_priorities()
-    return fzf_select(
-        "Select priority",
-        [p["name"] for p in priorities],
-        default=jayrah_obj.config.get("default_priority", "Medium"),
-    )
-
-
-def select_assignee(jayrah_obj):
-    """Select assignee using fzf."""
-    users = jayrah_obj.jira.get_users()
-    return fzf_select(
-        "Select assignee",
-        [u["displayName"] for u in users],
-        default=jayrah_obj.config.get("default_assignee"),
-    )
-
-
-def select_labels(jayrah_obj):
-    """Select labels using fzf."""
-    labels = jayrah_obj.jira.get_labels()
-    return fzf_select(
-        "Select labels",
-        labels,
-        multi=True,
-        default="all" if jayrah_obj.config.get("default_labels") else None,
-    )
-
-
-def get_description(jayrah_obj, summary, issuetype=None, template=None):
+def get_description(
+    jayrah_obj, summary, issuetype=None, template=None, defaults: dict = None, body=""
+):
     """Get issue description using editor or template, supporting per-type config templates."""
     # Try to load template by type from config if not explicitly provided
-    if not template and issuetype:
-        template = issuetype.lower()
-    content = load_template(jayrah_obj, template) if template else None
+    if not defaults:
+        defaults = {}
+    if body != "":
+        # If body is provided, use it directly
+        content = body
+    else:
+        if not template and issuetype:
+            template = issuetype.lower()
+        content = load_template(jayrah_obj, template) if template else None
     if not content:
-        content = create_default_template(summary, issuetype)
-    editor_text = ("---\ntitle: {summary}\ntype: {issuetype}\n---\n\n{content}").format(
-        summary=summary, issuetype=issuetype or "", content=content
-    )
-    return utils.edit_text_with_editor(editor_text, extension=".md")
+        content = default_content
 
+    tmpl = f"""---
+    title: {summary}
+    type: {issuetype}
+    """
+    if defaults.get("components"):
+        tmpl += f"components: {','.join(defaults['components'])}\n"
 
-def create_default_template(summary, issuetype=None):
-    """Create a professional, helpful default template with clear sections, markdownlint clean."""
-    return (
-        "\n"
-        "## Description\n"
-        "\n"
-        "Please provide a clear and concise description of the issue or feature.\n"
-        "\n"
-        "## Steps to Reproduce (for bugs)\n"
-        "\n"
-        "1. Step one\n"
-        "2. Step two\n"
-        "3. ...\n"
-        "\n"
-        "## Expected Behavior\n"
-        "\n"
-        "Describe what you expected to happen.\n"
-        "\n"
-        "## Actual Behavior\n"
-        "\n"
-        "Describe what actually happened.\n"
-        "\n"
-        "## Acceptance Criteria (for stories/features)\n"
-        "\n"
-        "- [ ] Clearly defined acceptance criterion\n"
-        "- [ ] ...\n"
-        "\n"
-        "## Additional Information\n"
-        "\n"
-        "Add any other context, screenshots, or information here.\n"
-    )
+    tmpl += f"---\n\n{content}"
+
+    edited_text = utils.edit_text_with_editor(tmpl, extension=".md")
+    if edited_text.startswith("---"):
+        lines = edited_text.splitlines()
+        start = lines.index("---")
+        end = lines.index("---", start + 1)
+        edited_text = "\n".join(lines[:start] + lines[end + 1 :])
+    return edited_text.strip() if edited_text else ""
 
 
 def load_template(jayrah_obj, template_name):
@@ -166,17 +152,38 @@ def find_repo_template(template_name):
     return None
 
 
-def preview_issue(issuetype, summary, description, priority, assignee, labels):
+def preview_issue(
+    issuetype, summary, description, priority, assignee, labels, components
+):
     """Show issue preview before creation."""
-    click.echo("\n=== Issue Preview ===")
-    click.echo(f"Type: {issuetype}")
-    click.echo(f"Title: {summary}")
-    click.echo(f"Priority: {priority}")
-    click.echo(f"Assignee: {assignee}")
-    click.echo(f"Labels: {', '.join(labels)}")
-    click.echo("\nDescription:")
-    click.echo(description)
-    click.echo("===================\n")
+
+    def format_list(items):
+        return ", ".join(items) if items else "None"
+
+    click.secho("\n" + "=" * 30, fg="cyan", bold=True)
+    click.secho("         Issue Preview", fg="yellow", bold=True)
+    click.secho("=" * 30, fg="cyan", bold=True)
+
+    fields = [
+        ("Type", issuetype),
+        ("Title", summary),
+        ("Priority", priority),
+        ("Assignee", assignee or "Unassigned"),
+        ("Components", format_list(components)),
+        ("Labels", format_list(labels)),
+    ]
+
+    for label, value in fields:
+        click.secho(f"{label:>10}: ", nl=False, fg="green")
+        click.echo(f"{value}")
+
+    click.secho("\nDescription:", fg="magenta", bold=True)
+
+    # Convert Jira markdown to standard markdown and format with gum if available
+    markdown_description = jira2markdown.convert(description)
+    markdown_description = wrap_markdown(markdown_description)
+    format_with_rich(markdown_description)
+    click.echo("\n")
 
 
 def validate_issue(issuetype, summary, description):
@@ -191,38 +198,37 @@ def validate_issue(issuetype, summary, description):
 
 def interactive_create(jayrah_obj):
     """Interactive issue creation flow."""
-    # Get smart defaults
     defaults = get_smart_defaults(jayrah_obj)
-
-    # 1. Issue Type Selection
-    issuetype = select_issue_type(jayrah_obj) or defaults["issuetype"]
-
-    # 2. Title/Summary
-    summary = Prompt.ask("Title", default=defaults.get("title_suggestion", ""))
-
-    # 3. Description (pass issuetype)
-    description = get_description(jayrah_obj, summary, issuetype=issuetype)
-
-    # 4. Priority
-    priority = select_priority(jayrah_obj) or defaults["priority"]
-
-    # 5. Assignee (direct input instead of selection)
-    assignee = Prompt.ask("Assignee username", default=defaults.get("assignee", ""))
-
-    # 6. Labels
-    labels = select_labels(jayrah_obj) or defaults["labels"]
+    issuetype = select.issue_type(jayrah_obj) or defaults["issuetype"]
+    summary = Prompt.ask("Title")
+    description = get_description(
+        jayrah_obj, summary, issuetype=issuetype, defaults=defaults
+    )
+    priority = defaults["priority"]
+    assignee = defaults.get("assignee", "")
+    labels = defaults["labels"]
+    components = defaults["components"]
 
     # 7. Preview and Confirm
-    preview_issue(issuetype, summary, description, priority, assignee, labels)
+    preview_issue(
+        issuetype, summary, description, priority, assignee, labels, components
+    )
     if click.confirm("Create issue?"):
         return create_issue(
-            jayrah_obj, issuetype, summary, description, priority, assignee, labels
+            jayrah_obj,
+            issuetype,
+            summary,
+            description,
+            priority,
+            assignee,
+            labels,
+            components=components,
         )
     return None
 
 
 def create_issue(
-    jayrah_obj, issuetype, summary, description, priority, assignee, labels
+    jayrah_obj, issuetype, summary, description, priority, assignee, labels, components
 ):
     """Create the issue with the given parameters."""
     try:
@@ -233,6 +239,7 @@ def create_issue(
             priority=priority,
             assignee=assignee,
             labels=labels,
+            components=components,
         )
 
         issue_key = result.get("key")

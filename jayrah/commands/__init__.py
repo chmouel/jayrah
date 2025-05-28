@@ -164,80 +164,59 @@ def browse(jayrah_obj, board, search_terms, use_or, filters):
 @click.option(
     "--body-file", "-F", type=click.Path(exists=True), help="Read description from file"
 )
-@click.option("--editor", "-e", is_flag=True, help="Open editor to write description")
 @click.option("--priority", "-p", help="Issue priority")
 @click.option("--assignee", "-a", help="Issue assignee")
 @click.option("--labels", "-l", multiple=True, help="Issue labels")
+@click.option("--components", "-c", multiple=True, help="Issue components")
 @click.option("--template", "-T", help="Use a specific template")
-@click.option("--interactive", "-i", is_flag=True, help="Interactive mode")
 @click.pass_obj
-def pac_create(
+def create(
     jayrah_obj,
     issuetype,
     title,
     body,
     body_file,
-    editor,
     priority,
     assignee,
     labels,
     template,
-    interactive,
+    components,
 ):
     """Create an issue"""
     jayrah_obj.command = "create"
 
-    # If no arguments provided or interactive mode requested, use interactive mode
-    if interactive or not any(
-        [
-            issuetype,
-            title,
-            body,
-            body_file,
-            editor,
-            priority,
-            assignee,
-            labels,
-            template,
-        ]
-    ):
-        from . import issue_create
-
-        issue_create.interactive_create(jayrah_obj)
-        return
-
     # Handle body file
     if body_file:
+        if not os.path.exists(body_file):
+            raise Exception(f"{body_file} does not exist")
+
         with open(body_file, "r") as f:
             body = f.read()
 
-    # Handle editor mode
-    if editor and not body:
-        from . import issue_create
+    from . import issue_create
 
-        body = issue_create.get_description(jayrah_obj, title or "New Issue", template)
-
-    # Handle template
-    if template and not body:
-        from . import issue_create
-
-        body = issue_create.get_description(jayrah_obj, title or "New Issue", template)
+    body = issue_create.get_description(
+        jayrah_obj, title or "New Issue", issuetype, template=template, body=body
+    )
 
     # Convert labels to list
     labels_list = list(labels) if labels else None
+    components_list = list(components) if components else None
+
+    jayrah_obj.cmdline = {
+        "issuetype": issuetype,
+        "title": title,
+        "body": body,
+        "priority": priority,
+        "assignee": assignee,
+        "labels": labels_list,
+        "components": components_list,
+    }
 
     # Create the issue
     from . import issue_create
 
-    issue_create.create_issue(
-        jayrah_obj,
-        issuetype=issuetype or "Story",
-        summary=title,
-        description=body,
-        priority=priority,
-        assignee=assignee,
-        labels=labels_list,
-    )
+    issue_create.interactive_create(jayrah_obj)
 
 
 @cli.group("issue")
