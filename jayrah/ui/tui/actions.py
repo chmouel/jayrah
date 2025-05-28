@@ -95,7 +95,6 @@ class IssueBrowserActions:
         try:
             utils.browser_open_ticket(self.selected_issue, self.config)
             self.notify(f"Opening {self.selected_issue} in browser")
-            self.exit()
         except Exception as exc:
             self.notify(f"Error opening issue: {exc}", severity="error")
 

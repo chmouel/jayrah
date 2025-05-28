@@ -8,7 +8,7 @@ from textual.widgets import DataTable, Footer, Header
 
 from .actions import IssueBrowserActions
 from .base import JayrahAppMixin
-from .helpers import get_row_data_for_issue, filter_issues_by_text
+from .helpers import filter_issues_by_text, get_row_data_for_issue
 from .views import IssueDetailPanel
 
 
@@ -59,6 +59,7 @@ class IssueBrowserApp(App, JayrahAppMixin, IssueBrowserActions):
 
     ### ─────────────────────────  Key bindings  ──────────────────────────
     BINDINGS = [
+        Binding("escape", "quit", "Quit", show=False),
         Binding("q", "quit", "Quit"),
         Binding("r", "reload", "Reload"),
         Binding("o", "open_issue", "Open"),
