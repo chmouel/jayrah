@@ -147,7 +147,7 @@ class Boards:
 
         if ui_type == "textual":
             try:
-                from .tui.issue_browser import run_textual_browser
+                from .tui import run_textual_browser
 
                 selected_key = run_textual_browser(
                     issues, self.config, self.command, self.jql, self.order_by
