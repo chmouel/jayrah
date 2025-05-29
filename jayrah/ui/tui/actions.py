@@ -78,7 +78,9 @@ class IssueBrowserActions:
                 )
             )
         except Exception as exc:
-            cast(Any, self).notify(f"Error loading transitions: {exc}", severity="error")
+            cast(Any, self).notify(
+                f"Error loading transitions: {exc}", severity="error"
+            )
 
     def action_help(self) -> None:  # noqa: D401
         """Show help information."""

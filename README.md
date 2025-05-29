@@ -160,6 +160,7 @@ Jayrah provides a modern, interactive Terminal User Interface (TUI) for browsing
 
 - `o` - Open the selected issue in your browser
 - `l` - Edit labels for the selected issue (opens modal dialog)
+- `t` - Transition issue to a new status (opens transition selection modal)
 
 **Board Management:**
 
