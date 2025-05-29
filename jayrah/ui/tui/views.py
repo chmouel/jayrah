@@ -6,7 +6,7 @@ from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Container, Vertical
 from textual.suggester import SuggestFromList
-from textual.widgets import Input, Label, Markdown, DataTable
+from textual.widgets import Input, Label, Markdown, DataTable, TextArea
 
 from jayrah.commands import issue_view
 
@@ -714,5 +714,341 @@ class TransitionSelectionScreen(BaseModalScreen):
 
         except Exception as exc:
             self._parent.notify(f"Error applying transition: {exc}", severity="error")
+
+        self._parent.pop_screen()
+
+
+class EditSelectionScreen(BaseModalScreen):
+    """Modal screen for selecting what to edit (title or description)."""
+
+    BINDINGS = [
+        Binding("escape", "cancel", "Cancel"),
+        Binding("enter", "apply", "Apply"),
+        Binding("f1", "help", "Help"),
+    ]
+
+    CSS = """
+    #edit-container {
+        dock: bottom;
+        padding: 1;
+        width: 100%;
+        height: auto;
+        background: $surface;
+        border-top: thick $primary;
+        margin: 0;
+    }
+    
+    #edit-title {
+        text-align: center;
+        text-style: bold;
+        width: 100%;
+        height: 1;
+        content-align: center middle;
+    }
+    
+    #edit-table {
+        width: 100%;
+        margin: 0;
+        height: 5;
+    }
+    
+    #edit-help {
+        text-align: center;
+        color: $text-muted;
+        margin-top: 0;
+    }
+    """
+
+    def __init__(self, parent, issue_key: str, config: dict):
+        super().__init__(parent)
+        self.config = config
+        self.issue_key = issue_key
+        self.selected_edit_type = None
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="edit-container"):
+            yield Label(f"Edit Issue {self.issue_key}", id="edit-title")
+            table = DataTable(id="edit-table")
+            table.cursor_type = "row"
+            table.add_columns("Action", "Description")
+
+            # Add edit options
+            table.add_row("title", "Edit issue title/summary", key="title")
+            table.add_row("description", "Edit issue description", key="description")
+
+            yield table
+            yield Label(
+                "Press Enter to select edit type, Escape to cancel", id="edit-help"
+            )
+
+    def on_data_table_row_selected(self, event):
+        """Handle edit type selection."""
+        self.selected_edit_type = (
+            event.row_key.value
+            if hasattr(event.row_key, "value")
+            else str(event.row_key)
+        )
+        self.action_apply()
+
+    def action_apply(self) -> None:
+        """Apply the edit selection."""
+        if not self.selected_edit_type:
+            self._parent.notify("No edit type selected", severity="warning")
+            self._parent.pop_screen()
+            return
+
+        try:
+            if self.selected_edit_type == "title":
+                # Get current issue data for title editing
+                issue_data = self._parent.jayrah_obj.jira.get_issue(self.issue_key)
+                current_title = issue_data.get("fields", {}).get("summary", "")
+
+                # Close this selection screen first
+                self._parent.pop_screen()
+
+                # Show the title edit screen
+                self._parent.push_screen(
+                    TitleEditScreen(
+                        self._parent,
+                        self.issue_key,
+                        current_title,
+                        self.config,
+                    )
+                )
+            elif self.selected_edit_type == "description":
+                # Get current issue data for description editing
+                issue_data = self._parent.jayrah_obj.jira.get_issue(self.issue_key)
+                current_description = issue_data.get("fields", {}).get(
+                    "description", ""
+                )
+
+                # Close this selection screen first
+                self._parent.pop_screen()
+
+                # Show the description edit screen
+                self._parent.push_screen(
+                    DescriptionEditScreen(
+                        self._parent,
+                        self.issue_key,
+                        current_description,
+                        self.config,
+                    )
+                )
+
+        except Exception as exc:
+            self._parent.notify(f"Error starting edit: {exc}", severity="error")
+            self._parent.pop_screen()
+
+
+class TitleEditScreen(BaseModalScreen):
+    """Modal screen for editing issue title/summary."""
+
+    BINDINGS = [
+        Binding("escape", "cancel", "Cancel"),
+        Binding("enter", "apply", "Apply"),
+        Binding("f1", "help", "Help"),
+    ]
+
+    CSS = """
+    #title-container {
+        dock: bottom;
+        padding: 1;
+        width: 100%;
+        height: auto;
+        background: $surface;
+        border-top: thick $primary;
+        margin: 0;
+    }
+    
+    #title-title {
+        text-align: center;
+        text-style: bold;
+        width: 100%;
+        height: 1;
+        content-align: center middle;
+    }
+    
+    #title-current {
+        width: 100%;
+        margin: 0 0 1 0;
+        text-align: center;
+        color: $text-muted;
+    }
+    
+    #title-input {
+        width: 100%;
+        margin: 0;
+    }
+    
+    #title-help {
+        text-align: center;
+        color: $text-muted;
+        margin-top: 0;
+    }
+    """
+
+    def __init__(self, parent, issue_key: str, current_title: str, config: dict):
+        super().__init__(parent)
+        self.config = config
+        self.issue_key = issue_key
+        self.current_title = current_title
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="title-container"):
+            yield Label(f"Edit Title for {self.issue_key}", id="title-title")
+            yield Label(
+                f"Current: {self.current_title[:60] + '...' if len(self.current_title) > 60 else self.current_title}",
+                id="title-current",
+            )
+            yield Input(
+                placeholder="Enter new title/summary",
+                id="title-input",
+                value=self.current_title,
+            )
+            yield Label("Press Enter to update, Escape to cancel", id="title-help")
+
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        """Handle when user presses Enter in the input field."""
+        self.action_apply()
+
+    def action_apply(self) -> None:
+        """Apply the title changes."""
+        title_input = self.query_one("#title-input", Input).value.strip()
+
+        # Validate that title is not empty
+        if not title_input:
+            self._parent.notify("Title cannot be empty", severity="error")
+            return
+
+        # Check if there were changes
+        if title_input == self.current_title:
+            self._parent.notify("No changes made to title", severity="warning")
+            self._parent.pop_screen()
+            return
+
+        # Update the issue with new title
+        try:
+            self._parent.jayrah_obj.jira.update_issue(
+                self.issue_key, {"summary": title_input}
+            )
+
+            # Update the issue cache to reflect changes
+            detail_panel = self._parent.query_one(IssueDetailPanel)
+            if detail_panel.ticket == self.issue_key:
+                detail_panel.update_issue(
+                    self.issue_key, self._parent.config, use_cache=False
+                )
+
+            # Reload the issues table to show updated title
+            self._parent.action_reload()
+
+            # Show success notification
+            self._parent.notify(f"✅ Title updated for {self.issue_key}")
+
+        except Exception as exc:
+            self._parent.notify(f"Error updating title: {exc}", severity="error")
+
+        self._parent.pop_screen()
+
+
+class DescriptionEditScreen(BaseModalScreen):
+    """Modal screen for editing issue description."""
+
+    BINDINGS = [
+        Binding("escape", "cancel", "Cancel"),
+        Binding("ctrl+s", "apply", "Save"),
+        Binding("f1", "help", "Help"),
+    ]
+
+    CSS = """
+    #description-container {
+        dock: fill;
+        padding: 1;
+        width: 100%;
+        height: 100%;
+        background: $surface;
+        border: thick $primary;
+        margin: 0;
+    }
+    
+    #description-title {
+        text-align: center;
+        text-style: bold;
+        width: 100%;
+        height: 1;
+        content-align: center middle;
+    }
+    
+    #description-current {
+        width: 100%;
+        margin: 0 0 1 0;
+        text-align: center;
+        color: $text-muted;
+    }
+    
+    #description-textarea {
+        width: 100%;
+        height: 1fr;
+        margin: 1 0;
+    }
+    
+    #description-help {
+        text-align: center;
+        color: $text-muted;
+        margin-top: 0;
+    }
+    """
+
+    def __init__(self, parent, issue_key: str, current_description: str, config: dict):
+        super().__init__(parent)
+        self.config = config
+        self.issue_key = issue_key
+        self.current_description = current_description or ""
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="description-container"):
+            yield Label(
+                f"Edit Description for {self.issue_key}", id="description-title"
+            )
+            yield Label(
+                f"Current: {len(self.current_description)} characters",
+                id="description-current",
+            )
+            yield TextArea(
+                text=self.current_description,
+                id="description-textarea",
+                language="markdown",
+            )
+            yield Label("Press Ctrl+S to save, Escape to cancel", id="description-help")
+
+    def action_apply(self) -> None:
+        """Apply the description changes."""
+        textarea = self.query_one("#description-textarea", TextArea)
+        new_description = textarea.text.strip()
+
+        # Check if there were changes
+        if new_description == self.current_description.strip():
+            self._parent.notify("No changes made to description", severity="warning")
+            self._parent.pop_screen()
+            return
+
+        # Update the issue with new description
+        try:
+            self._parent.jayrah_obj.jira.update_issue(
+                self.issue_key, {"description": new_description}
+            )
+
+            # Update the issue cache to reflect changes
+            detail_panel = self._parent.query_one(IssueDetailPanel)
+            if detail_panel.ticket == self.issue_key:
+                detail_panel.update_issue(
+                    self.issue_key, self._parent.config, use_cache=False
+                )
+
+            # Show success notification
+            self._parent.notify(f"✅ Description updated for {self.issue_key}")
+
+        except Exception as exc:
+            self._parent.notify(f"Error updating description: {exc}", severity="error")
 
         self._parent.pop_screen()

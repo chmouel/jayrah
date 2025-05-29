@@ -9,6 +9,7 @@ from jayrah import utils
 from .views import (
     BoardSelectionScreen,
     ComponentsEditScreen,
+    EditSelectionScreen,
     FuzzyFilterScreen,
     IssueDetailPanel,
     LabelsEditScreen,
@@ -109,6 +110,26 @@ class IssueBrowserActions:
         except Exception as exc:
             cast(Any, self).notify(
                 f"Error loading transitions: {exc}", severity="error"
+            )
+
+    def action_edit_issue(self) -> None:  # noqa: D401
+        """Open modal to edit the selected issue (title or description)."""
+        if not cast(Any, self).selected_issue:
+            cast(Any, self).notify("No issue selected", severity="warning")
+            return
+
+        # Show the edit selection screen
+        try:
+            cast(Any, self).push_screen(
+                EditSelectionScreen(
+                    self,
+                    cast(Any, self).selected_issue,
+                    cast(Any, self).config,
+                )
+            )
+        except Exception as exc:
+            cast(Any, self).notify(
+                f"Error opening edit dialog: {exc}", severity="error"
             )
 
     def action_help(self) -> None:  # noqa: D401

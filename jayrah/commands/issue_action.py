@@ -95,6 +95,41 @@ def transition_issue(ticketj, obj):
             return None
 
 
+def edit_title(ticketj, obj):
+    """Edit the title/summary of a Jira issue"""
+    ticket_number = ticketj["key"]
+    current_title = ticketj["fields"].get("summary", "")
+
+    # Prompt user for new title
+    new_title = click.prompt(
+        f"Edit title for {ticket_number}", default=current_title, show_default=True
+    ).strip()
+
+    # Check if there were changes
+    if new_title == current_title:
+        click.secho("No changes made to title", fg="yellow")
+        return False
+
+    # Validate that title is not empty
+    if not new_title:
+        click.secho("Title cannot be empty", fg="red")
+        return False
+
+    # Confirm with the user before submitting
+    if click.confirm("Update title?", default=True):
+        try:
+            # Update the issue with the new title
+            obj.jira.update_issue(ticket_number, {"summary": new_title})
+            click.secho(f"✅ Title updated for {ticket_number}", fg="green")
+            return True
+        except Exception as e:
+            click.secho(f"Error updating title: {e}", fg="red")
+            return False
+    else:
+        click.secho("Update canceled", fg="yellow")
+        return False
+
+
 def edit_description(ticketj, obj):
     """Edit the description of a Jira issue"""
     ticket_number = ticketj["key"]
@@ -149,6 +184,12 @@ def action_menu(ticketj, obj):
         case "browse_issue":
             utils.browser_open_ticket(ticket_number, obj.config)
             return
+        case "edit_title":
+            # Call our new edit_title function
+            edit_success = edit_title(ticketj, obj)
+            if edit_success and obj.config.get("verbose"):
+                log(f"Title updated for {ticket_number}")
+            return
         case "edit_description":
             # Call our new edit_description function
             edit_success = edit_description(ticketj, obj)
@@ -190,6 +231,7 @@ def choose_action(ticketj, obj):
     with tempfile.NamedTemporaryFile("w+") as tmp:
         actions = {
             "Browse issue": ("browse_issue", "🔍"),
+            "Edit Title": ("edit_title", "📝"),
             "Edit Description": ("edit_description", "✏️"),
             "Transition issue": ("transition_issue", "🔄"),
             "Add comment": ("add_comment", "💬"),

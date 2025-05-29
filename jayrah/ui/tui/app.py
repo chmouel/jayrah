@@ -71,6 +71,7 @@ class IssueBrowserApp(App, JayrahAppMixin, IssueBrowserActions):
         Binding("l", "add_labels", "Labels"),
         Binding("ctrl+c", "edit_components", "Components"),
         Binding("t", "transition_issue", "Transition"),
+        Binding("e", "edit_issue", "Edit"),
         Binding("f", "filter", "Fuzzy Filter"),
         Binding("b", "change_board", "Boards"),
         Binding("ctrl+l", "command_palette", "Palette"),

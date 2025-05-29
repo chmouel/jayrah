@@ -159,6 +159,7 @@ Jayrah provides a modern, interactive Terminal User Interface (TUI) for browsing
 **Issue Actions:**
 
 - `o` - Open the selected issue in your browser
+- `e` - Edit issue title or description (opens edit selection modal)
 - `l` - Edit labels for the selected issue (opens modal dialog)
 - `Ctrl+C` - Edit components for the selected issue (opens modal dialog)
 - `t` - Transition issue to a new status (opens transition selection modal)
@@ -222,6 +223,19 @@ Jayrah's TUI makes it easy to edit issue metadata directly from the browser inte
 - Add or remove components using comma-separated input
 - Autocomplete suggestions based on existing components in your project
 - Real-time validation and immediate updates
+
+**Issue Editing (`e` key):**
+
+- **Title Editing**: Edit issue title/summary using a built-in input widget
+  - Pre-filled with current title for easy modification
+  - Real-time validation (prevents empty titles)
+  - Immediate updates to Jira and UI refresh
+- **Description Editing**: Edit issue description using a built-in text area widget
+  - Multi-line text area with markdown syntax highlighting
+  - Pre-filled with current description content
+  - Shows character count for current description
+  - Save with Ctrl+S, cancel with Escape
+  - Changes are applied immediately after saving
 
 Both editors feature:
 
