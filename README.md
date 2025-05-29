@@ -160,6 +160,7 @@ Jayrah provides a modern, interactive Terminal User Interface (TUI) for browsing
 
 - `o` - Open the selected issue in your browser
 - `l` - Edit labels for the selected issue (opens modal dialog)
+- `Ctrl+C` - Edit components for the selected issue (opens modal dialog)
 - `t` - Transition issue to a new status (opens transition selection modal)
 
 **Board Management:**
@@ -199,9 +200,36 @@ Jayrah provides a modern, interactive Terminal User Interface (TUI) for browsing
 
 - **Board Selection**: Shows all configured boards with descriptions
 - **Label Editor**: Autocomplete suggestions for existing labels
+- **Component Editor**: Autocomplete suggestions for existing components
 - **Filter Dialog**: Live search with immediate feedback
 
 The TUI interface provides a seamless way to browse issues without leaving your terminal, making it perfect for developers who prefer keyboard-driven workflows.
+
+#### 🏷️ Managing Issue Metadata
+
+Jayrah's TUI makes it easy to edit issue metadata directly from the browser interface:
+
+**Labels Management (`l` key):**
+
+- View current labels for the selected issue
+- Add or remove labels using comma-separated input
+- Autocomplete suggestions based on existing labels in your project
+- Real-time validation and immediate updates
+
+**Components Management (`Ctrl+C` key):**
+
+- View current components for the selected issue
+- Add or remove components using comma-separated input
+- Autocomplete suggestions based on existing components in your project
+- Real-time validation and immediate updates
+
+Both editors feature:
+
+- **Smart Input**: Comma-separated values with whitespace handling
+- **Autocomplete**: Suggestions from existing project metadata
+- **Live Preview**: See current values before editing
+- **Instant Updates**: Changes are applied immediately to Jira
+- **Cache Refresh**: Issue details update automatically after changes
 
 ### ✨ Make a new issue
 

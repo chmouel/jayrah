@@ -413,3 +413,23 @@ class JiraHTTP:
             labels.update(issue.get("fields", {}).get("labels", []))
 
         return sorted(list(labels))
+
+    def get_components(self):
+        """Get all available components."""
+        # Search for issues with components and extract unique components
+        jql = "project = " + self.config.get("jira_project")
+        response = self._request(
+            "GET",
+            "search",
+            params={"jql": jql, "maxResults": 1000, "fields": "components"},
+            label="Fetching components",
+        )
+
+        # Extract unique components from all issues
+        components = set()
+        for issue in response.get("issues", []):
+            issue_components = issue.get("fields", {}).get("components", [])
+            for component in issue_components:
+                components.add(component.get("name", ""))
+
+        return sorted(list(filter(None, components)))

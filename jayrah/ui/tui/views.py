@@ -297,6 +297,126 @@ class LabelsEditScreen(BaseModalScreen):
         self._parent.pop_screen()
 
 
+class ComponentsEditScreen(BaseModalScreen):
+    """Modal screen for editing issue components."""
+
+    BINDINGS = [
+        Binding("escape", "cancel", "Cancel"),
+        Binding("enter", "apply", "Apply"),
+        Binding("f1", "help", "Help"),
+    ]
+
+    CSS = """
+    #components-container {
+        dock: bottom;
+        padding: 1;
+        width: 100%;
+        height: auto;
+        background: $surface;
+        border-top: thick $primary;
+        margin: 0;
+    }
+    
+    #components-title {
+        text-align: center;
+        text-style: bold;
+        width: 100%;
+        height: 1;
+        content-align: center middle;
+    }
+    
+    #components-current {
+        width: 100%;
+        margin: 0 0 1 0;
+        text-align: center;
+        color: $text-muted;
+    }
+    
+    #components-input {
+        width: 100%;
+        margin: 0;
+    }
+    
+    #components-help {
+        text-align: center;
+        color: $text-muted;
+        margin-top: 0;
+    }
+    """
+
+    def __init__(self, parent, issue_key: str, current_components: list, config: dict):
+        super().__init__(parent)
+        self.issue_key = issue_key
+        self.current_components = current_components or []
+        self.config = config or {}
+
+    def compose(self) -> ComposeResult:
+        current_components_text = (
+            ", ".join(self.current_components)
+            if self.current_components
+            else "No components"
+        )
+        all_components = self._parent.jayrah_obj.jira.get_components()
+
+        with Vertical(id="components-container"):
+            yield Label(f"Edit Components for {self.issue_key}", id="components-title")
+            yield Label(f"Current: {current_components_text}", id="components-current")
+            yield Input(
+                placeholder="Enter components separated by commas (e.g., backend, frontend, api)",
+                id="components-input",
+                value=", ".join(self.current_components),
+                suggester=SuggestFromListComma(
+                    all_components,
+                    case_sensitive=False,
+                ),
+            )
+            yield Label("Press Enter to update, Escape to cancel", id="components-help")
+
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        """Handle when user presses Enter in the input field."""
+        self.action_apply()
+
+    def action_apply(self) -> None:
+        """Apply the component changes."""
+        components_input = self.query_one("#components-input", Input).value.strip()
+
+        # Parse the components from input (split by comma and strip whitespace)
+        if components_input:
+            new_components = [
+                component.strip()
+                for component in components_input.split(",")
+                if component.strip()
+            ]
+        else:
+            new_components = []
+
+        # Update the issue with new components
+        try:
+            # Format components for Jira API
+            components_data = [{"name": component} for component in new_components]
+            self._parent.jayrah_obj.jira.update_issue(
+                self.issue_key, {"components": components_data}
+            )
+
+            # Update the issue cache to reflect changes
+            detail_panel = self._parent.query_one(IssueDetailPanel)
+            if detail_panel.ticket == self.issue_key:
+                detail_panel.update_issue(
+                    self.issue_key, self._parent.config, use_cache=False
+                )
+
+            # Show success notification
+            components_text = (
+                ", ".join(new_components) if new_components else "No components"
+            )
+            self._parent.notify(f"✅ Components updated: {components_text}")
+
+        except Exception as exc:
+            self._parent.notify(f"Error updating components: {exc}", severity="error")
+
+        self._parent.pop_screen()
+
+
 class FuzzyFilterScreen(BaseModalScreen):
     """Modal screen for fuzzy filtering issues."""
 

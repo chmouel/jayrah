@@ -164,6 +164,38 @@ def test_get_transitions(sample_config, mock_urlopen, mock_jira_client):
         assert result["transitions"][0]["name"] == "In Progress"
 
 
+def test_get_components(sample_config, mock_urlopen, mock_jira_client):
+    """Test getting available components."""
+    client = JiraHTTP(sample_config)
+
+    # Mock the _request method
+    with patch.object(client, "_request") as mock_request:
+        mock_request.return_value = {
+            "issues": [
+                {"fields": {"components": [{"name": "Backend"}, {"name": "Frontend"}]}},
+                {"fields": {"components": [{"name": "Frontend"}, {"name": "API"}]}},
+            ]
+        }
+
+        result = client.get_components()
+
+        # Check _request was called with expected arguments
+        mock_request.assert_called_once_with(
+            "GET",
+            "search",
+            params={
+                "jql": "project = TEST",
+                "maxResults": 1000,
+                "fields": "components",
+            },
+            label="Fetching components",
+        )
+
+        # Check that unique components are returned sorted
+        expected_components = ["API", "Backend", "Frontend"]
+        assert result == expected_components
+
+
 @patch("urllib.request.urlopen")
 def test_http_error_handling(mock_urlopen, sample_config):
     """Test handling of HTTP errors."""

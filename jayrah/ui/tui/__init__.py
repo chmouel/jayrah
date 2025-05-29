@@ -4,6 +4,7 @@ from .app import IssueBrowserApp, run_textual_browser
 from .views import (
     IssueDetailPanel,
     LabelsEditScreen,
+    ComponentsEditScreen,
     FuzzyFilterScreen,
     BoardSelectionScreen,
     TransitionSelectionScreen,
@@ -17,6 +18,7 @@ __all__ = [
     "run_textual_browser",
     "IssueDetailPanel",
     "LabelsEditScreen",
+    "ComponentsEditScreen",
     "FuzzyFilterScreen",
     "BoardSelectionScreen",
     "TransitionSelectionScreen",

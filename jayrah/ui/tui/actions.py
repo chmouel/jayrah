@@ -8,6 +8,7 @@ from jayrah import utils
 
 from .views import (
     BoardSelectionScreen,
+    ComponentsEditScreen,
     FuzzyFilterScreen,
     IssueDetailPanel,
     LabelsEditScreen,
@@ -56,6 +57,34 @@ class IssueBrowserActions:
                     self,
                     cast(Any, self).selected_issue,
                     current_labels,
+                    cast(Any, self).config,
+                )
+            )
+        except Exception as exc:
+            cast(Any, self).notify(f"Error loading issue data: {exc}", severity="error")
+
+    def action_edit_components(self) -> None:  # noqa: D401
+        """Open modal to edit components for the selected issue."""
+        if not cast(Any, self).selected_issue:
+            cast(Any, self).notify("No issue selected", severity="warning")
+            return
+
+        # Get the current issue data to retrieve existing components
+        try:
+            issue_data = cast(Any, self).jayrah_obj.jira.get_issue(
+                cast(Any, self).selected_issue
+            )
+            current_components_data = issue_data.get("fields", {}).get("components", [])
+            current_components = [
+                comp.get("name", "") for comp in current_components_data
+            ]
+
+            # Show the components edit screen
+            cast(Any, self).push_screen(
+                ComponentsEditScreen(
+                    self,
+                    cast(Any, self).selected_issue,
+                    current_components,
                     cast(Any, self).config,
                 )
             )
