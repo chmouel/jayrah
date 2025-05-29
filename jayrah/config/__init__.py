@@ -2,8 +2,9 @@ import pathlib
 import re
 
 import yaml
-from jayrah import utils
 from rich.prompt import Prompt
+
+from jayrah import utils
 
 from . import defaults
 
@@ -101,6 +102,7 @@ def read_config(ret: dict, config_file: pathlib.Path) -> dict:
                 "jira_project",
                 "cache_ttl",
                 "insecure",
+                "label_excludes",
             ]:
                 ret[x] = set_general(x) if set_general(x) is not None else ret.get(x)
         if config.get("boards"):

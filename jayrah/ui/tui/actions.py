@@ -1,7 +1,8 @@
 """Action handlers for the issue browser application."""
 
 from jayrah import utils
-from .views import FuzzyFilterScreen, LabelsEditScreen, IssueDetailPanel
+
+from .views import FuzzyFilterScreen, IssueDetailPanel, LabelsEditScreen
 
 
 class IssueBrowserActions:
@@ -39,7 +40,7 @@ class IssueBrowserActions:
 
             # Show the labels edit screen
             self.push_screen(
-                LabelsEditScreen(self, self.selected_issue, current_labels)
+                LabelsEditScreen(self, self.selected_issue, current_labels, self.config)
             )
         except Exception as exc:
             self.notify(f"Error loading issue data: {exc}", severity="error")

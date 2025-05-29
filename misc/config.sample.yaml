@@ -4,6 +4,8 @@ general:
   jira_password: pass::jira/token
   jira_project: PRJ
   insecure: false # Set to true to disable SSL verification
+  label_excludes: |
+    ^(CVE-*|flawuuid|flaw.*#|periodic-ci|20\d+|CY\d+|pscomponent:)
 
 boards:
   - name: "myissue"

@@ -1,19 +1,16 @@
 """UI views and screens for the issue browser."""
 
-from jayrah.commands import issue_view
+import re
+
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Container, Vertical
-from textual.widgets import Input, Label, Markdown
 from textual.suggester import SuggestFromList
+from textual.widgets import Input, Label, Markdown
+
+from jayrah.commands import issue_view
 
 from .base import BaseModalScreen
-
-import re
-
-EXCLUDE_LABELS_RE = re.compile(
-    r"^(CVE-*|flawuuid|flaw.*#|periodic-ci|20\d+|CY\d+|pscomponent:)"
-)
 
 
 class SuggestFromListComma(SuggestFromList):
@@ -226,21 +223,25 @@ class LabelsEditScreen(BaseModalScreen):
     }
     """
 
-    def __init__(self, parent, issue_key: str, current_labels: list):
+    def __init__(self, parent, issue_key: str, current_labels: list, config: dict):
         super().__init__(parent)
         self.issue_key = issue_key
         self.current_labels = current_labels or []
+        self.config = config or {}
 
     def compose(self) -> ComposeResult:
         current_labels_text = (
             ", ".join(self.current_labels) if self.current_labels else "No labels"
         )
         all_labels = self._parent.jayrah_obj.jira.get_labels()
-        all_labels = [
-            label
-            for label in all_labels
-            if label and not EXCLUDE_LABELS_RE.match(label)
-        ]
+        if label_excludes := self.config.get("label_excludes"):
+            labels_excldues_re = re.compile(label_excludes.strip())
+            print(labels_excldues_re)
+            all_labels = [
+                label
+                for label in all_labels
+                if label and not labels_excldues_re.match(label)
+            ]
         print(f"All labels: {all_labels}")
 
         with Vertical(id="labels-container"):
