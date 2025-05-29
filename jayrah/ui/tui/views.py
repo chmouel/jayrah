@@ -435,3 +435,139 @@ class BoardSelectionScreen(BaseModalScreen):
         if self.selected_board:
             self._parent.change_board(self.selected_board)
         self._parent.pop_screen()
+
+
+class TransitionSelectionScreen(BaseModalScreen):
+    """Modal screen for selecting a transition to apply to an issue."""
+
+    BINDINGS = [
+        Binding("escape", "cancel", "Cancel"),
+        Binding("enter", "apply", "Apply"),
+        Binding("f1", "help", "Help"),
+    ]
+
+    CSS = """
+    #transition-container {
+        dock: bottom;
+        padding: 1;
+        width: 100%;
+        height: auto;
+        background: $surface;
+        border-top: thick $primary;
+        margin: 0;
+    }
+    
+    #transition-title {
+        text-align: center;
+        text-style: bold;
+        width: 100%;
+        height: 1;
+        content-align: center middle;
+    }
+    
+    #transition-table {
+        width: 100%;
+        margin: 0;
+        height: 10;
+    }
+    
+    #transition-help {
+        text-align: center;
+        color: $text-muted;
+        margin-top: 0;
+    }
+    """
+
+    def __init__(self, parent, issue_key: str, config: dict):
+        super().__init__(parent)
+        self.config = config
+        self.issue_key = issue_key
+        self.selected_transition_id = None
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="transition-container"):
+            yield Label(f"Select Transition for {self.issue_key}", id="transition-title")
+            table = DataTable(id="transition-table")
+            table.cursor_type = "row"
+            table.add_columns("ID", "Name", "To Status", "Description")
+
+            # Get available transitions for the issue
+            try:
+                transitions_data = self._parent.jayrah_obj.jira.get_transitions(self.issue_key)
+                transitions = transitions_data.get("transitions", [])
+                
+                if not transitions:
+                    table.add_row("", "No transitions available", "", "", key="none")
+                else:
+                    for transition in transitions:
+                        transition_id = transition["id"]
+                        name = transition["name"]
+                        to_status = transition["to"]["name"]
+                        description = transition["to"].get("description", "No description")
+                        
+                        table.add_row(transition_id, name, to_status, description, key=transition_id)
+                        
+            except Exception as exc:
+                table.add_row("", f"Error loading transitions: {exc}", "", "", key="error")
+
+            yield table
+            yield Label("Press Enter to apply transition, Escape to cancel", id="transition-help")
+
+    def on_data_table_row_selected(self, event):
+        """Handle transition selection."""
+        self.selected_transition_id = (
+            event.row_key.value
+            if hasattr(event.row_key, "value")
+            else str(event.row_key)
+        )
+        
+        # Don't apply if no valid transition selected
+        if self.selected_transition_id in ["none", "error"]:
+            return
+            
+        self.action_apply()
+
+    def action_apply(self) -> None:
+        """Apply the selected transition."""
+        if not self.selected_transition_id or self.selected_transition_id in ["none", "error"]:
+            self._parent.notify("No valid transition selected", severity="warning")
+            self._parent.pop_screen()
+            return
+
+        try:
+            # Get the transition name for display
+            transitions_data = self._parent.jayrah_obj.jira.get_transitions(self.issue_key)
+            transitions = transitions_data.get("transitions", [])
+            selected_transition = next(
+                (t for t in transitions if t["id"] == self.selected_transition_id), 
+                None
+            )
+            
+            if not selected_transition:
+                self._parent.notify("Invalid transition selected", severity="error")
+                self._parent.pop_screen()
+                return
+                
+            transition_name = selected_transition["name"]
+            to_status = selected_transition["to"]["name"]
+            
+            # Apply the transition
+            self._parent.jayrah_obj.jira.transition_issue(self.issue_key, self.selected_transition_id)
+            
+            # Update the issue cache to reflect changes
+            detail_panel = self._parent.query_one(IssueDetailPanel)
+            if detail_panel.ticket == self.issue_key:
+                detail_panel.update_issue(
+                    self.issue_key, self._parent.config, use_cache=False
+                )
+            
+            # Reload the issues table to show updated status
+            self._parent.action_reload()
+            
+            # Show success notification
+            self._parent.notify(f"✅ Issue {self.issue_key} transitioned to '{to_status}' via '{transition_name}'")
+            
+        except Exception as exc:
+            self._parent.notify(f"Error applying transition: {exc}", severity="error")
+            
+        self._parent.pop_screen()

@@ -69,6 +69,7 @@ class IssueBrowserApp(App, JayrahAppMixin, IssueBrowserActions):
         Binding("r", "reload", "Reload"),
         Binding("o", "open_issue", "Open"),
         Binding("l", "add_labels", "Labels"),
+        Binding("t", "transition_issue", "Transition"),
         Binding("f", "filter", "Fuzzy Filter"),
         Binding("b", "change_board", "Boards"),
         Binding("h", "help", "Help"),

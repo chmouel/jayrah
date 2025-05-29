@@ -11,6 +11,7 @@ from .views import (
     FuzzyFilterScreen,
     IssueDetailPanel,
     LabelsEditScreen,
+    TransitionSelectionScreen,
 )
 
 
@@ -60,6 +61,24 @@ class IssueBrowserActions:
             )
         except Exception as exc:
             cast(Any, self).notify(f"Error loading issue data: {exc}", severity="error")
+
+    def action_transition_issue(self) -> None:  # noqa: D401
+        """Open modal to transition the selected issue to a new status."""
+        if not cast(Any, self).selected_issue:
+            cast(Any, self).notify("No issue selected", severity="warning")
+            return
+
+        # Show the transition selection screen
+        try:
+            cast(Any, self).push_screen(
+                TransitionSelectionScreen(
+                    self,
+                    cast(Any, self).selected_issue,
+                    cast(Any, self).config,
+                )
+            )
+        except Exception as exc:
+            cast(Any, self).notify(f"Error loading transitions: {exc}", severity="error")
 
     def action_help(self) -> None:  # noqa: D401
         """Show help information."""

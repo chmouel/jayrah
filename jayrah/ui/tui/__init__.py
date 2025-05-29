@@ -6,6 +6,7 @@ from .views import (
     LabelsEditScreen,
     FuzzyFilterScreen,
     BoardSelectionScreen,
+    TransitionSelectionScreen,
 )
 from .actions import IssueBrowserActions
 from .base import JayrahAppMixin, BaseModalScreen
@@ -18,6 +19,7 @@ __all__ = [
     "LabelsEditScreen",
     "FuzzyFilterScreen",
     "BoardSelectionScreen",
+    "TransitionSelectionScreen",
     "IssueBrowserActions",
     "JayrahAppMixin",
     "BaseModalScreen",
