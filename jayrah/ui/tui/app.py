@@ -70,6 +70,7 @@ class IssueBrowserApp(App, JayrahAppMixin, IssueBrowserActions):
         Binding("o", "open_issue", "Open"),
         Binding("l", "add_labels", "Labels"),
         Binding("f", "filter", "Fuzzy Filter"),
+        Binding("b", "change_board", "Boards"),
         Binding("h", "help", "Help"),
         Binding("j", "cursor_down", "Down"),
         Binding("k", "cursor_up", "Up"),

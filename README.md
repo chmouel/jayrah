@@ -137,6 +137,71 @@ jayrah browse myissues --filter "duedate < endOfWeek()" --filter priority="High"
 
 Pick a board from your config file. Add search terms as arguments to filter issues by content. By default, multiple terms are combined with AND logic, but you can use the `--or` flag to combine them with OR logic. Use the `--filter` option to add field-specific filters in Jira JQL format.
 
+### 🖥️ Interactive TUI Interface
+
+Jayrah provides a modern, interactive Terminal User Interface (TUI) for browsing and managing issues when you use the `browse` command. The TUI offers a rich set of keyboard shortcuts for efficient navigation and issue management.
+
+#### 📚 TUI Keybindings
+
+**Navigation & Control:**
+
+- `q` / `Escape` - Quit the application
+- `h` - Show help information
+- `r` - Reload issues and clear cache
+
+**Issue Navigation:**
+
+- `j` / `↓` - Move cursor down in the issues table
+- `k` / `↑` - Move cursor up in the issues table
+- `J` - Scroll down in the issue detail panel
+- `K` - Scroll up in the issue detail panel
+
+**Issue Actions:**
+
+- `o` - Open the selected issue in your browser
+- `l` - Edit labels for the selected issue (opens modal dialog)
+
+**Board Management:**
+
+- `b` - **Switch boards** (opens board selection modal)
+  - Use arrow keys to navigate available boards
+  - Press `Enter` to switch to selected board
+  - Press `Escape` to cancel
+
+**Search & Filtering:**
+
+- `f` - Open fuzzy filter dialog to search across all issue fields
+  - Type search terms to filter visible issues
+  - Press `Enter` to apply filter
+  - Press `Escape` to cancel
+
+#### 🎛️ TUI Interface Features
+
+**Two-Panel Layout:**
+
+- **Top Panel (30%)**: Issues table with columns for Type, Ticket, Summary, Status, Assignee, Reporter, Created, and Updated
+- **Bottom Panel (70%)**: Detailed view of the selected issue with formatted description, comments, and metadata
+
+**Real-time Updates:**
+
+- Issues automatically update when switching boards
+- Cache is cleared on reload for fresh data
+- UI shows loading indicators during operations
+
+**Smart Filtering:**
+
+- Fuzzy search works across all visible fields
+- Board switching preserves current filters
+- Filter results show match counts
+
+**Interactive Modals:**
+
+- **Board Selection**: Shows all configured boards with descriptions
+- **Label Editor**: Autocomplete suggestions for existing labels
+- **Filter Dialog**: Live search with immediate feedback
+
+The TUI interface provides a seamless way to browse issues without leaving your terminal, making it perfect for developers who prefer keyboard-driven workflows.
+
 ### ✨ Make a new issue
 
 ```bash

@@ -6,7 +6,7 @@ from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Container, Vertical
 from textual.suggester import SuggestFromList
-from textual.widgets import Input, Label, Markdown
+from textual.widgets import Input, Label, Markdown, DataTable
 
 from jayrah.commands import issue_view
 
@@ -355,4 +355,83 @@ class FuzzyFilterScreen(BaseModalScreen):
         """Apply the fuzzy filter."""
         filter_text = self.query_one("#filter-text", Input).value
         self._parent.apply_fuzzy_filter(filter_text)
+        self._parent.pop_screen()
+
+
+class BoardSelectionScreen(BaseModalScreen):
+    """Modal screen for selecting a different board."""
+
+    BINDINGS = [
+        Binding("escape", "cancel", "Cancel"),
+        Binding("enter", "apply", "Apply"),
+        Binding("f1", "help", "Help"),
+    ]
+
+    CSS = """
+    #board-container {
+        dock: bottom;
+        padding: 1;
+        width: 100%;
+        height: auto;
+        background: $surface;
+        border-top: thick $primary;
+        margin: 0;
+    }
+    
+    #board-title {
+        text-align: center;
+        text-style: bold;
+        width: 100%;
+        height: 1;
+        content-align: center middle;
+    }
+    
+    #board-table {
+        width: 100%;
+        margin: 0;
+        height: 10;
+    }
+    
+    #board-help {
+        text-align: center;
+        color: $text-muted;
+        margin-top: 0;
+    }
+    """
+
+    def __init__(self, parent, config):
+        super().__init__(parent)
+        self.config = config
+        self.selected_board = None
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="board-container"):
+            yield Label("Select Board", id="board-title")
+            table = DataTable(id="board-table")
+            table.cursor_type = "row"
+            table.add_columns("Name", "Description")
+
+            # Populate the table with available boards
+            boards = self.config.get("boards", [])
+            for board in boards:
+                name = board.get("name", "")
+                description = board.get("description", "No description")
+                table.add_row(name, description, key=name)
+
+            yield table
+            yield Label("Press Enter to select, Escape to cancel", id="board-help")
+
+    def on_data_table_row_selected(self, event):
+        """Handle board selection."""
+        self.selected_board = (
+            event.row_key.value
+            if hasattr(event.row_key, "value")
+            else str(event.row_key)
+        )
+        self.action_apply()
+
+    def action_apply(self) -> None:
+        """Apply the board selection."""
+        if self.selected_board:
+            self._parent.change_board(self.selected_board)
         self._parent.pop_screen()
