@@ -68,18 +68,19 @@ class IssueBrowserApp(App, JayrahAppMixin, IssueBrowserActions):
         Binding("q", "quit", "Quit"),
         Binding("r", "reload", "Reload"),
         Binding("o", "open_issue", "Open"),
-        Binding("l", "add_labels", "Labels"),
-        Binding("ctrl+c", "edit_components", "Components"),
-        Binding("t", "transition_issue", "Transition"),
-        Binding("e", "edit_issue", "Edit"),
-        Binding("f", "filter", "Fuzzy Filter"),
-        Binding("b", "change_board", "Boards"),
-        Binding("ctrl+l", "command_palette", "Palette"),
-        Binding("h", "help", "Help"),
+        Binding("a", "show_actions", "Actions"),
+        Binding("l", "add_labels", "Labels", show=False),
+        Binding("ctrl+c", "edit_components", "Components", show=False),
+        Binding("t", "transition_issue", "Transition", show=False),
+        Binding("e", "edit_issue", "Edit", show=False),
+        Binding("f", "filter", "Fuzzy Filter", show=False),
+        Binding("b", "change_board", "Boards", show=False),
+        Binding("?", "help", "Help"),
         Binding("j", "cursor_down", "Down"),
         Binding("k", "cursor_up", "Up"),
         Binding("J", "scroll_down", "PrevDown"),
         Binding("K", "scroll_up", "PrevUp"),
+        Binding("f1", "command_palette", "Palette"),
     ]
 
     ### ─────────────────────────  Lifecycle  ──────────────────────────
@@ -141,7 +142,7 @@ class IssueBrowserApp(App, JayrahAppMixin, IssueBrowserActions):
         return table
 
     def on_mount(self) -> None:  # noqa: D401 – Textual lifecycle method
-        self.title = "Jayrah – Jira Issues"
+        self.title = "Jayrah – Your friendly Jira browser"
 
     ### ─────────────────────────  Events  ──────────────────────────
     @on(DataTable.RowHighlighted)

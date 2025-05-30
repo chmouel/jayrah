@@ -1061,3 +1061,163 @@ class DescriptionEditScreen(BaseModalScreen):
         except Exception as exc:
             self._parent.notify(f"Error updating description: {exc}", severity="error")
             # Do not pop the screen on error, allow user to see the message and manually cancel.
+
+
+class ActionsPanel(BaseModalScreen):
+    """Modal screen for displaying all available actions."""
+
+    BINDINGS = [
+        Binding("escape", "cancel", "Cancel"),
+        Binding("enter", "apply", "Apply"),
+        Binding("l", "select_labels", "Labels"),
+        Binding("ctrl+c", "select_components", "Components"),
+        Binding("t", "select_transition", "Transition"),
+        Binding("e", "select_edit", "Edit"),
+        Binding("f", "select_filter", "Filter"),
+        Binding("b", "select_board", "Board"),
+        Binding("f1", "help", "Help"),
+    ]
+
+    CSS = """
+    #actions-container {
+        dock: bottom;
+        padding: 1;
+        width: 100%;
+        height: auto;
+        background: $surface;
+        border-top: thick $primary;
+        margin: 0;
+    }
+    
+    #actions-title {
+        text-align: center;
+        text-style: bold;
+        width: 100%;
+        height: 1;
+        content-align: center middle;
+    }
+    
+    #actions-table {
+        width: 100%;
+        margin: 0;
+        height: 10;
+    }
+    
+    #actions-help {
+        text-align: center;
+        color: $text-muted;
+        margin-top: 0;
+    }
+    """
+
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.selected_action = None
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="actions-container"):
+            yield Label("Available Actions", id="actions-title")
+            table = DataTable(id="actions-table")
+            table.cursor_type = "row"
+            table.add_columns("Key", "Action", "Description")
+
+            # Add action options with keybindings
+            table.add_row(
+                "l",
+                "Labels",
+                "Add/edit labels for the selected issue",
+                key="add_labels",
+            )
+            table.add_row(
+                "Ctrl+C",
+                "Components",
+                "Edit components for the selected issue",
+                key="edit_components",
+            )
+            table.add_row(
+                "t",
+                "Transition",
+                "Change status of the selected issue",
+                key="transition_issue",
+            )
+            table.add_row(
+                "e",
+                "Edit",
+                "Edit title or description of the selected issue",
+                key="edit_issue",
+            )
+            table.add_row(
+                "f", "Filter", "Apply fuzzy filter to search issues", key="filter"
+            )
+            table.add_row(
+                "b", "Board", "Switch to a different board", key="change_board"
+            )
+
+            yield table
+            yield Label(
+                "Press Enter to select action or use the key directly, Escape to cancel",
+                id="actions-help",
+            )
+
+    def on_data_table_row_selected(self, event):
+        """Handle action selection."""
+        self.selected_action = (
+            event.row_key.value
+            if hasattr(event.row_key, "value")
+            else str(event.row_key)
+        )
+        self.action_apply()
+
+    def action_apply(self) -> None:
+        """Apply the selected action."""
+        if not self.selected_action:
+            self._parent.notify("No action selected", severity="warning")
+            self.safe_pop_screen()
+            return
+
+        # Close this panel first
+        self.safe_pop_screen()
+
+        # Execute the corresponding action
+        if self.selected_action == "add_labels":
+            self._parent.action_add_labels()
+        elif self.selected_action == "edit_components":
+            self._parent.action_edit_components()
+        elif self.selected_action == "transition_issue":
+            self._parent.action_transition_issue()
+        elif self.selected_action == "edit_issue":
+            self._parent.action_edit_issue()
+        elif self.selected_action == "filter":
+            self._parent.action_filter()
+        elif self.selected_action == "change_board":
+            self._parent.action_change_board()
+
+    def action_select_labels(self) -> None:
+        """Shortcut to select labels action."""
+        self.selected_action = "add_labels"
+        self.action_apply()
+
+    def action_select_components(self) -> None:
+        """Shortcut to select components action."""
+        self.selected_action = "edit_components"
+        self.action_apply()
+
+    def action_select_transition(self) -> None:
+        """Shortcut to select transition action."""
+        self.selected_action = "transition_issue"
+        self.action_apply()
+
+    def action_select_edit(self) -> None:
+        """Shortcut to select edit action."""
+        self.selected_action = "edit_issue"
+        self.action_apply()
+
+    def action_select_filter(self) -> None:
+        """Shortcut to select filter action."""
+        self.selected_action = "filter"
+        self.action_apply()
+
+    def action_select_board(self) -> None:
+        """Shortcut to select board action."""
+        self.selected_action = "change_board"
+        self.action_apply()

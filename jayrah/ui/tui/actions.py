@@ -7,6 +7,7 @@ from typing import Any, cast
 from jayrah import utils
 
 from .views import (
+    ActionsPanel,
     BoardSelectionScreen,
     ComponentsEditScreen,
     EditSelectionScreen,
@@ -132,10 +133,6 @@ class IssueBrowserActions:
                 f"Error opening edit dialog: {exc}", severity="error"
             )
 
-    def action_help(self) -> None:  # noqa: D401
-        """Show help information."""
-        cast(Any, self).notify("Showing help…")
-
     def action_filter(self) -> None:  # noqa: D401
         """Open a simple filter dialog to search across all visible fields."""
         # Show the filter screen
@@ -145,6 +142,11 @@ class IssueBrowserActions:
         """Open modal to select a different board."""
         # Show the board selection screen
         cast(Any, self).push_screen(BoardSelectionScreen(self, cast(Any, self).config))
+
+    def action_show_actions(self) -> None:  # noqa: D401
+        """Show a panel with all available actions."""
+        # Show the actions panel
+        cast(Any, self).push_screen(ActionsPanel(self))
 
     def action_cursor_down(self) -> None:  # noqa: D401
         """Move cursor down in the issues table."""

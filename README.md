@@ -158,6 +158,7 @@ Jayrah provides a modern, interactive Terminal User Interface (TUI) for browsing
 
 **Issue Actions:**
 
+- `a` - **Show Actions Panel** (shows all available actions in one place)
 - `o` - Open the selected issue in your browser
 - `e` - Edit issue title or description (opens edit selection modal)
 - `l` - Edit labels for the selected issue (opens modal dialog)
@@ -199,6 +200,11 @@ Jayrah provides a modern, interactive Terminal User Interface (TUI) for browsing
 
 **Interactive Modals:**
 
+- **Actions Panel (`a` key)**: Centralized view of all available actions
+  - Quick access to all issue manipulation features in one place
+  - Shows keyboard shortcuts for each action
+  - Direct action selection or use individual keybindings
+  - Perfect for discovering available features and their shortcuts
 - **Board Selection**: Shows all configured boards with descriptions
 - **Label Editor**: Autocomplete suggestions for existing labels
 - **Component Editor**: Autocomplete suggestions for existing components
@@ -264,6 +270,12 @@ jayrah browse [BOARD_NAME]
 
 **2. Issue Actions:**
 
+- Press `a` to open the Actions Panel:
+  - See all available actions in one centralized view
+  - Use arrow keys to navigate through available actions
+  - Press `Enter` to select an action, or use the direct keyboard shortcut
+  - Test that each action (Labels, Components, Transition, Edit, Filter, Board) launches correctly
+  - Verify the panel shows the correct keyboard shortcuts for each action
 - Press `o` to open an issue in your browser
 - Press `r` to reload issues and clear cache
 
