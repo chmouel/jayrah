@@ -6,7 +6,7 @@ from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Container, Vertical
 from textual.suggester import SuggestFromList
-from textual.widgets import Label, Markdown, DataTable
+from textual.widgets import DataTable, Label, Markdown
 
 from jayrah.commands import issue_view
 
@@ -822,7 +822,6 @@ class EditSelectionScreen(BaseModalScreen):
                 current_description = issue_data.get("fields", {}).get(
                     "description", ""
                 )
-
                 # Close this selection screen first
                 self.safe_pop_screen()
 

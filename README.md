@@ -245,6 +245,86 @@ Both editors feature:
 - **Instant Updates**: Changes are applied immediately to Jira
 - **Cache Refresh**: Issue details update automatically after changes
 
+#### 🧪 Testing the TUI Interface
+
+To test the TUI interface comprehensively, launch it with:
+
+```bash
+jayrah browse [BOARD_NAME]
+```
+
+**Key Features to Test:**
+
+**1. Basic Navigation:**
+
+- Use `j`/`k` or arrow keys to navigate the issues table
+- Verify the bottom panel updates with issue details as you navigate
+- Test `J`/`K` to scroll the detail panel content
+- Press `q` or `Escape` to quit
+
+**2. Issue Actions:**
+
+- Press `o` to open an issue in your browser
+- Press `r` to reload issues and clear cache
+
+**3. Metadata Editing:**
+
+- Press `l` to edit labels:
+  - Test autocomplete suggestions
+  - Add new labels with comma separation
+  - Remove existing labels
+  - Verify immediate updates to Jira
+- Press `Ctrl+C` to edit components:
+  - Test autocomplete for existing components
+  - Add/remove components with validation
+  - Confirm changes are applied immediately
+
+**4. Issue Content Editing:**
+
+- Press `e` to open the edit selection modal:
+  - Choose "Edit Title" to test title editing
+  - Choose "Edit Description" to test description editing
+  - Test Emacs-style keybindings (`Ctrl+A`, `Ctrl+E`, `Ctrl+K`, etc.)
+  - Verify validation (e.g., empty titles are rejected)
+  - Confirm changes appear immediately in the detail panel
+
+**5. Status Transitions:**
+
+- Press `t` to open transition modal:
+  - Navigate available transitions with arrow keys
+  - Select a transition and confirm the status change
+  - Verify the status updates in both the table and detail panel
+
+**6. Board Management:**
+
+- Press `b` to switch boards:
+  - Navigate through available boards
+  - Select a different board and verify issues load
+  - Confirm the interface updates with new board data
+
+**7. Filtering and Search:**
+
+- Press `f` to open fuzzy filter:
+  - Type search terms to filter issues
+  - Test filtering across all visible fields (ticket, summary, status, etc.)
+  - Verify filter results show match counts
+  - Clear filter to see all issues again
+
+**8. UI Responsiveness:**
+
+- Resize terminal window to test responsive layout
+- Verify scrolling works in both panels
+- Test modal dialogs open and close properly
+- Confirm error messages display appropriately
+
+**Expected Behavior:**
+
+- All actions should provide immediate feedback
+- Modals should open/close smoothly with proper keybindings
+- Data should update in real-time after changes
+- Error handling should be graceful with clear messages
+- Interface should remain responsive during operations
+
 ### ✨ Make a new issue
 
 ```bash

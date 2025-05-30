@@ -155,12 +155,19 @@ class EmacsInput(Input):
 class EmacsTextArea(TextArea):
     """TextArea widget with emacs/readline keybindings support."""
 
+    def __init__(self, *args, **kwargs):
+        # Disable syntax highlighting and language detection for plain text
+        kwargs.setdefault("language", None)
+        super().__init__(*args, **kwargs)
+
     BINDINGS = [
         # Basic movement
         Binding("ctrl+a", "cursor_line_start", "Start of line", show=False),
         Binding("ctrl+e", "cursor_line_end", "End of line", show=False),
         Binding("ctrl+f", "cursor_char_right", "Forward char", show=False),
         Binding("ctrl+b", "cursor_char_left", "Backward char", show=False),
+        Binding("ctrl+p", "cursor_line_up", "Previous line", show=False),
+        Binding("ctrl+n", "cursor_line_down", "Next line", show=False),
         # Deletion
         Binding("ctrl+k", "delete_to_end_of_line", "Delete to end", show=False),
         Binding("ctrl+u", "delete_to_start_of_line", "Delete to start", show=False),
@@ -196,6 +203,14 @@ class EmacsTextArea(TextArea):
     def action_cursor_char_left(self) -> None:
         """Move cursor one character to the left (Ctrl+B)."""
         self.action_cursor_left()  # Use built-in action
+
+    def action_cursor_line_up(self) -> None:
+        """Move cursor up one line (Ctrl+P)."""
+        self.action_cursor_up()  # Use built-in action
+
+    def action_cursor_line_down(self) -> None:
+        """Move cursor down one line (Ctrl+N)."""
+        self.action_cursor_down()  # Use built-in action
 
     def action_delete_to_end_of_line(self) -> None:
         """Delete from cursor to end of current line (Ctrl+K)."""
