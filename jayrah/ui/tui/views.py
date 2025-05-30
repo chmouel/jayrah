@@ -6,11 +6,12 @@ from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Container, Vertical
 from textual.suggester import SuggestFromList
-from textual.widgets import Input, Label, Markdown, DataTable, TextArea
+from textual.widgets import Label, Markdown, DataTable
 
 from jayrah.commands import issue_view
 
 from .base import BaseModalScreen
+from .enhanced_widgets import EmacsInput, EmacsTextArea
 
 
 class SuggestFromListComma(SuggestFromList):
@@ -247,7 +248,7 @@ class LabelsEditScreen(BaseModalScreen):
         with Vertical(id="labels-container"):
             yield Label(f"Edit Labels for {self.issue_key}", id="labels-title")
             yield Label(f"Current: {current_labels_text}", id="labels-current")
-            yield Input(
+            yield EmacsInput(
                 placeholder="Enter labels separated by commas (e.g., bug, frontend, urgent)",
                 id="labels-input",
                 value=", ".join(self.current_labels),
@@ -258,13 +259,13 @@ class LabelsEditScreen(BaseModalScreen):
             )
             yield Label("Press Enter to update, Escape to cancel", id="labels-help")
 
-    def on_input_submitted(self, event: Input.Submitted) -> None:
+    def on_input_submitted(self, event: EmacsInput.Submitted) -> None:
         """Handle when user presses Enter in the input field."""
         self.action_apply()
 
     def action_apply(self) -> None:
         """Apply the label changes."""
-        labels_input = self.query_one("#labels-input", Input).value.strip()
+        labels_input = self.query_one("#labels-input", EmacsInput).value.strip()
 
         # Parse the labels from input (split by comma and strip whitespace)
         if labels_input:
@@ -294,7 +295,7 @@ class LabelsEditScreen(BaseModalScreen):
         except Exception as exc:
             self._parent.notify(f"Error updating labels: {exc}", severity="error")
 
-        self._parent.pop_screen()
+        self.safe_pop_screen()
 
 
 class ComponentsEditScreen(BaseModalScreen):
@@ -361,7 +362,7 @@ class ComponentsEditScreen(BaseModalScreen):
         with Vertical(id="components-container"):
             yield Label(f"Edit Components for {self.issue_key}", id="components-title")
             yield Label(f"Current: {current_components_text}", id="components-current")
-            yield Input(
+            yield EmacsInput(
                 placeholder="Enter components separated by commas (e.g., backend, frontend, api)",
                 id="components-input",
                 value=", ".join(self.current_components),
@@ -372,13 +373,13 @@ class ComponentsEditScreen(BaseModalScreen):
             )
             yield Label("Press Enter to update, Escape to cancel", id="components-help")
 
-    def on_input_submitted(self, event: Input.Submitted) -> None:
+    def on_input_submitted(self, event: EmacsInput.Submitted) -> None:
         """Handle when user presses Enter in the input field."""
         self.action_apply()
 
     def action_apply(self) -> None:
         """Apply the component changes."""
-        components_input = self.query_one("#components-input", Input).value.strip()
+        components_input = self.query_one("#components-input", EmacsInput).value.strip()
 
         # Parse the components from input (split by comma and strip whitespace)
         if components_input:
@@ -414,7 +415,7 @@ class ComponentsEditScreen(BaseModalScreen):
         except Exception as exc:
             self._parent.notify(f"Error updating components: {exc}", severity="error")
 
-        self._parent.pop_screen()
+        self.safe_pop_screen()
 
 
 class FuzzyFilterScreen(BaseModalScreen):
@@ -460,22 +461,22 @@ class FuzzyFilterScreen(BaseModalScreen):
     def compose(self) -> ComposeResult:
         with Vertical(id="filter-container"):
             yield Label("Filter", id="filter-title")
-            yield Input(
+            yield EmacsInput(
                 placeholder="Search in issues (fuzzy matching across all fields)",
                 id="filter-text",
                 value="",
             )
             yield Label("Press Enter to search, Escape to cancel", id="filter-help")
 
-    def on_input_submitted(self, event: Input.Submitted) -> None:
+    def on_input_submitted(self, event: EmacsInput.Submitted) -> None:
         """Handle when user presses Enter in the input field."""
         self.action_apply()
 
     def action_apply(self) -> None:
         """Apply the fuzzy filter."""
-        filter_text = self.query_one("#filter-text", Input).value
+        filter_text = self.query_one("#filter-text", EmacsInput).value
         self._parent.apply_fuzzy_filter(filter_text)
-        self._parent.pop_screen()
+        self.safe_pop_screen()
 
 
 class BoardSelectionScreen(BaseModalScreen):
@@ -554,7 +555,7 @@ class BoardSelectionScreen(BaseModalScreen):
         """Apply the board selection."""
         if self.selected_board:
             self._parent.change_board(self.selected_board)
-        self._parent.pop_screen()
+        self.safe_pop_screen()
 
 
 class TransitionSelectionScreen(BaseModalScreen):
@@ -671,7 +672,7 @@ class TransitionSelectionScreen(BaseModalScreen):
             "error",
         ]:
             self._parent.notify("No valid transition selected", severity="warning")
-            self._parent.pop_screen()
+            self.safe_pop_screen()
             return
 
         try:
@@ -686,7 +687,7 @@ class TransitionSelectionScreen(BaseModalScreen):
 
             if not selected_transition:
                 self._parent.notify("Invalid transition selected", severity="error")
-                self._parent.pop_screen()
+                self.safe_pop_screen()
                 return
 
             transition_name = selected_transition["name"]
@@ -715,7 +716,7 @@ class TransitionSelectionScreen(BaseModalScreen):
         except Exception as exc:
             self._parent.notify(f"Error applying transition: {exc}", severity="error")
 
-        self._parent.pop_screen()
+        self.safe_pop_screen()
 
 
 class EditSelectionScreen(BaseModalScreen):
@@ -794,7 +795,7 @@ class EditSelectionScreen(BaseModalScreen):
         """Apply the edit selection."""
         if not self.selected_edit_type:
             self._parent.notify("No edit type selected", severity="warning")
-            self._parent.pop_screen()
+            self.safe_pop_screen()
             return
 
         try:
@@ -804,7 +805,7 @@ class EditSelectionScreen(BaseModalScreen):
                 current_title = issue_data.get("fields", {}).get("summary", "")
 
                 # Close this selection screen first
-                self._parent.pop_screen()
+                self.safe_pop_screen()
 
                 # Show the title edit screen
                 self._parent.push_screen(
@@ -823,7 +824,7 @@ class EditSelectionScreen(BaseModalScreen):
                 )
 
                 # Close this selection screen first
-                self._parent.pop_screen()
+                self.safe_pop_screen()
 
                 # Show the description edit screen
                 self._parent.push_screen(
@@ -837,7 +838,7 @@ class EditSelectionScreen(BaseModalScreen):
 
         except Exception as exc:
             self._parent.notify(f"Error starting edit: {exc}", severity="error")
-            self._parent.pop_screen()
+            self.safe_pop_screen()
 
 
 class TitleEditScreen(BaseModalScreen):
@@ -900,20 +901,20 @@ class TitleEditScreen(BaseModalScreen):
                 f"Current: {self.current_title[:60] + '...' if len(self.current_title) > 60 else self.current_title}",
                 id="title-current",
             )
-            yield Input(
+            yield EmacsInput(
                 placeholder="Enter new title/summary",
                 id="title-input",
                 value=self.current_title,
             )
             yield Label("Press Enter to update, Escape to cancel", id="title-help")
 
-    def on_input_submitted(self, event: Input.Submitted) -> None:
+    def on_input_submitted(self, event: EmacsInput.Submitted) -> None:
         """Handle when user presses Enter in the input field."""
         self.action_apply()
 
     def action_apply(self) -> None:
         """Apply the title changes."""
-        title_input = self.query_one("#title-input", Input).value.strip()
+        title_input = self.query_one("#title-input", EmacsInput).value.strip()
 
         # Validate that title is not empty
         if not title_input:
@@ -923,7 +924,7 @@ class TitleEditScreen(BaseModalScreen):
         # Check if there were changes
         if title_input == self.current_title:
             self._parent.notify("No changes made to title", severity="warning")
-            self._parent.pop_screen()
+            self.safe_pop_screen()
             return
 
         # Update the issue with new title
@@ -948,7 +949,7 @@ class TitleEditScreen(BaseModalScreen):
         except Exception as exc:
             self._parent.notify(f"Error updating title: {exc}", severity="error")
 
-        self._parent.pop_screen()
+        self.safe_pop_screen()
 
 
 class DescriptionEditScreen(BaseModalScreen):
@@ -1014,7 +1015,7 @@ class DescriptionEditScreen(BaseModalScreen):
                 f"Current: {len(self.current_description)} characters",
                 id="description-current",
             )
-            yield TextArea(
+            yield EmacsTextArea(
                 text=self.current_description,
                 id="description-textarea",
                 language="markdown",
@@ -1023,13 +1024,18 @@ class DescriptionEditScreen(BaseModalScreen):
 
     def action_apply(self) -> None:
         """Apply the description changes."""
-        textarea = self.query_one("#description-textarea", TextArea)
+        # If the screen is unmounted by another action (e.g., quick Escape press)
+        # before this method completes, we should not proceed.
+        if not self.is_mounted:
+            return
+
+        textarea = self.query_one("#description-textarea", EmacsTextArea)
         new_description = textarea.text.strip()
 
         # Check if there were changes
         if new_description == self.current_description.strip():
             self._parent.notify("No changes made to description", severity="warning")
-            self._parent.pop_screen()
+            self.safe_pop_screen()
             return
 
         # Update the issue with new description
@@ -1045,10 +1051,9 @@ class DescriptionEditScreen(BaseModalScreen):
                     self.issue_key, self._parent.config, use_cache=False
                 )
 
-            # Show success notification
             self._parent.notify(f"✅ Description updated for {self.issue_key}")
+            self.safe_pop_screen()
 
         except Exception as exc:
             self._parent.notify(f"Error updating description: {exc}", severity="error")
-
-        self._parent.pop_screen()
+            # Do not pop the screen on error, allow user to see the message and manually cancel.

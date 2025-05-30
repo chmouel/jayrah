@@ -19,7 +19,16 @@ class BaseModalScreen(ModalScreen):
     def __init__(self, parent):
         super().__init__()
         self._parent = parent
+        self._popped = False
 
     def action_cancel(self) -> None:
         """Cancel and close the modal."""
-        self._parent.pop_screen()
+        self.safe_pop_screen()
+
+    def safe_pop_screen(self) -> bool:
+        """Safely pop screen, preventing multiple pops. Returns True if popped, False if already popped."""
+        if not self._popped and self.is_mounted:
+            self._popped = True
+            self._parent.pop_screen()
+            return True
+        return False
