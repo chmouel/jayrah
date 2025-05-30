@@ -765,6 +765,7 @@ class EditSelectionScreen(BaseModalScreen):
         self.config = config
         self.issue_key = issue_key
         self.selected_edit_type = None
+        self.verbose = self.config.get("verbose", False)
 
     def compose(self) -> ComposeResult:
         with Vertical(id="edit-container"):
@@ -836,7 +837,11 @@ class EditSelectionScreen(BaseModalScreen):
                 )
 
         except Exception as exc:
-            self._parent.notify(f"Error starting edit: {exc}", severity="error")
+            if self.verbose:
+                raise exc
+            self._parent.notify(
+                f"Error starting edit please try again. {exc} ", severity="error"
+            )
             self.safe_pop_screen()
 
 
@@ -962,7 +967,7 @@ class DescriptionEditScreen(BaseModalScreen):
 
     CSS = """
     #description-container {
-        dock: fill;
+        dock: bottom;
         padding: 1;
         width: 100%;
         height: 100%;
