@@ -8,6 +8,7 @@ from .. import config, utils
 from ..api import jira as jirahttp
 from ..config import defaults
 from . import issues
+from .tui import run_textual_browser
 
 
 class BoardType(click.ParamType):
@@ -36,16 +37,20 @@ def show(config):
 
 def check(board, config) -> typing.Tuple[str, str]:
     if not board:
-        show(config)
-        return "", ""
-    chosen_boards = [x for x in config["boards"] if x.get("name") == board]
-    if board is not None and board not in [
-        x.get("name") for x in chosen_boards if x.get("name") == board
-    ]:
-        click.secho("Invalid board: ", fg="red", nl=False)
-        print(f"{board}")
-        show(config)
-        return "", ""
+        if len(config["boards"]) == 0:
+            click.secho("no boards has been setup", fg="red")
+            raise Exception("No boards has been setup in your config file")
+        chosen_boards = [config["boards"][0]]
+        click.secho(f"Using board {chosen_boards[0].get('name')}", fg="green")
+    else:
+        chosen_boards = [x for x in config["boards"] if x.get("name") == board]
+        if board is not None and board not in [
+            x.get("name") for x in chosen_boards if x.get("name") == board
+        ]:
+            click.secho("Invalid board: ", fg="red", nl=False)
+            print(f"{board}")
+            show(config)
+            return "", ""
 
     jql = chosen_boards[0].get("jql", "").strip() if chosen_boards else None
     if not jql:
@@ -75,49 +80,6 @@ class Boards:
 
         self.issues_client = issues.Issues(self.config, self.jira)
 
-    # pylint: disable=too-many-positional-arguments
-    def _build_issue_table(
-        self,
-        issue,
-        max_ticket_length,
-        max_summary_length,
-        max_asignee_length,
-        max_reporter_length,
-        max_status_length,
-    ) -> list:
-        it = issue["fields"]["issuetype"]["name"]
-        if it in defaults.ISSUE_TYPE_EMOJIS:
-            it = defaults.ISSUE_TYPE_EMOJIS[it][0]
-        else:
-            it = it[:4]
-        ss = [it]
-        ss.append(issue["key"].strip().ljust(max_ticket_length))
-        ss.append(
-            (
-                issue["fields"]["summary"].strip()[: defaults.SUMMARY_MAX_LENGTH - 3]
-                + "…"
-                if len(issue["fields"]["summary"].strip()) > defaults.SUMMARY_MAX_LENGTH
-                else issue["fields"]["summary"].strip()
-            ).ljust(max_summary_length)
-        )
-        if "assignee" in issue["fields"]:
-            kk = "None"
-            if issue["fields"]["assignee"]:
-                kk = utils.parse_email(issue["fields"]["assignee"])
-            ss += [kk.ljust(max_asignee_length)]
-        if "reporter" in issue["fields"]:
-            kk = utils.parse_email(issue["fields"]["reporter"])
-            ss += [kk.ljust(max_reporter_length)]
-        if "created" in issue["fields"]:
-            kk = utils.show_time(issue["fields"]["created"])
-            ss += [kk.ljust(10)]
-        if "updated" in issue["fields"]:
-            kk = utils.show_time(issue["fields"]["updated"])
-            ss += [kk.ljust(10)]
-        if "status" in issue["fields"]:
-            ss += [issue["fields"]["status"]["name"].ljust(max_status_length)]
-        return ss
-
     def fuzzy_search(self, issues):
         """Use interactive UI to select an issue."""
         if self.verbose:
@@ -128,127 +90,17 @@ class Boards:
                 verbose=self.verbose,
             )
 
-        if not issues:
-            return None
-
-        # Check if we should use the fallback non-interactive mode
-        if self.config.get("no_fzf"):
-            # Print issues as text table
-            print(f"Found {len(issues)} issues:")
-            for i, issue in enumerate(issues):
-                key = issue["key"]
-                summary = issue["fields"]["summary"]
-                status = issue["fields"]["status"]["name"]
-                print(f"{i + 1}. {key}: {summary} ({status})")
-            return None
-
-        # Choose UI based on config or default to Textual
-        ui_type = self.config.get("ui_type", "textual")
-
-        if ui_type == "textual":
-            try:
-                from .tui import run_textual_browser
-
-                selected_key = run_textual_browser(
-                    issues, self.config, self.command, self.jql, self.order_by
-                )
-                if self.verbose and selected_key:
-                    print(f"User selected: {selected_key}")
-
-                return selected_key
-            except ImportError as e:
-                click.secho(
-                    f"Modern UI not available: {e}. Falling back to fzf.",
-                    fg="yellow",
-                )
-                ui_type = "fzf"  # Fall back to fzf
-            except Exception as e:
-                click.secho(f"Error occurred with Textual UI: {e}", fg="red")
-                ui_type = "fzf"
-
-        if ui_type == "fzf":
-            try:
-                from .fzf.boards import fzf_search
-
-                return fzf_search(self, issues)
-            except Exception as e:
-                click.secho(f"Error with fzf UI: {e}", fg="red")
-                return None
-
-        click.secho("No suitable UI found", fg="red")
-        return None
-
-    # pylint: disable=too-many-positional-arguments
-    def create_issue(
-        self,
-        issuetype=None,
-        summary=None,
-        description=None,
-        priority=None,
-        assignee=None,
-        labels=None,
-        components: list = [],
-    ):
-        """Create a new Jira issue."""
-        summary = summary or click.prompt("Summary")
-        if not description:
-            editor_text = (
-                "\n\n"
-                "# Edit description for the new issue with summary:\n"
-                "# {description}\n"
-                "# The first lines starting with # will be ignored\n"
-                "# Save and exit the editor to submit changes, or exit without saving to cancel\n"
+        try:
+            selected_key = run_textual_browser(
+                issues, self.config, self.command, self.jql, self.order_by
             )
-            description = utils.edit_text_with_editor(editor_text, extension=".jira")
-        if not components and self.config.get("default_component"):
-            components = [self.config.get("default_component")]
-        ret = self.jira.create_issue(
-            issuetype=issuetype or "Story",
-            summary=summary,
-            description=description,
-            priority=priority,
-            assignee=assignee,
-            labels=labels,
-            components=components,
-        )
+        except Exception as e:
+            click.secho(f"Error occurred with Textual UI: {e}", fg="red")
+            raise e
+        if self.verbose and selected_key:
+            print(f"User selected: {selected_key}")
 
-        print(
-            f"Issue created: {utils.make_full_url(ret.get('key'), self.config.get('jira_server'))}"
-        )
-
-    def suggest_git_branch(self, search_terms=None, use_or=False, filters=None):
-        """Suggest a git branch name based on a selected issue.
-
-        Args:
-            search_terms: Optional list of search terms to filter issues by summary or description
-            use_or: Whether to combine search terms with OR instead of AND
-            filters: Optional list of field-specific filters
-        """
-        base_jql = "assignee = currentUser()"
-
-        # Use the common function to build the search JQL
-        jql = build_search_jql(base_jql, search_terms, use_or, self.verbose, filters)
-
-        issues = self.issues_client.list_issues(jql)
-
-        if not issues:
-            show_no_issues_message(search_terms, use_or, filters)
-            raise click.Abort("No issues found")
-
-        selected = self.fuzzy_search(issues)
-        if not selected:
-            click.secho("No issue selected", fg="yellow")
-            raise click.Abort("No issue selected")
-
-        if self.verbose:
-            print(f"Getting issue details for {selected}")
-
-        issue = self.jira.get_issue(selected, fields=["summary"])
-        summary = issue["fields"]["summary"]
-
-        branch = f"{selected}-{summary.replace(' ', '-').lower()[:75]}"
-        click.secho(f"Suggested branch name: {branch}", fg="blue")
-        print(branch)
+        return selected_key
 
 
 def build_search_jql(

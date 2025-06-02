@@ -194,30 +194,6 @@ async def handle_list_tools() -> list[types.Tool]:
                 "required": ["board"],
             },
         ),
-        # Suggest Git branch
-        types.Tool(
-            name="git-branch",
-            description="Suggest a git branch name based on a selected issue",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "search_terms": {
-                        "type": "array",
-                        "items": {"type": "string"},
-                        "description": "List of search terms to filter issues by summary and description",
-                    },
-                    "use_or": {
-                        "type": "boolean",
-                        "description": "Use OR instead of AND to combine search terms (default: false)",
-                    },
-                    "filters": {
-                        "type": "array",
-                        "items": {"type": "string"},
-                        "description": "Filter issues by specific fields (e.g., 'status=In Progress', 'priority=High')",
-                    },
-                },
-            },
-        ),
         # Create Jira issue
         types.Tool(
             name="create-issue",
@@ -334,7 +310,6 @@ async def handle_call_tool(
     """
     tool_handlers = {
         "browse": _handle_browse,
-        "git-branch": _handle_git_branch,
         "create-issue": _handle_create_issue,
         "view-issue": _handle_view_issue,
         "transition-issue": _handle_transition_issue,
@@ -634,66 +609,6 @@ async def _handle_list_boards(arguments: dict) -> list[types.TextContent]:
         formatted_boards += f"* {board_name}: {description}\n"
 
     return [types.TextContent(type="text", text=formatted_boards)]
-
-
-async def _handle_git_branch(arguments: dict) -> list[types.TextContent]:
-    """Handle the git-branch tool to suggest a git branch name from an issue."""
-    search_terms = arguments.get("search_terms", [])  # Get search terms if provided
-    use_or = arguments.get("use_or", False)  # Get OR/AND flag
-    filters = arguments.get("filters", [])  # Get field-specific filters
-
-    try:
-        # Call the suggest_git_branch method and capture its output
-        # This would normally display to stdout, so we need to capture it
-        import io
-        from contextlib import redirect_stdout
-
-        # Create a StringIO object to capture stdout
-        f = io.StringIO()
-
-        # Redirect stdout to our StringIO object
-        with redirect_stdout(f):
-            boards_obj.suggest_git_branch(search_terms, use_or, filters)
-
-        # Get the captured output
-        output = f.getvalue().strip()
-
-        # If we didn't get any output, it means no branch was created (likely no issues found)
-        if not output:
-            search_info = ""
-            if search_terms:
-                search_operator = " OR " if use_or else " AND "
-                search_info += f" with search terms: {search_operator.join(f'"{term}"' for term in search_terms)}"
-
-            if filters:
-                filter_info = " AND ".join(f"{f}" for f in filters)
-                if search_info:
-                    search_info += f" and filters: {filter_info}"
-                else:
-                    search_info += f" with filters: {filter_info}"
-
-            return [
-                types.TextContent(
-                    type="text",
-                    text=f"No issues found{search_info} to create a branch from.",
-                )
-            ]
-
-        # Extract just the branch name (last line of output)
-        branch_name = output.split("\n")[-1]
-
-        return [
-            types.TextContent(
-                type="text",
-                text=f"Suggested git branch name: {branch_name}\n\nYou can create this branch with:\ngit checkout -b {branch_name}",
-            )
-        ]
-    except Exception as e:
-        return [
-            types.TextContent(
-                type="text", text=f"Error suggesting git branch: {str(e)}"
-            )
-        ]
 
 
 async def main():

@@ -186,16 +186,6 @@ def preview_issue(
     click.echo("\n")
 
 
-def validate_issue(issuetype, summary, description):
-    """Validate issue fields."""
-    if not summary:
-        raise click.UsageError("Title is required")
-    if not description:
-        raise click.UsageError("Description is required")
-    if not issuetype:
-        raise click.UsageError("Issue type is required")
-
-
 def interactive_create(jayrah_obj):
     """Interactive issue creation flow."""
     defaults = get_smart_defaults(jayrah_obj)

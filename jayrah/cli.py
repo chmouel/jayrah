@@ -10,6 +10,18 @@ def main():
     if "--verbose" in sys.argv or "-v" in sys.argv:
         verbose = True
 
+    if "-h" in sys.argv:
+        sys.argv.remove("-h")
+        sys.argv.append("--help")
+
+    args = []
+    for arg in sys.argv:
+        if arg.startswith("-"):
+            continue
+        args.append(arg)
+    if len(args) == 1:
+        sys.argv.append("browse")
+
     try:
         # pylint: disable=no-value-for-parameter
         commands.cli()

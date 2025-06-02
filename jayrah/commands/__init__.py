@@ -6,9 +6,9 @@ import time
 
 import click
 
-from .. import config, utils
+from .. import config, utils as utils
 from ..api import jira as jirahttp
-from ..commands import issue_action, issue_view, mcp_server
+from ..commands import mcp_server
 from ..config import defaults
 from ..ui import boards
 from ..utils import help, log
@@ -16,16 +16,6 @@ from ..utils import help, log
 
 @click.group()
 @click.option("--no-cache", "-n", is_flag=True, help="Disable caching of API responses")
-@click.option(
-    "--no-fzf", is_flag=True, help="Output directly to stdout without interactive UI"
-)
-@click.option("--fzf", is_flag=True, help="Force use of fzf UI for selection")
-@click.option(
-    "--ui-type",
-    type=click.Choice(["fzf", "textual"]),
-    default="textual",
-    help="Choose UI type (fzf or textual)",
-)
 @click.option("--verbose", "-v", is_flag=True, help="Enable verbose output")
 @click.option("--insecure", is_flag=True, help="Disable SSL verification for requests")
 @click.option(
@@ -59,9 +49,6 @@ from ..utils import help, log
 def cli(
     ctx,
     no_cache,
-    no_fzf,
-    fzf,
-    ui_type,
     verbose,
     insecure,
     jira_user,
@@ -73,11 +60,6 @@ def cli(
 ):
     """Jira Helper Tool"""
 
-    # If --fzf is set, override ui_type and no_fzf
-    if fzf:
-        ui_type = "fzf"
-        no_fzf = False
-
     flag_config = {
         "jira_server": jira_server,
         "jira_user": jira_user,
@@ -86,8 +68,6 @@ def cli(
         "cache_ttl": cache_ttl,
         "no_cache": no_cache,
         "verbose": verbose,
-        "no_fzf": no_fzf,
-        "ui_type": ui_type,
         "insecure": insecure,
         "jayrah_path": os.path.abspath(sys.argv[0]),
         "ctx": ctx,
@@ -119,8 +99,11 @@ def help_command(jayrah_obj):
     multiple=True,
     help="Filter issues by specific field (e.g., 'status=\"In Progress\"')",
 )
+@click.option(
+    "--list-boards", "-l", "list_boards", is_flag=True, help="List available boards"
+)
 @click.pass_obj
-def browse(jayrah_obj, board, search_terms, use_or, filters):
+def browse(jayrah_obj, board, search_terms, use_or, filters, list_boards):
     """
     Browse boards
 
@@ -131,6 +114,9 @@ def browse(jayrah_obj, board, search_terms, use_or, filters):
     Example: jayrah browse my-board --or term1 term2   # Searches for term1 OR term2
     Example: jayrah browse my-board --filter status="Code Review"   # Filter by status
     """
+    if list_boards:
+        boards.show(jayrah_obj.config)
+        return
     jayrah_obj.command = board
     jql, order_by = boards.check(board, jayrah_obj.config)
     if not jql or not order_by:
@@ -214,65 +200,6 @@ def create(
     issue_create.interactive_create(jayrah_obj)
 
 
-@cli.group("issue")
-def issue():
-    """issue commands"""
-
-
-@issue.command("open")
-@click.argument("ticket")
-@click.pass_obj
-def browser_open(jayrah_obj, ticket):
-    """Open issue in browser"""
-    # Use the jayrah_obj if needed to see server info
-    utils.browser_open_ticket(ticket, jayrah_obj.config)
-
-
-@issue.command("view")
-@click.argument("ticket")
-@click.option("--comments", "-c", default=0, help="Number of comments to show")
-@click.pass_obj
-def view(jayrah_obj, ticket, comments):
-    """View issue in a nice format"""
-    # Get detailed information about the issue
-    fields = None  # Get all fields
-    issue = jayrah_obj.jira.get_issue(ticket, fields=fields)
-    issue_view.display_issue(issue, jayrah_obj.config, comments)
-
-
-@issue.command("action")
-@click.argument("ticket")
-@click.pass_obj
-def action(jayrah_obj, ticket):
-    """View issue in a nice format"""
-    # Get detailed information about the issue
-    fields = None  # Get all fields
-    issue = jayrah_obj.jira.get_issue(ticket, fields=fields)
-    issue_action.action_menu(issue, jayrah_obj)
-
-
-@issue.command("edit-description")
-@click.argument("ticket")
-@click.pass_obj
-def edit_description(jayrah_obj, ticket):
-    """Edit issue description with system editor"""
-    fields = None  # Get all fields
-    ticketj = jayrah_obj.jira.get_issue(ticket, fields=fields)
-    edit_success = issue_action.edit_description(ticketj, jayrah_obj)
-    ticket_number = ticketj["key"]
-    if edit_success and jayrah_obj.verbose:
-        log(f"Description updated for {ticket_number}")
-
-
-@issue.command("transition")
-@click.argument("ticket")
-@click.pass_obj
-def transition(jayrah_obj, ticket):
-    """Transition issue to a new status"""
-    ticketj = jayrah_obj.jira.get_issue(ticket, fields=None)
-    issue_action.transition_issue(ticketj, jayrah_obj)
-
-
 @cli.command("mcp")
 @click.option("--host", default="127.0.0.1", help="Host to bind the MCP server")
 @click.option("--port", default=8765, type=int, help="Port to bind the MCP server")
@@ -286,37 +213,6 @@ def mcp_server_cmd(ctx, host, port):
         asyncio.run(mcp_server.main())
     except KeyboardInterrupt:
         click.secho("MCP server stopped by user", fg="yellow")
-
-
-@cli.command("git-branch")
-@click.argument("search_terms", nargs=-1)
-@click.option(
-    "--or", "-o", "use_or", is_flag=True, help="Use OR instead of AND for search terms"
-)
-@click.option(
-    "--filter",
-    "-f",
-    "filters",
-    multiple=True,
-    help="Filter issues by specific field (e.g., 'status=\"In Progress\"')",
-)
-@click.pass_obj
-def git_branch(jayrah_obj, search_terms, use_or, filters):
-    """
-    Suggest a git branch name based on a selected issue
-
-    SEARCH_TERMS are optional search terms that filter issues by summary or description.
-    Multiple terms are combined with AND by default (or with OR if --or flag is used).
-
-    Example: jayrah git-branch term1 term2   # Searches for term1 AND term2
-    Example: jayrah git-branch --or term1 term2   # Searches for term1 OR term2
-    Example: jayrah git-branch --filter status="Code Review"   # Filter by status
-    """
-    try:
-        jayrah_obj.suggest_git_branch(search_terms, use_or, filters)
-    except click.Abort:
-        # Already handled by the suggest_git_branch method
-        pass
 
 
 @cli.command(name="cache")

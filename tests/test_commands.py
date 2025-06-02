@@ -122,29 +122,3 @@ def test_browse_command_with_filters(runner, mock_boards):
         "search-term",
     )  # Click nargs=-1 creates a tuple
     assert mock_boards.filters == ("status=Open",)
-
-
-def test_git_branch_command_with_filters(runner, monkeypatch):
-    """Test the git-branch command with filters"""
-    # Create a mock for Boards.suggest_git_branch
-    suggest_called = False
-    suggest_filters = None
-
-    class MockBoard(boards.Boards):
-        def __init__(self, *args, **kwargs):
-            self.config = {"verbose": False}
-            self.verbose = False
-
-        def suggest_git_branch(self, search_terms=None, use_or=False, filters=None):
-            nonlocal suggest_called, suggest_filters
-            suggest_called = True
-            suggest_filters = filters
-
-    monkeypatch.setattr(boards, "Boards", MockBoard)
-
-    # Run with a filter
-    result = runner.invoke(commands.cli, ["git-branch", "--filter", "status=Open"])
-
-    assert result.exit_code == 0
-    assert suggest_called
-    assert suggest_filters == ("status=Open",)
