@@ -10,6 +10,7 @@ from .views import (
     ActionsPanel,
     BoardSelectionScreen,
     ComponentsEditScreen,
+    CommentsViewScreen,
     EditSelectionScreen,
     FuzzyFilterScreen,
     IssueDetailPanel,
@@ -132,6 +133,24 @@ class IssueBrowserActions:
             cast(Any, self).notify(
                 f"Error opening edit dialog: {exc}", severity="error"
             )
+
+    def action_view_comments(self) -> None:  # noqa: D401
+        """Open modal to view comments for the selected issue."""
+        if not cast(Any, self).selected_issue:
+            cast(Any, self).notify("No issue selected", severity="warning")
+            return
+
+        # Show the comments view screen
+        try:
+            cast(Any, self).push_screen(
+                CommentsViewScreen(
+                    self,
+                    cast(Any, self).selected_issue,
+                    cast(Any, self).config,
+                )
+            )
+        except Exception as exc:
+            cast(Any, self).notify(f"Error loading comments: {exc}", severity="error")
 
     def action_filter(self) -> None:  # noqa: D401
         """Open a simple filter dialog to search across all visible fields."""

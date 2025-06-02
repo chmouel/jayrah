@@ -69,6 +69,7 @@ class IssueBrowserApp(App, JayrahAppMixin, IssueBrowserActions):
         Binding("r", "reload", "Reload"),
         Binding("o", "open_issue", "Open"),
         Binding("a", "show_actions", "Actions"),
+        Binding("c", "view_comments", "Comments"),
         Binding("l", "add_labels", "Labels", show=False),
         Binding("ctrl+c", "edit_components", "Components", show=False),
         Binding("t", "transition_issue", "Transition", show=False),

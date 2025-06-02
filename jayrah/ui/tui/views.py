@@ -14,6 +14,329 @@ from .base import BaseModalScreen
 from .enhanced_widgets import EmacsInput, EmacsTextArea
 
 
+class CommentsViewScreen(BaseModalScreen):
+    """Modal screen for viewing comments on an issue."""
+
+    BINDINGS = [
+        Binding("escape", "cancel", "Cancel"),
+        Binding("q", "cancel", "Close"),
+        Binding("f1", "help", "Help"),
+        Binding("j", "scroll_down", "Scroll Down"),
+        Binding("k", "scroll_up", "Scroll Up"),
+        Binding("n", "next_comment", "Next Comment"),
+        Binding("p", "prev_comment", "Previous Comment"),
+        Binding("a", "add_comment", "Add Comment"),
+    ]
+
+    CSS = """
+    #comments-container {
+        dock: bottom;
+        padding: 1;
+        width: 100%;
+        height: 80%;
+        background: $surface;
+        border-top: thick $primary;
+        margin: 0;
+    }
+    
+    #comments-title {
+        text-align: center;
+        text-style: bold;
+        width: 100%;
+        height: 1;
+        content-align: center middle;
+    }
+    
+    #comments-content {
+        width: 100%;
+        height: 1fr;
+        margin: 1 0;
+        overflow: auto;
+    }
+    
+    #comments-help {
+        text-align: center;
+        color: $text-muted;
+        margin-top: 0;
+        height: 1;
+    }
+    """
+
+    def __init__(self, parent, issue_key: str, config: dict):
+        super().__init__(parent)
+        self.issue_key = issue_key
+        self.config = config or {}
+        self.comments = []  # Store comments data
+        self.current_comment_index = 0  # Track which comment we're viewing
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="comments-container"):
+            yield Label(f"💬 Comments for {self.issue_key}", id="comments-title")
+            yield Markdown("Loading comments...", id="comments-content")
+            yield Label("Press Escape or Q to close", id="comments-help")
+
+    async def on_mount(self) -> None:
+        """Load comments when the screen is mounted."""
+        await self._load_comments()
+
+    async def _load_comments(self) -> None:
+        """Load and format comments for the issue."""
+        try:
+            # Get issue with comment field expanded
+            issue_data = self._parent.jayrah_obj.jira.get_issue(
+                self.issue_key, fields=["comment", "summary", "key"], use_cache=False
+            )
+
+            # Store comments data for navigation
+            fields = issue_data.get("fields", {})
+            if "comment" in fields and fields["comment"]["comments"]:
+                self.comments = fields["comment"]["comments"]
+            else:
+                self.comments = []
+
+            comments_content = self._format_comments(issue_data)
+
+            # Update the markdown widget
+            markdown_widget = self.query_one("#comments-content", Markdown)
+            markdown_widget.update(comments_content)
+
+            # Update help text with navigation info
+            help_widget = self.query_one("#comments-help", Label)
+            if self.comments:
+                help_widget.update(
+                    f"Press n/p to navigate comments (1/{len(self.comments)}), a to add comment, Escape or Q to close"
+                )
+            else:
+                help_widget.update("Press a to add comment, Escape or Q to close")
+
+        except Exception as e:
+            error_message = f"Error loading comments: {str(e)}"
+            markdown_widget = self.query_one("#comments-content", Markdown)
+            markdown_widget.update(error_message)
+            self._parent.notify(f"Failed to load comments: {e}", severity="error")
+
+    def _format_comments(self, issue_data: dict) -> str:
+        """Format comments into markdown."""
+        fields = issue_data.get("fields", {})
+
+        if "comment" not in fields or not fields["comment"]["comments"]:
+            return "No comments found for this issue."
+
+        comments = fields["comment"]["comments"]
+        total = fields["comment"]["total"]
+
+        # Build markdown content
+        content = [f"# Comments for {self.issue_key}"]
+        content.append(f"*Showing {len(comments)} of {total} comments*")
+        content.append("")
+
+        for i, comment in enumerate(comments):
+            author = comment.get("author", {}).get("displayName", "Unknown")
+            created = comment.get("created", "Unknown date")
+
+            # Format the date if possible
+            try:
+                from datetime import datetime
+
+                date_obj = datetime.strptime(created, "%Y-%m-%dT%H:%M:%S.%f%z")
+                created = date_obj.strftime("%Y-%m-%d %H:%M:%S")
+            except (ValueError, TypeError):
+                # Keep original format if parsing fails
+                pass
+
+            # Highlight current comment
+            if i == self.current_comment_index:
+                content.append(f"## 👉 Comment {i + 1} - {author} [CURRENT]")
+            else:
+                content.append(f"## Comment {i + 1} - {author}")
+
+            content.append(f"*{created}*")
+            content.append("")
+
+            # Convert Jira markup to markdown
+            comment_body = comment.get("body", "")
+            try:
+                import jira2markdown
+
+                comment_content = jira2markdown.convert(comment_body)
+            except ImportError:
+                # Fallback if jira2markdown is not available
+                comment_content = comment_body
+
+            content.append(comment_content)
+            content.append("")
+            content.append("---")
+            content.append("")
+
+        return "\n".join(content)
+
+    def action_scroll_down(self) -> None:
+        """Scroll down in the comments content."""
+        markdown_widget = self.query_one("#comments-content", Markdown)
+        markdown_widget.scroll_down()
+
+    def action_scroll_up(self) -> None:
+        """Scroll up in the comments content."""
+        markdown_widget = self.query_one("#comments-content", Markdown)
+        markdown_widget.scroll_up()
+
+    def action_next_comment(self) -> None:
+        """Navigate to the next comment."""
+        if not self.comments:
+            return
+
+        # Move to next comment (wrap around to first if at the end)
+        self.current_comment_index = (self.current_comment_index + 1) % len(
+            self.comments
+        )
+        self._refresh_comments_display()
+
+    def action_prev_comment(self) -> None:
+        """Navigate to the previous comment."""
+        if not self.comments:
+            return
+
+        # Move to previous comment (wrap around to last if at the beginning)
+        self.current_comment_index = (self.current_comment_index - 1) % len(
+            self.comments
+        )
+        self._refresh_comments_display()
+
+    def _refresh_comments_display(self) -> None:
+        """Refresh the comments display and scroll to current comment."""
+        if not self.comments:
+            return
+
+        # Create a fake issue_data structure for _format_comments
+        issue_data = {
+            "fields": {
+                "comment": {"comments": self.comments, "total": len(self.comments)}
+            }
+        }
+
+        # Update the markdown content
+        comments_content = self._format_comments(issue_data)
+        markdown_widget = self.query_one("#comments-content", Markdown)
+        markdown_widget.update(comments_content)
+
+        # Update help text
+        help_widget = self.query_one("#comments-help", Label)
+        help_widget.update(
+            f"Press n/p to navigate comments ({self.current_comment_index + 1}/{len(self.comments)}), a to add comment, Escape or Q to close"
+        )
+
+        # Scroll to the current comment section
+        # We'll scroll to roughly where the current comment should be
+        if len(self.comments) > 1:
+            # Calculate scroll position based on comment index
+            scroll_percentage = self.current_comment_index / (len(self.comments) - 1)
+            # Get the total content height and scroll to the appropriate position
+            markdown_widget.scroll_to(
+                y=scroll_percentage * markdown_widget.max_scroll_y, animate=True
+            )
+
+    def action_add_comment(self) -> None:
+        """Open modal to add a new comment to the issue."""
+        self.app.push_screen(
+            AddCommentScreen(
+                self._parent,
+                self.issue_key,
+                self.config,
+                on_comment_added=self._on_comment_added,
+            )
+        )
+
+    async def _on_comment_added(self) -> None:
+        """Callback when a new comment is added - refresh the comments display."""
+        await self._load_comments()
+
+
+class AddCommentScreen(BaseModalScreen):
+    """Modal screen for adding a comment to an issue."""
+
+    BINDINGS = [
+        Binding("escape", "cancel", "Cancel"),
+        Binding("ctrl+enter", "apply", "Add Comment"),
+        Binding("f1", "help", "Help"),
+    ]
+
+    CSS = """
+    #comment-container {
+        dock: bottom;
+        padding: 1;
+        width: 100%;
+        height: 50%;
+        background: $surface;
+        border-top: thick $primary;
+        margin: 0;
+    }
+    
+    #comment-title {
+        text-align: center;
+        text-style: bold;
+        width: 100%;
+        height: 1;
+        content-align: center middle;
+    }
+    
+    #comment-textarea {
+        width: 100%;
+        height: 1fr;
+        margin: 1 0;
+    }
+    
+    #comment-help {
+        text-align: center;
+        color: $text-muted;
+        margin-top: 0;
+        height: 1;
+    }
+    """
+
+    def __init__(self, parent, issue_key: str, config: dict, on_comment_added=None):
+        super().__init__(parent)
+        self.issue_key = issue_key
+        self.config = config or {}
+        self.on_comment_added = on_comment_added
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="comment-container"):
+            yield Label(f"✍️ Add Comment to {self.issue_key}", id="comment-title")
+            yield EmacsTextArea(
+                text="Enter your comment here...", id="comment-textarea"
+            )
+            yield Label(
+                "Press Ctrl+Enter to add comment, Escape to cancel", id="comment-help"
+            )
+
+    def action_apply(self) -> None:
+        """Add the comment to the issue."""
+        textarea = self.query_one("#comment-textarea", EmacsTextArea)
+        comment_text = textarea.text.strip()
+
+        # Check if the text is still the placeholder text or empty
+        if not comment_text or comment_text == "Enter your comment here...":
+            self._parent.notify("Comment cannot be empty", severity="warning")
+            return
+
+        try:
+            # Add comment using the Jira API
+            self._parent.jayrah_obj.jira.client.add_comment(
+                self.issue_key, comment_text
+            )
+
+            self._parent.notify(f"✅ Comment added to {self.issue_key}")
+
+            # Call the callback to refresh comments if provided
+            if self.on_comment_added:
+                self.app.call_later(self.on_comment_added)
+
+            self.action_cancel()
+
+        except Exception as e:
+            self._parent.notify(f"Failed to add comment: {e}", severity="error")
+
+
 class SuggestFromListComma(SuggestFromList):
     """Give completion suggestions based on a fixed list of options with comma support.
 
@@ -1071,6 +1394,7 @@ class ActionsPanel(BaseModalScreen):
         Binding("enter", "apply", "Apply"),
         Binding("l", "select_labels", "Labels"),
         Binding("ctrl+c", "select_components", "Components"),
+        Binding("c", "select_comments", "Comments"),
         Binding("t", "select_transition", "Transition"),
         Binding("e", "select_edit", "Edit"),
         Binding("f", "select_filter", "Filter"),
@@ -1135,6 +1459,12 @@ class ActionsPanel(BaseModalScreen):
                 key="edit_components",
             )
             table.add_row(
+                "c",
+                "Comments",
+                "View comments for the selected issue",
+                key="view_comments",
+            )
+            table.add_row(
                 "t",
                 "Transition",
                 "Change status of the selected issue",
@@ -1183,6 +1513,8 @@ class ActionsPanel(BaseModalScreen):
             self._parent.action_add_labels()
         elif self.selected_action == "edit_components":
             self._parent.action_edit_components()
+        elif self.selected_action == "view_comments":
+            self._parent.action_view_comments()
         elif self.selected_action == "transition_issue":
             self._parent.action_transition_issue()
         elif self.selected_action == "edit_issue":
@@ -1200,6 +1532,11 @@ class ActionsPanel(BaseModalScreen):
     def action_select_components(self) -> None:
         """Shortcut to select components action."""
         self.selected_action = "edit_components"
+        self.action_apply()
+
+    def action_select_comments(self) -> None:
+        """Shortcut to select comments action."""
+        self.selected_action = "view_comments"
         self.action_apply()
 
     def action_select_transition(self) -> None:

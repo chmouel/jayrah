@@ -160,6 +160,7 @@ Jayrah provides a modern, interactive Terminal User Interface (TUI) for browsing
 
 - `a` - **Show Actions Panel** (shows all available actions in one place)
 - `o` - Open the selected issue in your browser
+- `c` - **View Comments** (opens comments viewer for the selected issue)
 - `e` - Edit issue title or description (opens edit selection modal)
 - `l` - Edit labels for the selected issue (opens modal dialog)
 - `Ctrl+C` - Edit components for the selected issue (opens modal dialog)
@@ -205,6 +206,11 @@ Jayrah provides a modern, interactive Terminal User Interface (TUI) for browsing
   - Shows keyboard shortcuts for each action
   - Direct action selection or use individual keybindings
   - Perfect for discovering available features and their shortcuts
+- **Comments Viewer (`c` key)**: View all comments for the selected issue
+  - Read-only modal displaying all issue comments in chronological order
+  - Rich markdown formatting with author and timestamp information
+  - Automatic Jira markup to markdown conversion for better readability
+  - Scrollable interface for issues with many comments
 - **Board Selection**: Shows all configured boards with descriptions
 - **Label Editor**: Autocomplete suggestions for existing labels
 - **Component Editor**: Autocomplete suggestions for existing components
@@ -214,7 +220,20 @@ The TUI interface provides a seamless way to browse issues without leaving your 
 
 #### 🏷️ Managing Issue Metadata
 
-Jayrah's TUI makes it easy to edit issue metadata directly from the browser interface:
+Jayrah's TUI makes it easy to view and edit issue metadata directly from the browser interface:
+
+**Comments Viewing (`c` key):**
+
+- **Read-Only Comments Panel**: View all comments for the selected issue in a dedicated modal
+- **Rich Formatting**: Comments are displayed with proper markdown formatting
+- **Chronological Order**: Comments are shown from oldest to newest with clear timestamps
+- **Author Information**: Each comment shows the author's display name and creation date
+- **Jira Markup Conversion**: Automatic conversion of Jira markup to readable markdown
+- **Scrollable Interface**: Navigate through long comment threads easily
+- **Comment Navigation**: Use `n`/`p` to jump between individual comments
+- **Visual Highlighting**: Current comment is highlighted with 👉 [CURRENT] indicator
+- **Add New Comments**: Press `a` to add a new comment to the issue
+- **Quick Access**: Press `Escape` or `q` to close the comments panel
 
 **Labels Management (`l` key):**
 
