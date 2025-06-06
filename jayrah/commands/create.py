@@ -6,10 +6,11 @@ import click
 
 from ..create.create import get_description, interactive_create
 from .common import cli
+from .completions import ComponentType, IssueType, PriorityType
 
 
 @cli.command("create")
-@click.option("--type", "-T", "issuetype", help="Issue type")
+@click.option("--type", "-T", "issuetype", help="Issue type", type=IssueType())
 @click.option("--title", "-t", "title", help="Issue title/summary")
 @click.option("--body", "-b", "body", help="Issue description")
 @click.option(
@@ -19,11 +20,18 @@ from .common import cli
     type=click.Path(exists=True),
     help="Read description from file",
 )
-@click.option("--priority", "-p", "priority", help="Issue priority")
+@click.option(
+    "--priority", "-p", "priority", help="Issue priority", type=PriorityType()
+)
 @click.option("--assignee", "-a", "assignee", help="Issue assignee")
 @click.option("--labels", "-l", "labels", multiple=True, help="Issue labels")
 @click.option(
-    "--components", "-c", "components", multiple=True, help="Issue components"
+    "--components",
+    "-c",
+    "components",
+    multiple=True,
+    help="Issue components",
+    type=ComponentType(),
 )
 @click.option("--template", "-T", "template", help="Use a specific template")
 @click.pass_obj

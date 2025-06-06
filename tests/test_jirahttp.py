@@ -185,10 +185,9 @@ def test_get_components(sample_config, mock_urlopen, mock_jira_client):
             "search",
             params={
                 "jql": "project = TEST",
-                "maxResults": 1000,
+                "maxResults": 100,
                 "fields": "components",
             },
-            label="Fetching components",
         )
 
         # Check that unique components are returned sorted

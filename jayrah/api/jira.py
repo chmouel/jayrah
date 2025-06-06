@@ -400,15 +400,14 @@ class JiraHTTP:
             "GET", "user/search", params={"maxResults": 1000}, label="Fetching users"
         )
 
-    def get_labels(self):
+    def get_labels(self, max_results=100):
         """Get all available labels."""
         # Search for issues with labels and extract unique labels
         jql = "project = " + self.config.get("jira_project")
         response = self._request(
             "GET",
             "search",
-            params={"jql": jql, "maxResults": 1000, "fields": "labels"},
-            label="Fetching labels",
+            params={"jql": jql, "maxResults": max_results, "fields": "labels"},
         )
 
         # Extract unique labels from all issues
@@ -418,15 +417,14 @@ class JiraHTTP:
 
         return sorted(list(labels))
 
-    def get_components(self):
+    def get_components(self, max_results=100):
         """Get all available components."""
         # Search for issues with components and extract unique components
         jql = "project = " + self.config.get("jira_project")
         response = self._request(
             "GET",
             "search",
-            params={"jql": jql, "maxResults": 1000, "fields": "components"},
-            label="Fetching components",
+            params={"jql": jql, "maxResults": max_results, "fields": "components"},
         )
 
         # Extract unique components from all issues

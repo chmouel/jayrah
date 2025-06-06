@@ -1,31 +1,14 @@
 """Board management and selection utilities for Jayrah UI."""
 
-import pathlib
 import typing
 
 import click
-import click.shell_completion
 
-from .. import config, utils
+from .. import utils
 from ..api import jira as jirahttp
 from ..config import defaults
 from . import issues
 from .tui import run_textual_browser
-
-
-class BoardType(click.ParamType):
-    name = "board"
-
-    def shell_complete(self, ctx, _, incomplete):
-        config_file = defaults.CONFIG_FILE
-        if ctx.parent.params.get("config_file"):
-            config_file = pathlib.Path(ctx.parent.params.get("config_file"))
-        cfg = config.read_config({}, config_file)
-        return [
-            click.shell_completion.CompletionItem(x)
-            for x in [x.get("name") for x in cfg.get("boards", [])]
-            if x.startswith(incomplete)
-        ]
 
 
 def show(config):
