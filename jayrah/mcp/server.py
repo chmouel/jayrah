@@ -10,7 +10,7 @@ import jayrah.config as config
 from jayrah.config import defaults
 from jayrah.ui import boards
 
-from . import utils
+from .. import utils
 
 # Initialize config and boards for Jira access
 config_file = defaults.CONFIG_FILE
