@@ -1,3 +1,5 @@
+"""Board management and selection utilities for Jayrah UI."""
+
 import pathlib
 import typing
 

@@ -1,3 +1,5 @@
+"""MCP server implementation for Jayrah AI integration."""
+
 import json
 
 import mcp.server.stdio

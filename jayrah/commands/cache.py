@@ -1,3 +1,5 @@
+"""Cache management command for Jayrah Jira CLI."""
+
 import sys
 import time
 

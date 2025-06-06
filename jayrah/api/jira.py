@@ -1,3 +1,5 @@
+"""Jira HTTP API client and related utilities for interacting with Jira issues, users, and metadata."""
+
 import json
 import sqlite3
 import ssl

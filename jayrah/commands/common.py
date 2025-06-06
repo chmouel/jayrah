@@ -1,3 +1,5 @@
+"""Common utilities and helpers for Jayrah CLI commands."""
+
 import os
 import pathlib
 import sys

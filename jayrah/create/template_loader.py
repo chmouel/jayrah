@@ -1,3 +1,5 @@
+"""Template loading utilities for Jayrah issue creation."""
+
 import os
 
 

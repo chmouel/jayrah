@@ -1,3 +1,5 @@
+"""Caching utilities for Jayrah Jira client."""
+
 import hashlib
 import json
 import pickle

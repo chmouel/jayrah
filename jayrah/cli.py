@@ -1,3 +1,5 @@
+"""CLI entry point for the Jayrah Jira tool."""
+
 import sys
 
 import click

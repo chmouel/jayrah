@@ -1,3 +1,5 @@
+"""Browse command for Jayrah Jira CLI."""
+
 import click
 
 from ..ui import boards

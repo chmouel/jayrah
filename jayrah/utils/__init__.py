@@ -1,3 +1,5 @@
+"""Jayrah utility functions and helpers."""
+
 import datetime
 import os
 import subprocess

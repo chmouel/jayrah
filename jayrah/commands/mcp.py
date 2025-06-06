@@ -1,3 +1,5 @@
+"""MCP command for Jayrah Jira CLI."""
+
 import asyncio
 
 import click

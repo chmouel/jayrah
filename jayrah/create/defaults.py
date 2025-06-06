@@ -1,3 +1,5 @@
+"""Default values and helpers for Jayrah issue creation."""
+
 issue_template = """---
 title: {title}
 type: {issuetype}

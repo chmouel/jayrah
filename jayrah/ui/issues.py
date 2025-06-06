@@ -1,3 +1,5 @@
+"""Issue-related utilities and classes for Jayrah UI."""
+
 from .. import utils
 from ..config import defaults
 

@@ -1,3 +1,5 @@
+"""Create command for Jayrah Jira CLI."""
+
 import os
 
 import click

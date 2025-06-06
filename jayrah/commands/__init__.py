@@ -1,3 +1,5 @@
+"""Jayrah CLI command group initialization."""
+
 from . import browse, cache, create, mcp
 from .common import cli as cli
 

@@ -1,3 +1,5 @@
+"""Utilities for rendering and displaying Jira issues in the terminal."""
+
 import os
 import shutil
 import textwrap

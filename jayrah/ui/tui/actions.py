@@ -1,3 +1,4 @@
+# pylint: disable=no-member
 """Action handlers for the issue browser application."""
 
 from __future__ import annotations
@@ -6,17 +7,10 @@ from typing import Any, cast
 
 from jayrah import utils
 
-from .views import (
-    ActionsPanel,
-    BoardSelectionScreen,
-    ComponentsEditScreen,
-    CommentsViewScreen,
-    EditSelectionScreen,
-    FuzzyFilterScreen,
-    IssueDetailPanel,
-    LabelsEditScreen,
-    TransitionSelectionScreen,
-)
+from .views import (ActionsPanel, BoardSelectionScreen, CommentsViewScreen,
+                    ComponentsEditScreen, EditSelectionScreen,
+                    FuzzyFilterScreen, IssueDetailPanel, LabelsEditScreen,
+                    TransitionSelectionScreen)
 
 
 class IssueBrowserActions:

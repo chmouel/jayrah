@@ -1,3 +1,5 @@
+"""Default configuration values and constants for Jayrah."""
+
 import pathlib
 
 ORDER_BY = "updated"

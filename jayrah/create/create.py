@@ -1,3 +1,5 @@
+"""Issue creation utilities for Jayrah."""
+
 import click
 import jira2markdown
 

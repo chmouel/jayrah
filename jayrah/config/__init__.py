@@ -1,3 +1,5 @@
+"""Configuration utilities for Jayrah."""
+
 import pathlib
 import re
 
