@@ -30,12 +30,19 @@ class IssueBrowserActions:
     - apply_fuzzy_filter method
     """
 
+    command: str = ""  # Default command for this app
+    jql: str = ""  # JQL query for fetching issues
+    order_by: str = ""  # Order by clause for fetching issues
+    issues: list = []  # List of issues fetched from JIRA
+    selected_issue: str | None = None  # Currently selected issue
+
     def action_reload(self) -> None:  # noqa: D401
         """Reload issues asynchronously with loading state."""
         # Show loading state
         cast(Any, self).notify("🔄 Reloading issues...")
 
         # Run the reload in a worker thread
+        # pylint: disable=unnecessary-lambda
         cast(Any, self).run_worker(
             lambda: self._reload_issues(),
             exclusive=True,

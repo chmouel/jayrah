@@ -3,19 +3,18 @@
 import json
 
 import mcp.server.stdio
-import mcp.types as types
+from mcp import types
 from mcp.server import NotificationOptions, Server
 from mcp.server.models import InitializationOptions
 from pydantic import AnyUrl
 
-import jayrah.config as config
-from jayrah.config import defaults
+from jayrah import config
 from jayrah.ui import boards
 
 from .. import utils
 
 # Initialize config and boards for Jira access
-config_file = defaults.CONFIG_FILE
+config_file = config.defaults.CONFIG_FILE
 wconfig = config.make_config({}, config_file)
 boards_obj = boards.Boards(wconfig)
 
@@ -60,10 +59,9 @@ async def handle_read_resource(uri: AnyUrl) -> str:
 
     if resource_type == "board":
         return await _read_board_resource(resource_id)
-    elif resource_type == "issue":
+    if resource_type == "issue":
         return await _read_issue_resource(resource_id)
-    else:
-        raise ValueError(f"Unsupported resource type: {resource_type}")
+    raise ValueError(f"Unsupported resource type: {resource_type}")
 
 
 async def _read_board_resource(board_name: str) -> str:
@@ -81,7 +79,11 @@ async def _read_issue_resource(issue_key: str) -> str:
     try:
         issue = boards_obj.jira.get_issue(issue_key)
         return json.dumps(issue)
-    except Exception as e:
+    except AttributeError as e:
+        return json.dumps(
+            {"error": f"Attribute error fetching issue {issue_key}: {str(e)}"}
+        )
+    except Exception as e:  # pylint: disable=W0718
         return json.dumps({"error": f"Error fetching issue {issue_key}: {str(e)}"})
 
 
@@ -145,7 +147,7 @@ async def _generate_analyze_issue_prompt(
             ],
         )
     except Exception as e:
-        raise ValueError(f"Error fetching issue {issue_key}: {str(e)}")
+        raise ValueError(f"Error fetching issue {issue_key}: {str(e)}") from e
 
 
 @server.list_tools()
@@ -326,7 +328,7 @@ async def handle_call_tool(
             raise ValueError(f"Unknown tool: {name}")
 
         return await handler(arguments or {})
-    except Exception as e:
+    except Exception as e:  # pylint: disable=W0718
         return [
             types.TextContent(
                 type="text", text=f"Error executing tool '{name}': {str(e)}"
@@ -411,6 +413,8 @@ async def _handle_browse(arguments: dict) -> list[types.TextContent]:
     ]
 
 
+# pylint: disable=too-many-locals
+# pylint: disable=too-many-arguments
 def _format_issues_summary(
     board_name: str,
     issues: list[dict],

@@ -65,7 +65,7 @@ class CommentsViewScreen(BaseModalScreen):
         super().__init__(parent)
         self.issue_key = issue_key
         self.config = config or {}
-        self.comments = []  # Store comments data
+        self.comments: list = []  # Store comments data
         self.current_comment_index = 0  # Track which comment we're viewing
 
     def compose(self) -> ComposeResult:
@@ -383,9 +383,7 @@ class SuggestFromListComma(SuggestFromList):
                     # Join all previous parts with the new suggestion using ", "
                     previous_parts = parts[:-1]
                     return ", ".join(previous_parts) + ", " + full_suggestion
-                else:
-                    # First item, just return the suggestion
-                    return full_suggestion
+                return full_suggestion
 
         return None
 

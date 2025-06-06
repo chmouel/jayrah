@@ -1,6 +1,6 @@
 """Default values and helpers for Jayrah issue creation."""
 
-issue_template = """---
+ISSUE_TEMPLATE = """---
 title: {title}
 type: {issuetype}
 components: {components}
@@ -10,7 +10,7 @@ priority: {priority}
 ---
 {content}"""
 
-default_content = """## Description
+DEFAULT_CONTENT = """## Description
 
 Please provide a clear and concise description of the issue or feature.
 

@@ -4,8 +4,8 @@ import hashlib
 import json
 import pickle
 import sqlite3
-import time
 import threading
+import time
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -47,7 +47,7 @@ class JiraCache:
             """)
             self._conn.commit()
 
-    def _get_connection(self):
+    def get_connection(self):
         """Get the persistent connection (for compatibility)."""
         return self._conn
 

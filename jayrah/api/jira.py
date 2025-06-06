@@ -342,7 +342,7 @@ class JiraHTTP:
 
         try:
             # Connect to the SQLite database
-            conn = self.cache._get_connection()
+            conn = self.cache.get_connection()
             cursor = conn.cursor()
 
             # Get total number of entries

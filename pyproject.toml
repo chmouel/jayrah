@@ -37,16 +37,24 @@ disable_error_code = ["import-not-found"]
 
 [tool.pylint.'MESSAGES CONTROL']
 disable = [
-  "R0903", # Too few public methods
-  "R0917", # Too many positional arguments
-  "C0415", # Import outside toplevel
-  "W0613", # Unused argument
-  "W0621", # Redefining name from outer scope
-  "W1514", # Using open without explicitly specifying an encoding
-  "C0414", # Import alias does not rename original package
-  "C0104", # Disallowed name
-  "W0612", # Unused variable
-  "R0801", # Duplicate code
-  "R0401", # Cyclic import
-  "C0302", # Too many lines in module
+  "R0903",                      # Too few public methods
+  "R0917",                      # Too many positional arguments
+  "C0415",                      # Import outside toplevel
+  "W0613",                      # Unused argument
+  "W0621",                      # Redefining name from outer scope
+  "W1514",                      # Using open without explicitly specifying an encoding
+  "C0414",                      # Import alias does not rename original package
+  "C0104",                      # Disallowed name
+  "W0612",                      # Unused variable
+  "R0801",                      # Duplicate code
+  "R0401",                      # Cyclic import
+  "C0302",                      # Too many lines in module
+  "W0718",                      # Too broad exception clause
+  "line-too-long",              # Line too long
+  "too-many-arguments",         # Too many arguments
+  "too-many-locals",            # Too many local variables
+  "missing-function-docstring",
+  "missing-class-docstring",
+  "too-many-branches",
+  "too-many-statements",
 ]

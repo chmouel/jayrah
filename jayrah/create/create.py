@@ -30,9 +30,9 @@ def get_description(
             template = issuetype.lower()
         content = tpl.load_template(jayrah_obj, template) if template else None
     if not content:
-        content = defaults.default_content
+        content = defaults.DEFAULT_CONTENT
 
-    tmpl = defaults.issue_template.format(
+    tmpl = defaults.ISSUE_TEMPLATE.format(
         title=title or "",
         issuetype=issuetype or "Story",
         content=content,
@@ -142,7 +142,7 @@ def interactive_create(jayrah_obj, defaults):
             defaults["labels"],
             defaults["components"],
         )
-    # return None
+    return None
 
 
 def create_issue(
@@ -169,4 +169,5 @@ def create_issue(
             return issue_key
     except Exception as e:
         click.secho(f"❌ Error creating issue: {str(e)}", fg="red")
-        return None
+
+    return ""
