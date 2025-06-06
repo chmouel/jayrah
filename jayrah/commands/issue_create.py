@@ -5,8 +5,8 @@ import jira2markdown
 from rich.prompt import Prompt
 
 from .. import utils
-from ..ui.fzf import select as select
-from .issue_view import format_with_rich, wrap_markdown
+# from ..ui.fzf import select as select
+from ..utils import issue_view
 
 issue_template = """---
 title: {summary}
@@ -181,8 +181,8 @@ def preview_issue(
 
     # Convert Jira markdown to standard markdown and format with gum if available
     markdown_description = jira2markdown.convert(description)
-    markdown_description = wrap_markdown(markdown_description)
-    format_with_rich(markdown_description)
+    markdown_description = issue_view.wrap_markdown(markdown_description)
+    issue_view.format_with_rich(markdown_description)
     click.echo("\n")
 
 

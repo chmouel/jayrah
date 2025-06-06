@@ -8,8 +8,7 @@ from textual.containers import Container, Vertical
 from textual.suggester import SuggestFromList
 from textual.widgets import DataTable, Label, Markdown
 
-from jayrah.commands import issue_view
-
+from ...utils import issue_view
 from .base import BaseModalScreen
 from .enhanced_widgets import EmacsInput, EmacsTextArea
 
