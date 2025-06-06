@@ -221,7 +221,7 @@ class JiraHTTP:
         priority=None,
         assignee=None,
         labels=None,
-        components: list = [],
+        components=None,
     ):
         """
         Create a new issue.
@@ -233,10 +233,12 @@ class JiraHTTP:
             priority (str): Priority level.
             assignee (str): Assignee username.
             labels (list): List of labels.
-
+            components (list): List of components.
         Returns:
             dict: JSON response containing the created issue.
         """
+        if components is None:
+            components = []
         endpoint = "issue"
         payload = {
             "fields": {
