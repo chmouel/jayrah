@@ -31,7 +31,7 @@ def make_config(config: dict, config_file: pathlib.Path) -> dict:
 
     if not config["jira_password"]:
         config["jira_password"] = Prompt.ask(
-            "Enter your Jira password (or token)", password=True
+            "Enter your Jira password (or pass key prefixed by pass:)", password=True
         )
         config_modified = True
 

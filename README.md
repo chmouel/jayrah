@@ -1,518 +1,80 @@
-# 🌞 Jayrah - Jira from your terminal with fuzzy search and AI-powered command palette (MCP) 🌞
+# Jayrah
 
-Jayrah is a CLI tool that makes working with Jira faster by adding fuzzy search
-(via fzf) and AI-powered capabilities to your workflow (via
-[MCP](https://modelcontextprotocol.io/introduction) protocol). It lets you
-quickly find, create, and manage issues without leaving your terminal.
+A simple CLI and TUI for working with Jira from your terminal.
 
-## Installation
+## Install
 
-Install it with uv:
-
-```bash
+```sh
 uvx jayrah
 ```
 
-Or build from source:
+Or from source:
 
-```bash
+```sh
 git clone https://github.com/chmouel/jayrah.git
 cd jayrah
 uv run jayrah
 ```
 
-## What you'll need
+## Quick Setup
 
-- **uv** - Get it here: <https://docs.astral.sh/uv/getting-started/installation>
-- **fzf** - Install through your system's package manager
-
-## Setting it up
-
-Jayrah looks for its config at `~/.config/jayrah/config.yaml`. Use
-`--config-file` if you need a different location.
-
-Here's a sample config:
+Create `~/.config/jayrah/config.yaml`:
 
 ```yaml
 jira_server: "https://your-jira.atlassian.net"
 jira_user: "you@example.com"
-jira_password: "your-api-token"
-jira_component: "your-team-component"
-
-# Custom issue views
-boards:
-  myissues:
-    jql: "assignee = currentUser() AND resolution = Unresolved ORDER BY updated DESC"
-    order_by: "updated DESC"
-  myinprogress:
-    jql: "assignee = currentUser() AND status = 'In Progress' ORDER BY updated DESC"
-    order_by: "updated DESC"
-  mytodo:
-    jql: "assignee = currentUser() AND status = 'To Do' ORDER BY updated DESC"
-    order_by: "priority DESC"
-
-templates:
-  bug: |
-    ## 🐞 Bug Description
-
-    Please describe the bug.
-
-    ## Steps to Reproduce
-
-    1. 
-    2. 
-
-    ## Expected Behavior
-
-    What did you expect to happen?
-
-    ## Actual Behavior
-
-    What actually happened?
-
-    ## Additional Information
-
-    (Add any other context here)
-
-  story: |
-    ## ✨ Story
-
-    Describe the user story here.
-
-    ## Acceptance Criteria
-
-    - [ ] 
-
-    ## Additional Information
-
-    (Add any other context here)
+jira_password: "your-api-token" # or you can use a pass path, with the pass:: prefix, for example pass::jira/token
+jira_project: "PROJECT-KEY"
 ```
 
-You can also set these via environment variables:
+if you don't configure your config.yaml file, jayrah will prompt you for the
+required information when you run it for the first time.
 
-- `JIRA_SERVER`
-- `JIRA_USER`
-- `JIRA_PASSWORD`
-- `JIRA_COMPONENT`
+## Usage
 
-## How to use it
+### Browse
 
-### 🔍 Find issues
+Launch the issue browser with:
 
-```bash
-# Browse all issues in a board
-jayrah browse [BOARD]
-
-# Search for issues containing specific terms in summary or description 
-jayrah browse [BOARD] term1 term2   # Searches for term1 AND term2
-jayrah browse [BOARD] --or term1 term2   # Searches for term1 OR term2
+```sh
+jayrah browse # or just `jayrah` will do the same
 ```
 
-#### 🔎 Field Filtering Examples
+List all your boards with the `-l/--list-boards` option.
+Filter issues by board with the `-f/--filter` option for example:
 
-Jayrah supports powerful field-specific filtering with the `--filter` option:
-
-```bash
-# Basic status filtering
-jayrah browse myissues --filter status="In Progress"
-jayrah browse myissues --filter status="Code Review"
-
-# Multiple field filters (combined with AND)
-jayrah browse myissues --filter status="In Progress" --filter priority=High
-jayrah browse myissues --filter assignee=currentUser() --filter created>"-1w"
-
-# Combining content search with field filters
-jayrah browse myissues bug frontend --filter status="To Do"
-
-# Using Jira JQL operators in filters
-jayrah browse myissues --filter created>"-1w"       # Issues created in last week
-jayrah browse myissues --filter updated<"-30d"      # Issues not updated in 30 days 
-jayrah browse myissues --filter summary~"Critical"  # Summary contains "Critical"
-jayrah browse myissues --filter labels="backend"    # Has "backend" label
-
-# Complex filtering examples
-jayrah browse myissues --filter "sprint in openSprints()" --filter status!="Done"
-jayrah browse myissues --filter "duedate < endOfWeek()" --filter priority="High"
+```sh
+jayrah browse myissue --filter status=New
 ```
 
-Pick a board from your config file. Add search terms as arguments to filter issues by content. By default, multiple terms are combined with AND logic, but you can use the `--or` flag to combine them with OR logic. Use the `--filter` option to add field-specific filters in Jira JQL format.
+if you add words after the `jayrah browse BOARD` command, it will search for
+issues that match those words.
 
-### 🖥️ Interactive TUI Interface
-
-Jayrah provides a modern, interactive Terminal User Interface (TUI) for browsing and managing issues when you use the `browse` command. The TUI offers a rich set of keyboard shortcuts for efficient navigation and issue management.
-
-#### 📚 TUI Keybindings
-
-**Navigation & Control:**
-
-- `q` / `Escape` - Quit the application
-- `h` - Show help information
-- `r` - Reload issues and clear cache
-
-**Issue Navigation:**
-
-- `j` / `↓` - Move cursor down in the issues table
-- `k` / `↑` - Move cursor up in the issues table
-- `J` - Scroll down in the issue detail panel
-- `K` - Scroll up in the issue detail panel
-
-**Issue Actions:**
-
-- `a` - **Show Actions Panel** (shows all available actions in one place)
-- `o` - Open the selected issue in your browser
-- `c` - **View Comments** (opens comments viewer for the selected issue)
-- `e` - Edit issue title or description (opens edit selection modal)
-- `l` - Edit labels for the selected issue (opens modal dialog)
-- `Ctrl+C` - Edit components for the selected issue (opens modal dialog)
-- `t` - Transition issue to a new status (opens transition selection modal)
-
-**Board Management:**
-
-- `b` - **Switch boards** (opens board selection modal)
-  - Use arrow keys to navigate available boards
-  - Press `Enter` to switch to selected board
-  - Press `Escape` to cancel
-
-**Search & Filtering:**
-
-- `f` - Open fuzzy filter dialog to search across all issue fields
-  - Type search terms to filter visible issues
-  - Press `Enter` to apply filter
-  - Press `Escape` to cancel
-
-#### 🎛️ TUI Interface Features
-
-**Two-Panel Layout:**
-
-- **Top Panel (30%)**: Issues table with columns for Type, Ticket, Summary, Status, Assignee, Reporter, Created, and Updated
-- **Bottom Panel (70%)**: Detailed view of the selected issue with formatted description, comments, and metadata
-
-**Real-time Updates:**
-
-- Issues automatically update when switching boards
-- Cache is cleared on reload for fresh data
-- UI shows loading indicators during operations
-
-**Smart Filtering:**
-
-- Fuzzy search works across all visible fields
-- Board switching preserves current filters
-- Filter results show match counts
-
-**Interactive Modals:**
-
-- **Actions Panel (`a` key)**: Centralized view of all available actions
-  - Quick access to all issue manipulation features in one place
-  - Shows keyboard shortcuts for each action
-  - Direct action selection or use individual keybindings
-  - Perfect for discovering available features and their shortcuts
-- **Comments Viewer (`c` key)**: View all comments for the selected issue
-  - Read-only modal displaying all issue comments in chronological order
-  - Rich markdown formatting with author and timestamp information
-  - Automatic Jira markup to markdown conversion for better readability
-  - Scrollable interface for issues with many comments
-- **Board Selection**: Shows all configured boards with descriptions
-- **Label Editor**: Autocomplete suggestions for existing labels
-- **Component Editor**: Autocomplete suggestions for existing components
-- **Filter Dialog**: Live search with immediate feedback
-
-The TUI interface provides a seamless way to browse issues without leaving your terminal, making it perfect for developers who prefer keyboard-driven workflows.
-
-#### 🏷️ Managing Issue Metadata
-
-Jayrah's TUI makes it easy to view and edit issue metadata directly from the browser interface:
-
-**Comments Viewing (`c` key):**
-
-- **Read-Only Comments Panel**: View all comments for the selected issue in a dedicated modal
-- **Rich Formatting**: Comments are displayed with proper markdown formatting
-- **Chronological Order**: Comments are shown from oldest to newest with clear timestamps
-- **Author Information**: Each comment shows the author's display name and creation date
-- **Jira Markup Conversion**: Automatic conversion of Jira markup to readable markdown
-- **Scrollable Interface**: Navigate through long comment threads easily
-- **Comment Navigation**: Use `n`/`p` to jump between individual comments
-- **Visual Highlighting**: Current comment is highlighted with 👉 [CURRENT] indicator
-- **Add New Comments**: Press `a` to add a new comment to the issue
-- **Quick Access**: Press `Escape` or `q` to close the comments panel
-
-**Labels Management (`l` key):**
-
-- View current labels for the selected issue
-- Add or remove labels using comma-separated input
-- Autocomplete suggestions based on existing labels in your project
-- Real-time validation and immediate updates
-
-**Components Management (`Ctrl+C` key):**
-
-- View current components for the selected issue
-- Add or remove components using comma-separated input
-- Autocomplete suggestions based on existing components in your project
-- Real-time validation and immediate updates
-
-**Issue Editing (`e` key):**
-
-- **Title Editing**: Edit issue title/summary using a built-in input widget
-  - Pre-filled with current title for easy modification
-  - Real-time validation (prevents empty titles)
-  - Immediate updates to Jira and UI refresh
-- **Description Editing**: Edit issue description using a built-in text area widget
-  - Multi-line text area with markdown syntax highlighting
-  - Pre-filled with current description content
-  - Shows character count for current description
-  - Save with Ctrl+S, cancel with Escape
-  - Changes are applied immediately after saving
-
-Both editors feature:
-
-- **Smart Input**: Comma-separated values with whitespace handling
-- **Autocomplete**: Suggestions from existing project metadata
-- **Live Preview**: See current values before editing
-- **Instant Updates**: Changes are applied immediately to Jira
-- **Cache Refresh**: Issue details update automatically after changes
-
-#### 🧪 Testing the TUI Interface
-
-To test the TUI interface comprehensively, launch it with:
-
-```bash
-jayrah browse [BOARD_NAME]
+```sh
+jayrah browse myissue search1 search2
 ```
 
-**Key Features to Test:**
+This by default will search for issues that match the words in the summary, you
+can use the switch `--or` to instead do a or on the search terms.
 
-**1. Basic Navigation:**
+- Create issue: `jayrah create`
 
-- Use `j`/`k` or arrow keys to navigate the issues table
-- Verify the bottom panel updates with issue details as you navigate
-- Test `J`/`K` to scroll the detail panel content
+## TUI (Terminal UI)
+
+When you start browsing the issues of your board, you will be presented with a
+list of all the issues in that board. You can use your mouse or your keyboard:
+
+- Navigate with arrow keys or `j`/`k`
+- Move the preview pan up and down with `J`/`K`
 - Press `q` or `Escape` to quit
-
-**2. Issue Actions:**
-
-- Press `a` to open the Actions Panel:
-  - See all available actions in one centralized view
-  - Use arrow keys to navigate through available actions
-  - Press `Enter` to select an action, or use the direct keyboard shortcut
-  - Test that each action (Labels, Components, Transition, Edit, Filter, Board) launches correctly
-  - Verify the panel shows the correct keyboard shortcuts for each action
-- Press `o` to open an issue in your browser
-- Press `r` to reload issues and clear cache
-
-**3. Metadata Editing:**
-
-- Press `l` to edit labels:
-  - Test autocomplete suggestions
-  - Add new labels with comma separation
-  - Remove existing labels
-  - Verify immediate updates to Jira
-- Press `Ctrl+C` to edit components:
-  - Test autocomplete for existing components
-  - Add/remove components with validation
-  - Confirm changes are applied immediately
-
-**4. Issue Content Editing:**
-
-- Press `e` to open the edit selection modal:
-  - Choose "Edit Title" to test title editing
-  - Choose "Edit Description" to test description editing
-  - Test Emacs-style keybindings (`Ctrl+A`, `Ctrl+E`, `Ctrl+K`, etc.)
-  - Verify validation (e.g., empty titles are rejected)
-  - Confirm changes appear immediately in the detail panel
-
-**5. Status Transitions:**
-
-- Press `t` to open transition modal:
-  - Navigate available transitions with arrow keys
-  - Select a transition and confirm the status change
-  - Verify the status updates in both the table and detail panel
-
-**6. Board Management:**
-
-- Press `b` to switch boards:
-  - Navigate through available boards
-  - Select a different board and verify issues load
-  - Confirm the interface updates with new board data
-
-**7. Filtering and Search:**
-
-- Press `f` to open fuzzy filter:
-  - Type search terms to filter issues
-  - Test filtering across all visible fields (ticket, summary, status, etc.)
-  - Verify filter results show match counts
-  - Clear filter to see all issues again
-
-**8. UI Responsiveness:**
-
-- Resize terminal window to test responsive layout
-- Verify scrolling works in both panels
-- Test modal dialogs open and close properly
-- Confirm error messages display appropriately
-
-**Expected Behavior:**
-
-- All actions should provide immediate feedback
-- Modals should open/close smoothly with proper keybindings
-- Data should update in real-time after changes
-- Error handling should be graceful with clear messages
-- Interface should remain responsive during operations
-
-### ✨ Make a new issue
-
-```bash
-# Interactive mode (default when no arguments provided)
-jayrah create
-
-# Quick create with editor
-jayrah create --title "New Feature" --editor
-
-# Use a template
-jayrah create --title "Bug Report" --template bug
-
-# Read description from file
-jayrah create --title "Documentation" --body-file docs.md
-
-# Full command line
-jayrah create --type "Task" --title "Update README" --body "Update installation instructions" --priority "High" --assignee "john.doe" --labels "documentation" "priority-high"
-```
-
-#### 📝 Issue Creation Features
-
-- **Interactive Mode**: When no arguments are provided, Jayrah guides you through creating an issue with smart defaults and fuzzy selection.
-- **Editor Integration**: Use `--editor/-e` to write descriptions in your default editor.
-- **Templates**: Use `--template/-T` to load issue templates from:
-  - User's config directory (`~/.config/jayrah/templates/`)
-  - Repository templates (`.github/ISSUE_TEMPLATE/`, `.gitlab/issue_templates/`, etc.)
-  - Default template if none found
-- **Smart Defaults**:
-  - Issue type defaults to "Story"
-  - Priority defaults to "Medium"
-  - Assignee defaults to current user
-  - Git branch name is used for title suggestions
-- **Preview**: Shows a preview of the issue before creation
-- **Validation**: Ensures all required fields are filled
-
-#### 📝 Custom Issue Templates by Type
-
-You can define custom default templates for each issue type in your config file. Add a `templates` section to your `~/.config/jayrah/config.yaml` like this:
-
-```yaml
-templates:
-  bug: |
-    ## 🐞 Bug Description
-
-    Please describe the bug.
-
-    ## Steps to Reproduce
-
-    1. 
-    2. 
-
-    ## Expected Behavior
-
-    What did you expect to happen?
-
-    ## Actual Behavior
-
-    What actually happened?
-
-    ## Additional Information
-
-    (Add any other context here)
-
-  story: ~/.config/jayrah/story_template.md   # Reference to a file
-  task: |
-    ## Task
-
-    - [ ] Task details here
-```
-
-- If the value is a string and a valid file path, Jayrah will load the template from that file.
-- If the value is a string and not a file path, Jayrah will use the string as the template content.
-
-**How it works:**
-When you create a new issue, Jayrah will automatically use the template matching the selected type (e.g., `bug`, `story`).
-If no template is found for the type, the built-in default will be used.
-You do **not** need to specify `--template`—it's automatic!
-
-- If you do not specify a template for a type in your config, but a file exists at `~/.config/jayrah/templates/{type}.md` (e.g., `bug.md`), Jayrah will use that file automatically for that type.
-- If neither a config template nor a file exists, Jayrah will use the built-in default template.
-
-### 🛠️ Work with issues
-
-```bash
-# Open in browser
-jayrah issue open TICKET-123
-
-# See details
-jayrah issue view TICKET-123 [--comments N]
-
-# Change status, edit fields, etc.
-jayrah issue action TICKET-123
-
-# Update description
-jayrah issue edit-description TICKET-123
-
-# Move to a different status
-jayrah issue transition TICKET-123
-```
-
-### 🔀 Create Git branches
-
-```bash
-# Create a git branch name from your assigned issues
-jayrah git-branch
-
-# Search your assigned issues for specific terms and create a branch
-jayrah git-branch term1 term2      # Searches for term1 AND term2
-jayrah git-branch --or term1 term2  # Searches for term1 OR term2
-```
-
-#### 🌿 Git Branch Filtering Examples
-
-Filtering works with the `git-branch` command too, helping you quickly find the right issue to branch from:
-
-```bash
-# Focus on specific issue statuses
-jayrah git-branch --filter status="To Do"           # Only To Do issues
-jayrah git-branch --filter status="In Progress"     # Only In Progress issues
-
-# Find high-priority issues
-jayrah git-branch --filter priority=High
-
-# Combine with content search
-jayrah git-branch bug --filter status="To Do"       # Bug issues in To Do
-jayrah git-branch feature --filter sprint="Current Sprint"
-
-# Advanced filtering
-jayrah git-branch --filter "issuetype=Story" --filter "labels=frontend"
-jayrah git-branch --filter "created>startOfWeek()" --filter "assignee=currentUser()"
-```
-
-The `git-branch` command will show you matching issues and let you select one to create a branch name from. The branch name will be formatted as `ISSUE-KEY-issue-summary-in-kebab-case`.
-
-## Shell completion
-
-### For ZSH
-
-Either:
-
-1. Copy [./misc/completion.zsh](./misc/completion.zsh) to your zsh fpath
-2. Or add this to your `.zshrc`:
-
-```shell
-eval "$(_JAYRAH_COMPLETE=zsh_source jayrah)" 
-```
-
-### For Bash
-
-Either:
-
-1. Copy [./misc/completion.bash](./misc/completion.bash) to your bash completion dir
-2. Or add this to your `.bashrc`:
-
-```shell
-eval "$(_JAYRAH_COMPLETE=bash_source jayrah)" 
-```
+- Press `o` to open the issue in your browser
+- Press `f` to filter issues by status, assignee, or other fields.
+- Press `a` for all actions you can do on the issue.
+- Press `c` for accessing or adding a comment.
+- Press `t` to transition the issue to a new status.
+- Press `e` to edit the title or description of the issue. (the editor emulate
+  readline/emacs keys).
+- Use `F1` for the command palette
 
 ## MCP Server for AI integration
 
@@ -569,60 +131,13 @@ Follow these steps to set up Jayrah with VS Code:
 }
 ```
 
-- In Copilot Chat, select the tools button (often a sparkle icon or similar) to see and use Jayrah's available actions.
-
-### Using MCP with Pagination and Filtering
-
-When using the MCP server in Copilot Chat, you can leverage powerful pagination and filtering capabilities:
-
-```bash
-# Basic board browsing
-@jira browse --board="myissues"
-
-# Pagination options
-@jira browse --board="myissues" --limit=20             # Show 20 issues per page
-@jira browse --board="myissues" --page=2               # Show second page of results
-@jira browse --board="myissues" --page_size=50 --page=3 # Customize page size and go to page 3
-
-# Field filtering examples
-@jira browse --board="myissues" --filters=["status=In Progress"]
-@jira browse --board="myissues" --filters=["priority=High", "assignee=currentUser()"]
-
-# Combining search terms with filters
-@jira browse --board="myissues" --search_terms=["bug", "frontend"] --filters=["status=To Do"]
-@jira browse --board="myissues" --search_terms=["api"] --filters=["created>-1w"]
-
-# Using JQL operators in filters
-@jira browse --board="myissues" --filters=["updated<-30d"]      # Not updated in 30 days
-@jira browse --board="myissues" --filters=["summary~Critical"]  # Summary contains "Critical"
-
-# Complex filtering examples
-@jira browse --board="myissues" --filters=["sprint in openSprints()", "status!=Done"]
-@jira browse --board="myissues" --filters=["duedate < endOfWeek()", "priority=High"]
-
-# Using OR logic for search terms
-@jira browse --board="myissues" --search_terms=["bug", "error"] --use_or=true
-
-# Git branch suggestions with filters
-@jira git-branch --filters=["status=To Do"]
-@jira git-branch --search_terms=["feature"] --filters=["sprint in openSprints()"]
-@jira git-branch --filters=["issuetype=Story", "labels=frontend"]
-```
-
-The output will show you which page you're viewing and how to navigate between pages. When using the git-branch command, you'll get a suggested branch name ready to use.
-
-## Need help?
-
-Run `jayrah help` for all the details.
+- In Copilot Chat, select the tools button (often a sparkle icon or similar) to
+see and use Jayrah's available actions.
 
 ## License
 
-[Apache-2.0](./LICENSE)
+Apache-2.0
 
 ## Author
 
-### Chmouel Boudjnah
-
-- Fediverse - <[@chmouel@chmouel.com](https://fosstodon.org/@chmouel)>
-- Twitter - <[@chmouel](https://twitter.com/chmouel)>
-- Blog - <[https://blog.chmouel.com](https://blog.chmouel.com)>
+Chmouel Boudjnah
