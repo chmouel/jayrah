@@ -112,8 +112,6 @@ class JiraCache:
         params: Optional[Dict] = None,
         request_data: Optional[Dict] = None,
     ) -> None:
-        if self.config.get("no_cache"):
-            return
         key = self._generate_key(url, params, request_data)
         timestamp = time.time()
         try:
