@@ -167,10 +167,10 @@ class JiraHTTP:
         except urllib.error.HTTPError as e:
             log(f"HTTP error occurred: {e}")
             log(f"Response: {e.read().decode('utf-8')}")
-            raise click.ClickException(f"HTTP error: {e}")
+            raise click.ClickException(f"HTTP error: {e}") from e
         except urllib.error.URLError as e:
             log(f"URL error occurred: {e}")
-            raise click.ClickException(f"URL error: {e}")
+            raise click.ClickException(f"URL error: {e}") from e
 
     def search_issues(
         self, jql, start_at=0, max_results=50, fields=None, use_cache: bool = True
