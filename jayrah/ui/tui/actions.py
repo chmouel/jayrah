@@ -7,10 +7,17 @@ from typing import Any, cast
 
 from jayrah import utils
 
-from .views import (ActionsPanel, BoardSelectionScreen, CommentsViewScreen,
-                    ComponentsEditScreen, EditSelectionScreen,
-                    FuzzyFilterScreen, IssueDetailPanel, LabelsEditScreen,
-                    TransitionSelectionScreen)
+from .views import (
+    ActionsPanel,
+    BoardSelectionScreen,
+    CommentsViewScreen,
+    ComponentsEditScreen,
+    EditSelectionScreen,
+    FuzzyFilterScreen,
+    IssueDetailPanel,
+    LabelsEditScreen,
+    TransitionSelectionScreen,
+)
 
 
 class IssueBrowserActions:
