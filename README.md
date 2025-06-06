@@ -21,13 +21,22 @@ uv run jayrah
 Create `~/.config/jayrah/config.yaml`:
 
 ```yaml
-jira_server: "https://your-jira.atlassian.net"
+jira_server: "https://your-jira-id.atlassian.net" # or other Jira custom server URL
 jira_user: "you@example.com"
 jira_password: "your-api-token" # or you can use a pass path, with the pass:: prefix, for example pass::jira/token
 jira_project: "PROJECT-KEY"
+api_version: "2"  # Use "3" for Jira Cloud with the newer API
+auth_type: "basic" # or "bearer" for operations Bearer authentication
 ```
 
-if you don't configure your config.yaml file, jayrah will prompt you for the
+Jayrah supports both Bearer token and Basic authentication:
+
+- API v2 uses Bearer token authentication by default
+- API v3 uses Basic authentication by default
+
+For Basic authentication, make sure your configuration includes both `jira_user` and `jira_password`.
+
+If you don't configure your config.yaml file, jayrah will prompt you for the
 required information when you run it for the first time.
 
 ## Usage

@@ -1,5 +1,27 @@
-"""Jira HTTP API client and related utilities for interacting with Jira issues, users, and metadata."""
+"""Jira HTTP API client and related utilities for interacting with Jira issues, users, and metadata.
 
+This module provides a client for interacting with Jira's REST API (both v2 and v3).
+The JiraHTTP class handles authentication, request/response formatting, and caching.
+Supports both Bearer token and Basic authentication methods, automatically selecting
+the appropriate method based on the API version.
+
+Authentication:
+- API v2 uses Bearer token authentication by default
+- API v3 uses Basic authentication by default
+- Authentication method can be explicitly set via the auth_method parameter
+
+Examples:
+    # Create a client with API v2 (Bearer token auth by default)
+    client_v2 = JiraHTTP(config, api_version="2")
+
+    # Create a client with API v3 (Basic auth by default)
+    client_v3 = JiraHTTP(config, api_version="3")
+
+    # Override the default authentication method
+    client_v3_bearer = JiraHTTP(config, api_version="3", auth_method="bearer")
+"""
+
+import base64
 import json
 import sqlite3
 import ssl
@@ -17,24 +39,58 @@ class JiraHTTP:
 
     # pylint: disable=too-many-instance-attributes
     # pylint: disable=too-many-positional-arguments
-    def __init__(self, config):
+    def __init__(self, config, api_version="2", auth_method=None):
+        """Initialize the Jira HTTP client.
+
+        Args:
+            config (dict): Configuration dictionary with Jira settings
+            api_version (str): Jira API version to use. Default is "2". Use "3" for the newer API.
+            auth_method (str, optional): Authentication method to use.
+                Options are "basic" or "bearer". If None, will use "bearer" for v2 and "basic" for v3.
+        """
         self.config = config
         server = self.config.get("jira_server")
-        self.base_url = f"{server}/rest/api/2"
+        self.api_version = api_version
+        self.base_url = f"{server}/rest/api/{self.api_version}"
         self.cache = cache.JiraCache(config)
         self.verbose = self.config.get("verbose", False)
         self.insecure = self.config.get("insecure", False)
 
+        # Determine authentication method based on API version if not explicitly specified
+        if auth_method is None:
+            # Default to basic auth for v3, bearer for v2
+            self.auth_method = "basic" if str(self.api_version) == "3" else "bearer"
+        else:
+            self.auth_method = auth_method.lower()
+
         if self.verbose:
             log(
-                f"Initialized JiraHTTP: server={server}, project={self.config.get('jira_component')}, no_cache={self.config.get('no_cache')}, insecure={self.insecure}",
+                f"Initialized JiraHTTP: server={server}, api_version={self.api_version}, auth_method={self.auth_method}, project={self.config.get('jira_component')}, no_cache={self.config.get('no_cache')}, insecure={self.insecure}",
             )
 
+        # Set up headers based on authentication method
         self.headers = {
-            "Authorization": f"Bearer {self.config.get('jira_password')}",
             "Content-Type": "application/json",
             "Accept": "application/json",
         }
+
+        # Apply the appropriate authentication header
+        if self.auth_method == "basic":
+            # Basic authentication: base64(username:password)
+            username = self.config.get("jira_user")
+            password = self.config.get("jira_password")
+            if not username or not password:
+                raise click.ClickException(
+                    "Basic authentication requires both jira_user and jira_password in config"
+                )
+
+            # Create the basic auth header
+            auth_string = f"{username}:{password}"
+            encoded_auth = base64.b64encode(auth_string.encode("utf-8")).decode("utf-8")
+            self.headers["Authorization"] = f"Basic {encoded_auth}"
+        else:
+            # Bearer token authentication (default for v2)
+            self.headers["Authorization"] = f"Bearer {self.config.get('jira_password')}"
 
         # Create a custom opener with SSL context if insecure mode is enabled
         if self.insecure:
@@ -64,7 +120,12 @@ class JiraHTTP:
         for key, value in headers.items():
             # Mask the authorization token for security
             if key == "Authorization":
-                value = "Bearer ${JIRA_API_TOKEN}"  # Mask the actual token
+                if value.startswith("Bearer"):
+                    value = "Bearer ${JIRA_API_TOKEN}"  # Mask the bearer token
+                elif value.startswith("Basic"):
+                    value = (
+                        "Basic ${JIRA_BASIC_AUTH}"  # Mask the basic auth credentials
+                    )
             curl_parts.append(f'-H "{key}: {value}"')
 
         # Build the final URL with query parameters
@@ -154,10 +215,20 @@ class JiraHTTP:
                     bar.update(1)
             else:
                 # Send the request without spinner in verbose mode
-                with urllib.request.urlopen(request, data=data) as response:
-                    status_code = response.status
-                    response_text = response.read().decode("utf-8")
-                    response_data = json.loads(response_text) if response_text else {}
+                try:
+                    with urllib.request.urlopen(request, data=data) as response:
+                        status_code = response.status
+                        response_text = response.read().decode("utf-8")
+                        response_data = (
+                            json.loads(response_text) if response_text else {}
+                        )
+                except urllib.error.HTTPError as e:
+                    log(f"HTTP error occurred: {e}")
+                    raise click.ClickException("HTTP error: {e}") from e
+                except json.JSONDecodeError as e:
+                    log(f"Failed to parse JSON response: {e}")
+                    log(f"Response text: {response_text[1:100]}")
+                    raise click.ClickException("Failed to parse JSON response") from e
                 log(f"Response status: {status_code}")
 
             # Cache the response for GET requests
@@ -254,11 +325,31 @@ class JiraHTTP:
                 {"name": component} for component in components
             ]
         if description:
-            payload["fields"]["description"] = description
+            # Handle description differently based on API version
+            if self.api_version == "3":
+                # In API v3, rich text descriptions use Atlassian Document Format (ADF)
+                if isinstance(description, dict) and "content" in description:
+                    # If already in ADF format, use as is
+                    payload["fields"]["description"] = description
+                else:
+                    # Simple conversion to ADF format
+                    payload["fields"]["description"] = self._convert_to_adf(description)
+            else:
+                # API v2 uses plain text or wiki markup
+                payload["fields"]["description"] = description
         if priority:
             payload["fields"]["priority"] = {"name": priority}
         if assignee:
-            payload["fields"]["assignee"] = {"name": assignee}
+            # Handle assignee differently based on API version
+            if self.api_version == "3":
+                # In API v3, assignee needs an accountId rather than username
+                # But fall back to username if that's what we have
+                if "@" in assignee:  # Looks like an email, likely an accountId
+                    payload["fields"]["assignee"] = {"accountId": assignee}
+                else:
+                    payload["fields"]["assignee"] = {"name": assignee}
+            else:
+                payload["fields"]["assignee"] = {"name": assignee}
         if labels:
             payload["fields"]["labels"] = labels
         return self._request("POST", endpoint, jeez=payload)
@@ -282,7 +373,8 @@ class JiraHTTP:
         if self.verbose:
             log(f"Getting issue: {issue_key} with fields: {fields}")
 
-        return self._request("GET", endpoint, params=params, use_cache=use_cache)
+        ret = self._request("GET", endpoint, params=params, use_cache=use_cache)
+        return ret
 
     def update_issue(self, issue_key, fields):
         """
@@ -296,6 +388,16 @@ class JiraHTTP:
             dict: JSON response containing the updated issue.
         """
         endpoint = f"issue/{issue_key}"
+
+        # Handle API version-specific field formats
+        if (
+            self.api_version == "3"
+            and "description" in fields
+            and isinstance(fields["description"], str)
+        ):
+            # Convert plain text description to ADF format for API v3
+            fields["description"] = self._convert_to_adf(fields["description"])
+
         payload = {"fields": fields}
 
         if self.verbose:
@@ -386,7 +488,11 @@ class JiraHTTP:
 
     def get_issue_types(self):
         """Get all available issue types for the project."""
-        endpoint = "issuetype"
+        # Different endpoint for API v2 vs v3
+        if self.api_version == "3":
+            endpoint = "issuetypes"
+        else:
+            endpoint = "issuetype"
         return self._request("GET", endpoint, label="Fetching issue types")
 
     def get_priorities(self):
@@ -435,3 +541,71 @@ class JiraHTTP:
                 components.add(component.get("name", ""))
 
         return sorted(list(filter(None, components)))
+
+    def _convert_to_adf(self, text):
+        """
+        Convert plain text or basic markup to Atlassian Document Format (ADF).
+
+        This is a simple conversion for API v3 compatibility. For advanced formatting,
+        a more sophisticated parser would be needed.
+
+        Args:
+            text (str): Plain text or basic markup
+
+        Returns:
+            dict: Text in ADF format
+        """
+        # Simple conversion to ADF format
+        return {
+            "version": 1,
+            "type": "doc",
+            "content": [
+                {"type": "paragraph", "content": [{"type": "text", "text": text}]}
+            ],
+        }
+
+    def _is_adf_format(self, obj):
+        """
+        Check if an object is already in Atlassian Document Format.
+
+        Args:
+            obj: Object to check
+
+        Returns:
+            bool: True if the object appears to be in ADF format
+        """
+        return (
+            isinstance(obj, dict)
+            and obj.get("version") is not None
+            and obj.get("type") == "doc"
+            and isinstance(obj.get("content"), list)
+        )
+
+    def add_comment(self, issue_key, comment):
+        """
+        Add a comment to an issue.
+
+        Args:
+            issue_key (str): The issue key (e.g., 'PROJ-123')
+            comment (str or dict): Comment text or ADF formatted comment
+
+        Returns:
+            dict: JSON response containing the created comment
+        """
+        endpoint = f"issue/{issue_key}/comment"
+
+        # Handle API version-specific comment format
+        if self.api_version == "3":
+            # In API v3, comments use Atlassian Document Format
+            if not self._is_adf_format(comment):
+                payload = self._convert_to_adf(comment)
+            else:
+                payload = comment
+        else:
+            # API v2 uses plain text
+            payload = {"body": comment}
+
+        if self.verbose:
+            log(f"Adding comment to issue: {issue_key}")
+
+        return self._request("POST", endpoint, jeez=payload)

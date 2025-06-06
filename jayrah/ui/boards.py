@@ -57,11 +57,22 @@ class Boards:
 
     def __init__(self, config: dict):
         self.config = config
-        self.jira = jirahttp.JiraHTTP(config)
+        # Get API version from config or use default
+        api_version = self.config.get("api_version")
+        if not api_version:
+            api_version = defaults.API_VERSION
+        auth_method = self.config.get("auth_method")
+        auth_method = (
+            "basic" if not auth_method and str(api_version) == "3" else "bearer"
+        )
+        self.jira = jirahttp.JiraHTTP(
+            config, api_version=api_version, auth_method=auth_method
+        )
         self.verbose = self.config.get("verbose", False)
 
         if self.verbose:
             print("Jayrah initialized with verbose logging enabled")
+            print(f"Using Jira API version: {api_version}")
 
         self.issues_client = issues.Issues(self.config, self.jira)
 

@@ -22,10 +22,19 @@ def mock_urlopen():
 
 def test_init(sample_config):
     """Test initialization of JiraHTTP client."""
+    # Test with default API version (v2)
     client = JiraHTTP(sample_config)
     assert client.base_url == f"{sample_config['jira_server']}/rest/api/2"
+    assert client.api_version == "2"
     assert "Authorization" in client.headers
     assert client.headers["Content-Type"] == "application/json"
+
+    # Test with explicit API v3
+    client_v3 = JiraHTTP(sample_config, api_version="3")
+    assert client_v3.base_url == f"{sample_config['jira_server']}/rest/api/3"
+    assert client_v3.api_version == "3"
+    assert "Authorization" in client_v3.headers
+    assert client_v3.headers["Content-Type"] == "application/json"
 
 
 def test_search_issues(sample_config, mock_urlopen, mock_jira_client):

@@ -105,6 +105,8 @@ def read_config(ret: dict, config_file: pathlib.Path) -> dict:
                 "cache_ttl",
                 "insecure",
                 "label_excludes",
+                "auth_method",
+                "api_version",
             ]:
                 ret[x] = set_general(x) if set_general(x) is not None else ret.get(x)
         if config.get("boards"):

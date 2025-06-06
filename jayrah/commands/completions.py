@@ -15,7 +15,10 @@ def setup_jira_http(ctx):
     if custom_config := ctx.parent.params.get("config_file"):
         config_file = pathlib.Path(custom_config)
     cfg = read_config({}, config_file)
-    return jirahttp.JiraHTTP(cfg)
+    # Get API version from config or use default
+    api_version = cfg.get("api_version", defaults.API_VERSION)
+    auth_method = cfg.get("auth_method", defaults.AUTH_METHOD)
+    return jirahttp.JiraHTTP(cfg, api_version=api_version, auth_method=auth_method)
 
 
 class BoardType(click.ParamType):

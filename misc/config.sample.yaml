@@ -1,8 +1,10 @@
 general:
   jira_server: https://server.corp
-  jira_user: emailAddress
+  jira_user: emailAddress # Email address (used for display purposes)
   jira_password: pass::jira/token
   jira_project: PRJ
+  api_version: "2" # Use "3" for Jira Cloud with the newer API
+  # auth_method: "basic" # Optional: Explicitly set auth method ("basic" or "bearer")
   insecure: false # Set to true to disable SSL verification
   label_excludes: |
     ^(CVE-*|flawuuid|flaw.*#|periodic-ci|20\d+|CY\d+|pscomponent:)

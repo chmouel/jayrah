@@ -6,6 +6,7 @@ import time
 import click
 
 from ..api import jira as jirahttp
+from ..config import defaults
 from ..utils import log
 from .common import cli
 
@@ -21,7 +22,14 @@ def cache_command(jayrah_obj, clear, prune, max_age):
     """Manage jayrah cache."""
 
     config = jayrah_obj.config
-    jira = jirahttp.JiraHTTP(config)
+    # Get API version from config or use default
+    api_version = config.get("api_version", defaults.API_VERSION)
+    auth_method = config.get("auth_method")
+    if not auth_method and api_version == "3":
+        auth_method = "basic"
+    elif not auth_method:
+        auth_method = "bearer"
+    jira = jirahttp.JiraHTTP(config, api_version=api_version, auth_method=auth_method)
 
     if clear:
         jira.cache.clear()

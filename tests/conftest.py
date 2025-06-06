@@ -1,8 +1,8 @@
+import getpass
 from unittest.mock import MagicMock, patch
 
 import pytest
 import yaml
-import getpass
 
 
 @pytest.fixture

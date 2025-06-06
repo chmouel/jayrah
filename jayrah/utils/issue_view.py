@@ -113,14 +113,19 @@ def build_issue(issue, config, comments_count):
         output.append(f"* Labels: 🏷️ {', '.join(fields['labels'])} ")
 
     # Add people information
+    # Helper function to get user identifier - works with both v2 and v3 API
+    def get_user_id(user):
+        # v3 API uses accountId, v2 API uses name
+        return user.get("accountId", user.get("name", "Unknown"))
+
     if fields.get("assignee"):
+        assignee = fields["assignee"]
         output.append(
-            f"* Assignee: 👤 {fields['assignee']['displayName']} <{fields['assignee']['name']}>"
+            f"* Assignee: 👤 {assignee['displayName']} <{get_user_id(assignee)}>"
         )
 
-    output.append(
-        f"* Reporter: 📣 {fields['reporter']['displayName']} <{fields['reporter']['name']}>"
-    )
+    reporter = fields["reporter"]
+    output.append(f"* Reporter: 📣 {reporter['displayName']} <{get_user_id(reporter)}>")
 
     # Add dates
     date_format = "%Y-%m-%dT%H:%M:%S.%f%z"
@@ -131,20 +136,28 @@ def build_issue(issue, config, comments_count):
     output.append(f"* Updated: 🔄 {updated_date.strftime('%Y-%m-%d %H:%M:%S')}")
 
     # Description
-    if fields.get("description"):
-        markdown_description = "\n## Description\n"
-        markdown_description += jira2markdown.convert(fields["description"])
-        # Replace the first header with a second-level header but only on first line
-        markdown_description = markdown_description.split("\n", 1)
-        if len(markdown_description) > 1:
-            markdown_description = (
-                markdown_description[0].replace("#", "")
-                + "\n"
-                + markdown_description[1]
-            )
+    markdown_description = "\n## Description\n"
 
+    if fields.get("description"):
+        # Handle v3 API description format which might be a dict with 'raw' key
+        description_text = fields["description"]
+        if isinstance(description_text, dict) and "raw" in description_text:
+            description_text = description_text["raw"]
+
+        if description_text and isinstance(description_text, str):
+            markdown_description += jira2markdown.convert(description_text)
+            # Replace the first header with a second-level header but only on first line
+            markdown_description_parts = markdown_description.split("\n", 1)
+            if len(markdown_description_parts) > 1:
+                markdown_description = (
+                    markdown_description_parts[0].replace("#", "")
+                    + "\n"
+                    + markdown_description_parts[1]
+                )
+        else:
+            markdown_description += "No detailed description provided"
     else:
-        markdown_description = "No description provided"
+        markdown_description += "No description provided"
 
     # Comments
     if comments_count > 0 and "comment" in fields and fields["comment"]["comments"]:
@@ -163,7 +176,15 @@ def build_issue(issue, config, comments_count):
             markdown_description += f"\n\n### Comment {i + 1} - {author} ({created})"
 
             # Convert Jira content to markdown
-            comment_content = jira2markdown.convert(comment["body"])
-            markdown_description += "\n\n" + comment_content
+            # v3 API may have "body" or "body.raw" for comment content
+            comment_body = comment.get("body", "")
+            if isinstance(comment_body, dict) and "raw" in comment_body:
+                comment_body = comment_body["raw"]
+
+            if comment_body and isinstance(comment_body, str):
+                comment_content = jira2markdown.convert(comment_body)
+                markdown_description += "\n\n" + comment_content
+            else:
+                markdown_description += "\n\n[No comment content available]"
 
     return "\n".join(output), markdown_description

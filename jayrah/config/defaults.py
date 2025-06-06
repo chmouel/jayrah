@@ -188,5 +188,11 @@ LOG_LEVELS = {
 
 CACHE_DURATION = 60 * 60 * 24 * 1  # 1 day
 
+# API version to use (2 or 3)
+API_VERSION = "2"
+
+# Default authentication method (will be auto-selected based on API version if not specified)
+# Options: "basic" or "bearer"
+AUTH_METHOD = "basic"
 
 CONFIG_FILE = pathlib.Path.home() / ".config" / "jayrah" / "config.yaml"
