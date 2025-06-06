@@ -418,6 +418,7 @@ dev = [
     { name = "ipython" },
     { name = "isort" },
     { name = "pylint" },
+    { name = "pytest" },
     { name = "pytest-cov" },
 ]
 
@@ -439,6 +440,7 @@ dev = [
     { name = "ipython", specifier = ">=9.0.2" },
     { name = "isort", specifier = ">=6.0.1" },
     { name = "pylint", specifier = ">=3.3.5" },
+    { name = "pytest", specifier = ">=8.3.5" },
     { name = "pytest-cov", specifier = ">=6.0.0" },
 ]
 

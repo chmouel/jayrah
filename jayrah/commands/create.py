@@ -40,7 +40,7 @@ def create(
     """Create an issue"""
     if body_file:
         if not os.path.exists(body_file):
-            raise Exception(f"{body_file} does not exist")
+            raise FileNotFoundError(f"{body_file} does not exist")
 
         with open(body_file, "r") as f:
             body = f.read()

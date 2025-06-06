@@ -18,7 +18,13 @@ dependencies = [
 scripts = { jayrah = "jayrah.cli:main" }
 
 [dependency-groups]
-dev = ["ipython>=9.0.2", "isort>=6.0.1", "pylint>=3.3.5", "pytest-cov>=6.0.0"]
+dev = [
+    "ipython>=9.0.2",
+    "isort>=6.0.1",
+    "pylint>=3.3.5",
+    "pytest>=8.3.5",
+    "pytest-cov>=6.0.0",
+]
 
 [tool.setuptools]
 py-modules = ["jayrah"]

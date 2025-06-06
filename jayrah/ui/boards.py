@@ -39,7 +39,7 @@ def check(board, config) -> typing.Tuple[str, str]:
     if not board:
         if len(config["boards"]) == 0:
             click.secho("no boards has been setup", fg="red")
-            raise Exception("No boards has been setup in your config file")
+            raise ValueError("No boards has been setup in your config file")
         chosen_boards = [config["boards"][0]]
         click.secho(f"Using board {chosen_boards[0].get('name')}", fg="green")
     else:

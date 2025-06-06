@@ -16,7 +16,7 @@ def make_osc8_link(text, url):
 
 def make_full_url(ticket, server):
     if server is None:
-        raise Exception("No Jira server URL provided")
+        raise ValueError("No Jira server URL provided")
     return f"{server}/browse/{ticket}"
 
 
@@ -25,7 +25,7 @@ def browser_open_ticket(ticket, config):
     if not ticket:
         project = config.get("jira_component")
         if not project:
-            raise Exception("No ticket or project specified")
+            raise ValueError("No ticket or project specified")
         webbrowser.open(f"{server}/projects/{project}")
         return
 
