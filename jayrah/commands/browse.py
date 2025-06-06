@@ -1,13 +1,32 @@
 """Browse command for Jayrah Jira CLI."""
 
-import click
+import pathlib
 
+import click
+import click.shell_completion
+
+from ..config import defaults, read_config
 from ..ui import boards
 from .common import cli
 
 
+class BoardType(click.ParamType):
+    name = "board"
+
+    def shell_complete(self, ctx, _, incomplete):
+        config_file = defaults.CONFIG_FILE
+        if ctx.parent.params.get("config_file"):
+            config_file = pathlib.Path(ctx.parent.params.get("config_file"))
+        cfg = read_config({}, config_file)
+        return [
+            click.shell_completion.CompletionItem(x)
+            for x in [x.get("name") for x in cfg.get("boards", [])]
+            if x.startswith(incomplete)
+        ]
+
+
 @cli.command("browse")
-@click.argument("board", required=False, type=boards.BoardType())
+@click.argument("board", required=False, type=BoardType())
 @click.argument("search_terms", nargs=-1)
 @click.option(
     "--or", "-o", "use_or", is_flag=True, help="Use OR instead of AND for search terms"
