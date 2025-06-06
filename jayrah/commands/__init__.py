@@ -6,12 +6,13 @@ import time
 
 import click
 
-from .. import config, utils as utils
+from .. import config
+from .. import utils as utils
 from ..api import jira as jirahttp
 from ..commands import mcp_server
 from ..config import defaults
 from ..ui import boards
-from ..utils import help, log
+from ..utils import log
 
 
 @click.group()
@@ -77,15 +78,6 @@ def cli(
     ctx.obj = boards.Boards(wconfig)
 
 
-@cli.command("help")
-@click.pass_obj
-def help_command(jayrah_obj):
-    """Display help content"""
-    # Display help content in a formatted way
-    help_text = help.get_help_text()
-    click.echo(help_text)
-
-
 @cli.command("browse")
 @click.argument("board", required=False, type=boards.BoardType())
 @click.argument("search_terms", nargs=-1)
@@ -139,17 +131,23 @@ def browse(jayrah_obj, board, search_terms, use_or, filters, list_boards):
 
 
 @cli.command("create")
-@click.option("--type", "-t", "issuetype", help="Issue type")
-@click.option("--title", "-T", help="Issue title/summary")
-@click.option("--body", "-b", help="Issue description")
+@click.option("--type", "-T", "issuetype", help="Issue type")
+@click.option("--title", "-t", "title", help="Issue title/summary")
+@click.option("--body", "-b", "body", help="Issue description")
 @click.option(
-    "--body-file", "-F", type=click.Path(exists=True), help="Read description from file"
+    "--body-file",
+    "-F",
+    "body_file",
+    type=click.Path(exists=True),
+    help="Read description from file",
 )
-@click.option("--priority", "-p", help="Issue priority")
-@click.option("--assignee", "-a", help="Issue assignee")
-@click.option("--labels", "-l", multiple=True, help="Issue labels")
-@click.option("--components", "-c", multiple=True, help="Issue components")
-@click.option("--template", "-T", help="Use a specific template")
+@click.option("--priority", "-p", "priority", help="Issue priority")
+@click.option("--assignee", "-a", "assignee", help="Issue assignee")
+@click.option("--labels", "-l", "labels", multiple=True, help="Issue labels")
+@click.option(
+    "--components", "-c", "components", multiple=True, help="Issue components"
+)
+@click.option("--template", "-T", "template", help="Use a specific template")
 @click.pass_obj
 def create(
     jayrah_obj,
@@ -164,9 +162,6 @@ def create(
     components,
 ):
     """Create an issue"""
-    jayrah_obj.command = "create"
-
-    # Handle body file
     if body_file:
         if not os.path.exists(body_file):
             raise Exception(f"{body_file} does not exist")
@@ -174,30 +169,34 @@ def create(
         with open(body_file, "r") as f:
             body = f.read()
 
-    from . import issue_create
+    if jayrah_obj.config.get("create"):
+        if not issuetype and jayrah_obj.config["create"].get("issuetype"):
+            issuetype = jayrah_obj.config["create"]["issuetype"]
+        if not components and jayrah_obj.config["create"].get("components"):
+            components = jayrah_obj.config["create"]["components"]
+        if not labels and jayrah_obj.config["create"].get("labels"):
+            labels = jayrah_obj.config["create"]["labels"]
+        if not assignee and jayrah_obj.config["create"].get("assignee"):
+            assignee = jayrah_obj.config["create"]["assignee"]
+        if not priority and jayrah_obj.config["create"].get("priority"):
+            priority = jayrah_obj.config["create"]["priority"]
 
-    body = issue_create.get_description(
-        jayrah_obj, title or "New Issue", issuetype, template=template, body=body
+    from .create import get_description, interactive_create
+
+    defaults = get_description(
+        jayrah_obj,
+        title,
+        issuetype,
+        template=template,
+        body=body,
+        labels=labels,
+        components=components,
+        assignee=assignee,
+        priority=priority,
     )
 
-    # Convert labels to list
-    labels_list = list(labels) if labels else None
-    components_list = list(components) if components else None
-
-    jayrah_obj.cmdline = {
-        "issuetype": issuetype,
-        "title": title,
-        "body": body,
-        "priority": priority,
-        "assignee": assignee,
-        "labels": labels_list,
-        "components": components_list,
-    }
-
     # Create the issue
-    from . import issue_create
-
-    issue_create.interactive_create(jayrah_obj)
+    interactive_create(jayrah_obj, defaults)
 
 
 @cli.command("mcp")

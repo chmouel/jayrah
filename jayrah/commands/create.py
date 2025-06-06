@@ -2,16 +2,17 @@ import os
 
 import click
 import jira2markdown
-from rich.prompt import Prompt
 
 from .. import utils
-# from ..ui.fzf import select as select
 from ..utils import issue_view
 
 issue_template = """---
-title: {summary}
+title: {title}
 type: {issuetype}
 components: {components}
+labels: {labels}
+assignee: {assignee}
+priority: {priority}
 ---
 {content}"""
 
@@ -72,12 +73,18 @@ def get_smart_defaults(jayrah_obj):
 
 
 def get_description(
-    jayrah_obj, summary, issuetype=None, template=None, defaults: dict = None, body=""
+    jayrah_obj,
+    title,
+    issuetype=None,
+    template=None,
+    components=None,
+    labels=None,
+    assignee=None,
+    priority=None,
+    body="",
 ):
     """Get issue description using editor or template, supporting per-type config templates."""
     # Try to load template by type from config if not explicitly provided
-    if not defaults:
-        defaults = {}
     if body != "":
         # If body is provided, use it directly
         content = body
@@ -88,22 +95,61 @@ def get_description(
     if not content:
         content = default_content
 
-    tmpl = f"""---
-    title: {summary}
-    type: {issuetype}
-    """
-    if defaults.get("components"):
-        tmpl += f"components: {','.join(defaults['components'])}\n"
-
-    tmpl += f"---\n\n{content}"
+    tmpl = issue_template.format(
+        title=title or "",
+        issuetype=issuetype or "Story",
+        content=content,
+        components=",".join(components) if components else "",
+        labels=",".join(labels) if labels else "",
+        assignee=assignee or "",
+        priority=priority or "",
+    )
 
     edited_text = utils.edit_text_with_editor(tmpl, extension=".md")
+    if edited_text.strip() == "":
+        raise click.ClickException("Issue description cannot be empty.")
+
     if edited_text.startswith("---"):
         lines = edited_text.splitlines()
         start = lines.index("---")
         end = lines.index("---", start + 1)
+        yaml_section = lines[start + 1 : end]
+        for line in yaml_section:
+            line = line.strip()
+            if line.startswith("type"):
+                issuetype = line.split(":")[1].strip()
+            elif line.startswith("components"):
+                components = (
+                    line.split(":")[1].strip().split(",") if ":" in line else []
+                )
+                components = [c.strip() for c in components if c.strip()]
+            elif line.startswith("title"):
+                title = line.split(":")[1].strip()
+            elif line.startswith("labels"):
+                labels = line.split(":")[1].strip().split(",") if ":" in line else []
+                labels = [label.strip() for label in labels if label.strip()]
+            elif line.startswith("assignee"):
+                assignee = line.split(":")[1].strip() if ":" in line else ""
+            elif line.startswith("priority"):
+                priority = line.split(":")[1].strip() if ":" in line else ""
         edited_text = "\n".join(lines[:start] + lines[end + 1 :])
-    return edited_text.strip() if edited_text else ""
+
+    if not issuetype:
+        raise click.ClickException("Issue type must be specified in the template.")
+
+    if title.strip() == "":
+        raise click.ClickException("Issue title cannot be empty.")
+
+    dico = {
+        "content": edited_text,
+        "components": components,
+        "title": title,
+        "issuetype": issuetype,
+        "labels": labels,
+        "priority": priority,
+        "assignee": assignee,
+    }
+    return dico
 
 
 def load_template(jayrah_obj, template_name):
@@ -152,21 +198,15 @@ def find_repo_template(template_name):
     return None
 
 
-def preview_issue(
-    issuetype, summary, description, priority, assignee, labels, components
-):
+def preview_issue(issuetype, title, content, priority, assignee, labels, components):
     """Show issue preview before creation."""
 
     def format_list(items):
         return ", ".join(items) if items else "None"
 
-    click.secho("\n" + "=" * 30, fg="cyan", bold=True)
-    click.secho("         Issue Preview", fg="yellow", bold=True)
-    click.secho("=" * 30, fg="cyan", bold=True)
-
     fields = [
         ("Type", issuetype),
-        ("Title", summary),
+        ("Title", title),
         ("Priority", priority),
         ("Assignee", assignee or "Unassigned"),
         ("Components", format_list(components)),
@@ -180,41 +220,38 @@ def preview_issue(
     click.secho("\nDescription:", fg="magenta", bold=True)
 
     # Convert Jira markdown to standard markdown and format with gum if available
-    markdown_description = jira2markdown.convert(description)
+    markdown_description = jira2markdown.convert(content)
     markdown_description = issue_view.wrap_markdown(markdown_description)
     issue_view.format_with_rich(markdown_description)
     click.echo("\n")
 
 
-def interactive_create(jayrah_obj):
+def interactive_create(jayrah_obj, defaults):
     """Interactive issue creation flow."""
-    defaults = get_smart_defaults(jayrah_obj)
-    issuetype = select.issue_type(jayrah_obj) or defaults["issuetype"]
-    summary = Prompt.ask("Title")
-    description = get_description(
-        jayrah_obj, summary, issuetype=issuetype, defaults=defaults
-    )
-    priority = defaults["priority"]
-    assignee = defaults.get("assignee", "")
-    labels = defaults["labels"]
-    components = defaults["components"]
 
     # 7. Preview and Confirm
     preview_issue(
-        issuetype, summary, description, priority, assignee, labels, components
+        issuetype=defaults["issuetype"],
+        title=defaults["title"],
+        content=defaults["content"],
+        priority=defaults["priority"],
+        assignee=defaults["assignee"],
+        labels=defaults["labels"],
+        components=defaults["components"],
     )
+
     if click.confirm("Create issue?"):
         return create_issue(
             jayrah_obj,
-            issuetype,
-            summary,
-            description,
-            priority,
-            assignee,
-            labels,
-            components=components,
+            defaults["issuetype"],
+            defaults["title"],
+            defaults["content"],
+            defaults["priority"],
+            defaults["assignee"],
+            defaults["labels"],
+            defaults["components"],
         )
-    return None
+    # return None
 
 
 def create_issue(
