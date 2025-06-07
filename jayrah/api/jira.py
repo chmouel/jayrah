@@ -34,11 +34,9 @@ import click
 from ..utils import cache, log
 
 
+# pylint: disable=too-many-instance-attributes
+# pylint: disable=too-many-positional-arguments
 class JiraHTTP:
-    verbose: bool = False
-
-    # pylint: disable=too-many-instance-attributes
-    # pylint: disable=too-many-positional-arguments
     def __init__(self, config, api_version="2", auth_method=None):
         """Initialize the Jira HTTP client.
 

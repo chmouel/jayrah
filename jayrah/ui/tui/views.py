@@ -8,7 +8,7 @@ from textual.containers import Container, Vertical
 from textual.suggester import SuggestFromList
 from textual.widgets import DataTable, Label, Markdown
 
-from ...utils import issue_view
+from ...utils import issue_view, adf
 from .base import BaseModalScreen
 from .enhanced_widgets import EmacsInput, EmacsTextArea
 
@@ -1324,11 +1324,24 @@ class DescriptionEditScreen(BaseModalScreen):
     }
     """
 
-    def __init__(self, parent, issue_key: str, current_description: str, config: dict):
+    def __init__(self, parent, issue_key: str, current_description, config: dict):
         super().__init__(parent)
         self.config = config
         self.issue_key = issue_key
-        self.current_description = current_description or ""
+        self.verbose = self.config.get("verbose", False)
+
+        # Store original description (could be str or dict for ADF)
+        self.original_description = current_description
+
+        # Convert to string if it's a JSON object (ADF format)
+        self.is_adf_format = False
+        if current_description and isinstance(current_description, dict):
+            from ...utils.adf import extract_text_from_adf
+
+            self.is_adf_format = True
+            self.current_description = extract_text_from_adf(current_description)
+        else:
+            self.current_description = current_description or ""
 
     def compose(self) -> ComposeResult:
         with Vertical(id="description-container"):
@@ -1339,12 +1352,25 @@ class DescriptionEditScreen(BaseModalScreen):
                 f"Current: {len(self.current_description)} characters",
                 id="description-current",
             )
+
+            if self.verbose:
+                with open("/tmp/debug.log", "w") as f:
+                    f.write(f"{__import__('pprint').pformat(self.current_description)}")
+
             yield EmacsTextArea(
                 text=self.current_description,
                 id="description-textarea",
                 language="markdown",
             )
-            yield Label("Press Ctrl+S to save, Escape to cancel", id="description-help")
+
+            if self.is_adf_format:
+                help_text = (
+                    "Press Ctrl+S to save, Escape to cancel (ADF format detected)"
+                )
+            else:
+                help_text = "Press Ctrl+S to save, Escape to cancel"
+
+            yield Label(help_text, id="description-help")
 
     def action_apply(self) -> None:
         """Apply the description changes."""
@@ -1354,13 +1380,25 @@ class DescriptionEditScreen(BaseModalScreen):
             return
 
         textarea = self.query_one("#description-textarea", EmacsTextArea)
-        new_description = textarea.text.strip()
+        new_description_text = textarea.text.strip()
 
-        # Check if there were changes
-        if new_description == self.current_description.strip():
+        # Check if there were changes to plain text
+        if new_description_text == self.current_description.strip():
             self._parent.notify("No changes made to description", severity="warning")
             self.safe_pop_screen()
             return
+
+        # If original was ADF format, convert edited text back to ADF
+        if self.is_adf_format:
+            new_description = adf.create_adf_from_text(new_description_text)
+            if self.verbose:
+                with open("/tmp/debug_save.log", "w") as f:
+                    f.write(f"New text: {new_description_text}\n")
+                    f.write(
+                        f"New ADF: {__import__('json').dumps(new_description, indent=2)}"
+                    )
+        else:
+            new_description = new_description_text
 
         # Update the issue with new description
         try:

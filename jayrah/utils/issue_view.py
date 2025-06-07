@@ -9,6 +9,8 @@ import jira2markdown
 
 from jayrah.config import defaults
 
+from . import adf
+
 
 def get_terminal_width() -> int:
     terminal_width = None
@@ -139,10 +141,20 @@ def build_issue(issue, config, comments_count):
     markdown_description = "\n## Description\n"
 
     if fields.get("description"):
-        # Handle v3 API description format which might be a dict with 'raw' key
+        # Handle v3 API description format which might be a dict (ADF format)
         description_text = fields["description"]
+
+        # First, check for the v3 API format with "raw" key
         if isinstance(description_text, dict) and "raw" in description_text:
             description_text = description_text["raw"]
+        # Then, check if it's ADF format (has type, content, etc.)
+        elif (
+            isinstance(description_text, dict)
+            and "type" in description_text
+            and "content" in description_text
+        ):
+            # Import here to avoid circular imports
+            description_text = adf.extract_text_from_adf(description_text)
 
         if description_text and isinstance(description_text, str):
             markdown_description += jira2markdown.convert(description_text)
@@ -178,8 +190,18 @@ def build_issue(issue, config, comments_count):
             # Convert Jira content to markdown
             # v3 API may have "body" or "body.raw" for comment content
             comment_body = comment.get("body", "")
+
+            # Handle v3 API format with "raw" key
             if isinstance(comment_body, dict) and "raw" in comment_body:
                 comment_body = comment_body["raw"]
+            # Handle ADF format
+            elif (
+                isinstance(comment_body, dict)
+                and "type" in comment_body
+                and "content" in comment_body
+            ):
+                # Import here to avoid circular imports
+                comment_body = adf.extract_text_from_adf(comment_body)
 
             if comment_body and isinstance(comment_body, str):
                 comment_content = jira2markdown.convert(comment_body)

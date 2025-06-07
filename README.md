@@ -81,9 +81,21 @@ list of all the issues in that board. You can use your mouse or your keyboard:
 - Press `a` for all actions you can do on the issue.
 - Press `c` for accessing or adding a comment.
 - Press `t` to transition the issue to a new status.
-- Press `e` to edit the title or description of the issue. (the editor emulate
+- Press `e` to edit the title or description of the issue. (the editor emulates
   readline/emacs keys).
 - Use `F1` for the command palette
+
+### Editing issue descriptions
+
+Jayrah supports editing issue title and descriptions.
+
+When editing a description:
+
+1. Press `e` to access the edit menu
+2. Select "description" from the options
+3. Edit your description in the text area
+4. You can navigate with emacs or readline keys.
+5. Press `Ctrl+S` to save your changes or `Escape` to cancel
 
 ## MCP Server for AI integration
 

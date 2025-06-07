@@ -37,6 +37,7 @@ disable_error_code = ["import-not-found"]
 
 [tool.pylint.'MESSAGES CONTROL']
 disable = [
+  "R0902",                      # Too many instance attributes
   "R0903",                      # Too few public methods
   "R0917",                      # Too many positional arguments
   "C0415",                      # Import outside toplevel
