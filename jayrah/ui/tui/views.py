@@ -1393,13 +1393,7 @@ class DescriptionEditScreen(BaseModalScreen):
                 language="markdown",
             )
 
-            if self.is_adf_format:
-                help_text = (
-                    "Press Ctrl+S to save, Escape to cancel (ADF format detected)"
-                )
-            else:
-                help_text = "Press Ctrl+S to save, Escape to cancel"
-
+            help_text = "Press Ctrl+S to save, Escape to cancel"
             yield Label(help_text, id="description-help")
 
     def action_apply(self) -> None:
