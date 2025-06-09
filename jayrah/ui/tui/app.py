@@ -65,13 +65,12 @@ class IssueBrowserApp(App, JayrahAppMixin, IssueBrowserActions):
     ### ─────────────────────────  Key bindings  ──────────────────────────
     BINDINGS = [
         Binding("escape", "quit", "Quit", show=False),
-        Binding("q", "quit", "Quit"),
-        Binding("r", "reload", "Reload"),
         Binding("o", "open_issue", "Open"),
+        Binding("r", "reload", "Reload"),
         Binding("a", "show_actions", "Actions"),
         Binding("c", "view_comments", "Comments"),
         Binding("l", "add_labels", "Labels", show=False),
-        Binding("ctrl+c", "edit_components", "Components", show=False),
+        Binding("C", "edit_components", "Components", show=False),
         Binding("t", "transition_issue", "Transition", show=False),
         Binding("e", "edit_issue", "Edit", show=False),
         Binding("f", "filter", "Fuzzy Filter", show=False),
@@ -80,6 +79,7 @@ class IssueBrowserApp(App, JayrahAppMixin, IssueBrowserActions):
         Binding("k", "cursor_up", "Up"),
         Binding("J", "scroll_down", "PrevDown"),
         Binding("K", "scroll_up", "PrevUp"),
+        Binding("q", "quit", "Quit"),
         Binding("f1", "command_palette", "Palette", show=False),
         Binding("?", "help", "Help"),
     ]

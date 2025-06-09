@@ -120,13 +120,12 @@ def build_issue(issue, config, comments_count):
         # Try to get username from emailAddress or name, falling back to displayName if needed
         if "emailAddress" in user:
             return user["emailAddress"].split("@")[0].split("+")[0]
-        elif "name" in user:
+        if "name" in user:
             return user["name"]
-        elif "displayName" in user:
+        if "displayName" in user:
             return user["displayName"]
-        else:
-            # If no good identifier, fall back to account ID only as last resort
-            return user.get("accountId", "Unknown")
+        # If no good identifier, fall back to account ID only as last resort
+        return user.get("accountId", "Unknown")
 
     if fields.get("assignee"):
         assignee = fields["assignee"]
