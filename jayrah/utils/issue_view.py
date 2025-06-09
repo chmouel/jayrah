@@ -116,18 +116,26 @@ def build_issue(issue, config, comments_count):
 
     # Add people information
     # Helper function to get user identifier - works with both v2 and v3 API
-    def get_user_id(user):
-        # v3 API uses accountId, v2 API uses name
-        return user.get("accountId", user.get("name", "Unknown"))
+    def get_user_info(user):
+        # Try to get username from emailAddress or name, falling back to displayName if needed
+        if "emailAddress" in user:
+            return user["emailAddress"].split("@")[0].split("+")[0]
+        elif "name" in user:
+            return user["name"]
+        elif "displayName" in user:
+            return user["displayName"]
+        else:
+            # If no good identifier, fall back to account ID only as last resort
+            return user.get("accountId", "Unknown")
 
     if fields.get("assignee"):
         assignee = fields["assignee"]
         output.append(
-            f"* Assignee: 👤 {assignee['displayName']} <{get_user_id(assignee)}>"
+            f"* Assignee: 👤 {assignee['displayName']} <{get_user_info(assignee)}>"
         )
 
     reporter = fields["reporter"]
-    output.append(f"* Reporter: 📣 {reporter['displayName']} <{get_user_id(reporter)}>")
+    output.append(f"* Reporter: 📣 {reporter['displayName']} <{get_user_info(reporter)}>")
 
     # Add dates
     date_format = "%Y-%m-%dT%H:%M:%S.%f%z"
