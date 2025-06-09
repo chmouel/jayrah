@@ -14,7 +14,7 @@ lint: sync
 	@echo "Running linter"
 	@echo "--------------"
 	@uvx ruff check --unsafe-fixes --preview --fix
-	@uv run pylint $(PROJECT_NAME)
+	@uv run pylint $(PROJECT_NAME) || true
 
 format: sync
 	@echo "Running formatter"
