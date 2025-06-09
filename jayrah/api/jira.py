@@ -32,6 +32,7 @@ from urllib.parse import urlencode
 import click
 
 from ..utils import cache, log
+from jayrah import utils
 
 
 # pylint: disable=too-many-instance-attributes
@@ -224,7 +225,7 @@ class JiraHTTP:
                         )
                 except urllib.error.HTTPError as e:
                     log(f"HTTP error occurred: {e}")
-                    raise click.ClickException("HTTP error: {e}") from e
+                    raise click.ClickException(f"HTTP error: {e}") from e
                 except json.JSONDecodeError as e:
                     log(f"Failed to parse JSON response: {e}")
                     log(f"Response text: {response_text[1:100]}")
@@ -593,14 +594,24 @@ class JiraHTTP:
             dict: JSON response containing the created comment
         """
         endpoint = f"issue/{issue_key}/comment"
+        utils.log(f"2 Adding comment to issue: {self.api_version}")
 
         # Handle API version-specific comment format
-        if self.api_version == "3":
-            # In API v3, comments use Atlassian Document Format
-            if not self._is_adf_format(comment):
-                payload = self._convert_to_adf(comment)
+        if str(self.api_version) == "3":
+            utils.log("Adding comment to issue using API v3")
+            # For API v3, we need to use ADF format nested in the body field
+            if isinstance(comment, dict) and self._is_adf_format(comment):
+                # If already in ADF format, use as is
+                adf_content = comment
+                utils.log("Comment is already in ADF format")
             else:
-                payload = comment
+                # Convert plain text to ADF format
+                adf_content = self._convert_to_adf(comment)
+                utils.log("Converted comment to ADF format")
+
+            # For API v3, the body must contain a properly formatted ADF document
+            payload = {"body": adf_content}
+            utils.log(f"Payload for API v3 comment: {payload}")
         else:
             # API v2 uses plain text
             payload = {"body": comment}

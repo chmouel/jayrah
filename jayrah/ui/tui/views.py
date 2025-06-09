@@ -8,6 +8,8 @@ from textual.containers import Container, Vertical
 from textual.suggester import SuggestFromList
 from textual.widgets import DataTable, Label, Markdown
 
+from jayrah import utils
+
 from ...utils import adf, issue_view
 from .base import BaseModalScreen
 from .enhanced_widgets import EmacsInput, EmacsTextArea
@@ -112,6 +114,16 @@ class CommentsViewScreen(BaseModalScreen):
             error_message = f"Error loading comments: {str(e)}"
             markdown_widget = self.query_one("#comments-content", Markdown)
             markdown_widget.update(error_message)
+
+            # Log more detailed error info for debugging
+            if self._parent.config.get("verbose"):
+                from jayrah.utils import log
+
+                log(f"Comment loading error details: {type(e).__name__} - {e}")
+                import traceback
+
+                log(traceback.format_exc())
+
             self._parent.notify(f"Failed to load comments: {e}", severity="error")
 
     def _format_comments(self, issue_data: dict) -> str:
@@ -154,13 +166,35 @@ class CommentsViewScreen(BaseModalScreen):
 
             # Convert Jira markup to markdown
             comment_body = comment.get("body", "")
+
+            # Handle ADF format in API v3
+            if (
+                isinstance(comment_body, dict)
+                and "type" in comment_body
+                and comment_body.get("type") == "doc"
+            ):
+                try:
+                    # Import here to avoid circular imports
+                    from jayrah.utils import adf
+
+                    comment_body = adf.extract_text_from_adf(comment_body)
+                except ImportError:
+                    # Fallback if adf module is not available
+                    comment_body = str(comment_body)
+
             try:
                 import jira2markdown
 
-                comment_content = jira2markdown.convert(comment_body)
+                comment_content = (
+                    jira2markdown.convert(comment_body)
+                    if isinstance(comment_body, str)
+                    else str(comment_body)
+                )
             except ImportError:
                 # Fallback if jira2markdown is not available
-                comment_content = comment_body
+                comment_content = (
+                    comment_body if isinstance(comment_body, str) else str(comment_body)
+                )
 
             content.append(comment_content)
             content.append("")
@@ -320,9 +354,7 @@ class AddCommentScreen(BaseModalScreen):
 
         try:
             # Add comment using the Jira API
-            self._parent.jayrah_obj.jira.client.add_comment(
-                self.issue_key, comment_text
-            )
+            self._parent.jayrah_obj.jira.add_comment(self.issue_key, comment_text)
 
             self._parent.notify(f"✅ Comment added to {self.issue_key}")
 
@@ -333,6 +365,8 @@ class AddCommentScreen(BaseModalScreen):
             self.action_cancel()
 
         except Exception as e:
+            if self.config.get("verbose") and self.config["verbose"]:
+                utils.log(f"Error adding comment: {e}")
             self._parent.notify(f"Failed to add comment: {e}", severity="error")
 
 

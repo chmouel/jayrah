@@ -115,6 +115,8 @@ def read_config(ret: dict, config_file: pathlib.Path) -> dict:
 
         if "api_version" not in ret:
             ret["api_version"] = ""
+        else:
+            ret["api_version"] = str(ret["api_version"])
 
     checks()
     if not config_file.exists():

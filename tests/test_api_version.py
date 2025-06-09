@@ -85,8 +85,9 @@ def test_add_comment_v3(sample_config):
         args, kwargs = mock_request.call_args
         payload = kwargs.get("jeez", {})
 
-        # Verify comment format for v3 (should be ADF)
+        # Verify comment format for v3 (should be ADF wrapped in body)
         assert isinstance(payload, dict)
-        assert payload["type"] == "doc"
-        assert payload["version"] == 1
-        assert payload["content"][0]["content"][0]["text"] == "Test comment"
+        assert "body" in payload
+        assert payload["body"]["type"] == "doc"
+        assert payload["body"]["version"] == 1
+        assert payload["body"]["content"][0]["content"][0]["text"] == "Test comment"
