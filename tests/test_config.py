@@ -1,6 +1,7 @@
 from unittest.mock import patch
 
 import yaml
+
 from jayrah import config
 from jayrah.config import defaults
 
@@ -127,6 +128,8 @@ def test_make_config_prompts_for_missing_values(
             "jira_user": None,
             "jira_project": None,
             "jira_password": None,
+            "api_version": "2",
+            "auth_method": "basic",
         }
 
         # Call the actual function

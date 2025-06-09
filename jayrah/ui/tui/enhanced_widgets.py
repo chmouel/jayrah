@@ -1,8 +1,6 @@
-# pylint: disable=arguments-differ
 """Enhanced Input and TextArea widgets with emacs/readline keybindings."""
 
 import re
-
 from textual.binding import Binding
 from textual.widgets import Input, TextArea
 

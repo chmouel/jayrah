@@ -58,4 +58,5 @@ disable = [
   "missing-class-docstring",
   "too-many-branches",
   "too-many-statements",
+  "arguments-differ",
 ]

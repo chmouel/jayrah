@@ -4,9 +4,8 @@ import pathlib
 import re
 
 import yaml
-from rich.prompt import Prompt
-
 from jayrah import utils
+from rich.prompt import Prompt
 
 from . import defaults
 
@@ -18,7 +17,30 @@ def make_config(config: dict, config_file: pathlib.Path) -> dict:
     config_path = pathlib.Path(config_file)
 
     if not config["jira_server"]:
-        config["jira_server"] = Prompt.ask("Enter Jira server URL")
+        server_url = Prompt.ask(
+            "Enter Jira server URL (or workspace id for atlassian cloud)"
+        )
+
+        if not server_url.startswith(("https://", "http://")):
+            if len(server_url.split(".")) == 1:
+                server_url = f"{server_url}.atlassian.net"
+            server_url = "https://" + server_url
+
+        config["jira_server"] = server_url
+        config_modified = True
+
+    if not config["api_version"]:
+        config["api_version"] = Prompt.ask(
+            "Select authentication version", choices=["2", "3"], default="3"
+        )
+        config_modified = True
+
+    if not config["auth_method"]:
+        config["auth_method"] = Prompt.ask(
+            "Select authentication method",
+            choices=["basic", "bearer"],
+            default="bearer",
+        )
         config_modified = True
 
     if not config["jira_user"]:
@@ -130,6 +152,11 @@ def write_config(config, config_file: pathlib.Path):
         "jira_password",
         "jira_project",
         "cache_ttl",
+        "auth_method",
+        "api_version",
+        "jira_component",
+        "label_excludes",
+        "create",
         "insecure",
     ]:
         if config.get(key):

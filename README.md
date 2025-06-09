@@ -26,7 +26,7 @@ jira_user: "you@example.com"
 jira_password: "your-api-token" # or you can use a pass path, with the pass:: prefix, for example pass::jira/token
 jira_project: "PROJECT-KEY"
 api_version: "2"  # Use "3" for Jira Cloud with the newer API
-auth_type: "basic" # or "bearer" for operations Bearer authentication
+auth_method: "basic" # or "bearer" for operations Bearer authentication
 ```
 
 Jayrah supports both Bearer token and Basic authentication:

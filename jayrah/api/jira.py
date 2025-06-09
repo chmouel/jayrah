@@ -54,10 +54,12 @@ class JiraHTTP:
         self.verbose = self.config.get("verbose", False)
         self.insecure = self.config.get("insecure", False)
 
-        # Determine authentication method based on API version if not explicitly specified
-        if auth_method is None:
-            # Default to basic auth for v3, bearer for v2
-            self.auth_method = "basic" if str(self.api_version) == "3" else "bearer"
+        if not auth_method:
+            # Default to Bearer for v2, Basic for v3
+            if self.api_version == "2":
+                self.auth_method = "bearer"
+            else:
+                self.auth_method = "basic"
         else:
             self.auth_method = auth_method.lower()
 

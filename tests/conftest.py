@@ -17,6 +17,8 @@ def sample_config():
         "verbose": True,
         "no_cache": False,
         "insecure": False,
+        "api_version": "2",
+        "auth_method": "bearer",
         "cache_ttl": 3600,
         "boards": [
             {
