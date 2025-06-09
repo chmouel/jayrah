@@ -8,7 +8,7 @@ from textual.containers import Container, Vertical
 from textual.suggester import SuggestFromList
 from textual.widgets import DataTable, Label, Markdown
 
-from ...utils import issue_view, adf
+from ...utils import adf, issue_view
 from .base import BaseModalScreen
 from .enhanced_widgets import EmacsInput, EmacsTextArea
 
@@ -1352,10 +1352,6 @@ class DescriptionEditScreen(BaseModalScreen):
                 f"Current: {len(self.current_description)} characters",
                 id="description-current",
             )
-
-            if self.verbose:
-                with open("/tmp/debug.log", "w") as f:
-                    f.write(f"{__import__('pprint').pformat(self.current_description)}")
 
             yield EmacsTextArea(
                 text=self.current_description,

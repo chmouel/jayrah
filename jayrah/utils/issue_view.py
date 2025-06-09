@@ -135,7 +135,9 @@ def build_issue(issue, config, comments_count):
         )
 
     reporter = fields["reporter"]
-    output.append(f"* Reporter: 📣 {reporter['displayName']} <{get_user_info(reporter)}>")
+    output.append(
+        f"* Reporter: 📣 {reporter['displayName']} <{get_user_info(reporter)}>"
+    )
 
     # Add dates
     date_format = "%Y-%m-%dT%H:%M:%S.%f%z"

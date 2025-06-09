@@ -228,6 +228,19 @@ class IssueBrowserActions:
         """Quit the application."""
         cast(Any, self).exit()  # *app.selected_issue* persists after exit
 
+    def action_help(self) -> None:  # noqa: D401
+        """Show the help panel with key bindings."""
+        from textual.css.query import NoMatches
+        from textual.widgets import HelpPanel
+
+        try:
+            help_panel = cast(Any, self).query_one(HelpPanel)
+            print(dir(help_panel))
+            if help_panel.is_on_screen:
+                cast(Any, self).query_one(HelpPanel).remove()
+        except NoMatches:
+            cast(Any, self).mount(HelpPanel())
+
     def change_board(self, board_name: str) -> None:
         """Change to a different board and reload issues."""
         cast(Any, self).notify(f"🔄 Switching to board: {board_name}...")

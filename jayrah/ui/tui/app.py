@@ -76,12 +76,12 @@ class IssueBrowserApp(App, JayrahAppMixin, IssueBrowserActions):
         Binding("e", "edit_issue", "Edit", show=False),
         Binding("f", "filter", "Fuzzy Filter", show=False),
         Binding("b", "change_board", "Boards", show=False),
-        Binding("?", "help", "Help"),
         Binding("j", "cursor_down", "Down"),
         Binding("k", "cursor_up", "Up"),
         Binding("J", "scroll_down", "PrevDown"),
         Binding("K", "scroll_up", "PrevUp"),
-        Binding("f1", "command_palette", "Palette"),
+        Binding("f1", "command_palette", "Palette", show=False),
+        Binding("?", "help", "Help"),
     ]
 
     ### ─────────────────────────  Lifecycle  ──────────────────────────

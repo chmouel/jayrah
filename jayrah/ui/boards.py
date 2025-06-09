@@ -26,7 +26,8 @@ def check(board, config) -> typing.Tuple[str, str]:
             click.secho("no boards has been setup", fg="red")
             raise ValueError("No boards has been setup in your config file")
         chosen_boards = [config["boards"][0]]
-        click.secho(f"Using board {chosen_boards[0].get('name')}", fg="green")
+        if config.get("verbose"):
+            utils.log(f"Using board {chosen_boards[0].get('name')}")
     else:
         chosen_boards = [x for x in config["boards"] if x.get("name") == board]
         if board is not None and board not in [
