@@ -157,7 +157,7 @@ class CommentsViewScreen(BaseModalScreen):
 
             # Highlight current comment
             if i == self.current_comment_index:
-                content.append(f"## 👉 Comment {i + 1} - {author} [CURRENT]")
+                content.append(f"## • Comment {i + 1} - {author}")
             else:
                 content.append(f"## Comment {i + 1} - {author}")
 
