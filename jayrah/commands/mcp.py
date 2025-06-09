@@ -16,8 +16,8 @@ def mcp_server_cmd(ctx, host, port):
     """Start the MCP server for programmatic access."""
 
     # Use the config file from the CLI context if available
-    # config_file = ctx.parent.params.get("config_file") if ctx.parent else None
+    config_file = ctx.parent.params.get("config_file") if ctx.parent else None
     try:
-        asyncio.run(server.main())
+        asyncio.run(server.main(config_file))
     except KeyboardInterrupt:
         click.secho("MCP server stopped by user", fg="yellow")

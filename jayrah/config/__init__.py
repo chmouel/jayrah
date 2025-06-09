@@ -4,8 +4,9 @@ import pathlib
 import re
 
 import yaml
-from jayrah import utils
 from rich.prompt import Prompt
+
+from jayrah import utils
 
 from . import defaults
 
@@ -24,6 +25,9 @@ def make_config(config: dict, config_file: pathlib.Path) -> dict:
         if not server_url.startswith(("https://", "http://")):
             if len(server_url.split(".")) == 1:
                 server_url = f"{server_url}.atlassian.net"
+                if not config.get("api_version"):
+                    config["api_version"] = "3"
+                    config["auth_method"] = "basic"
             server_url = "https://" + server_url
 
         config["jira_server"] = server_url
@@ -105,6 +109,12 @@ def read_config(ret: dict, config_file: pathlib.Path) -> dict:
 
         if "insecure" not in ret:
             ret["insecure"] = False
+
+        if "auth_method" not in ret:
+            ret["auth_method"] = ""
+
+        if "api_version" not in ret:
+            ret["api_version"] = ""
 
     checks()
     if not config_file.exists():
