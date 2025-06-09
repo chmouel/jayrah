@@ -32,15 +32,17 @@ def get_description(
     if not content:
         content = defaults.DEFAULT_CONTENT
 
-    tmpl = defaults.ISSUE_TEMPLATE.format(
-        title=title or "",
-        issuetype=issuetype or "Story",
-        content=content,
-        components=",".join(components) if components else "",
-        labels=",".join(labels) if labels else "",
-        assignee=assignee or "",
-        priority=priority or "",
-    )
+    tmpl = content
+    if not content.strip().startswith("---"):
+        tmpl = defaults.ISSUE_TEMPLATE.format(
+            title=title or "",
+            issuetype=issuetype or "Story",
+            content=content,
+            components=",".join(components) if components else "",
+            labels=",".join(labels) if labels else "",
+            assignee=assignee or "",
+            priority=priority or "",
+        )
 
     edited_text = utils.edit_text_with_editor(tmpl, extension=".md")
     if edited_text.strip() == "":
