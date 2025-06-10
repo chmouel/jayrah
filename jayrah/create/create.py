@@ -4,7 +4,7 @@ import click
 import jira2markdown
 
 from .. import utils
-from ..utils import issue_view
+from ..utils import adf, issue_view, markdown_to_jira
 from . import defaults
 from . import template_loader as tpl
 
@@ -152,6 +152,13 @@ def create_issue(
 ):
     """Create the issue with the given parameters."""
     try:
+        # Convert markdown description to Jira markdown if using API v2
+        description = markdown_to_jira.convert(description)
+
+        # Convert markdown description to ADF if using API v3
+        if jayrah_obj.config.get("api_version") == "3":
+            description = adf.create_adf_from_text(description)
+
         result = jayrah_obj.jira.create_issue(
             issuetype=issuetype,
             summary=summary,
