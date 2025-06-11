@@ -5,7 +5,7 @@ import typing
 import click
 
 from .. import utils
-from ..api import jira as jirahttp
+from ..api import jira_client as jirahttp
 from ..config import defaults
 from . import issues
 from .tui import run_textual_browser

@@ -5,7 +5,7 @@ import pathlib
 import click
 
 from .. import config
-from ..api import jira as jirahttp
+from ..api import jira_client as jirahttp
 from ..config import defaults, read_config
 
 

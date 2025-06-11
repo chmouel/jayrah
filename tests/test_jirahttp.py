@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from jayrah.api.jira import JiraHTTP
+from jayrah.api.jira_client import JiraHTTP
 
 
 @pytest.fixture

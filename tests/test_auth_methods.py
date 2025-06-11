@@ -6,7 +6,7 @@ import base64
 import unittest
 from unittest.mock import MagicMock, patch
 
-from jayrah.api.jira import JiraHTTP
+from jayrah.api.jira_client import JiraHTTP
 
 
 class TestJiraHTTPAuth(unittest.TestCase):
@@ -76,9 +76,8 @@ class TestJiraHTTPAuth(unittest.TestCase):
         with self.assertRaises(Exception) as context:
             JiraHTTP(config_without_username, api_version="3")
 
-        self.assertTrue(
-            "requires both jira_user and jira_password" in str(context.exception)
-        )
+        print(context.exception)
+        self.assertTrue("requires both username and password" in str(context.exception))
 
     @patch("urllib.request.urlopen")
     def test_v3_basic_auth_request(self, mock_urlopen):

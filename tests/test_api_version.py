@@ -2,7 +2,7 @@
 
 from unittest.mock import patch
 
-from jayrah.api.jira import JiraHTTP
+from jayrah.api.jira_client import JiraHTTP
 
 
 def test_api_version_init(sample_config):
