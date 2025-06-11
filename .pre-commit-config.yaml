@@ -20,7 +20,7 @@ repos:
     hooks:
       - id: ruff
         name: ruff
-        entry: make lint
+        entry: make ruff
         language: system
         types: [file, python]
       - id: ruff-format
@@ -31,5 +31,10 @@ repos:
       - id: pytest
         name: pytest
         entry: make test
+        language: system
+        types: [file, python]
+      - id: pylint
+        name: pytest
+        entry: make pylint
         language: system
         types: [file, python]

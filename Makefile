@@ -10,11 +10,17 @@ test: sync
 	@echo "-------------"
 	@uv run pytest -v
 
-lint: sync
-	@echo "Running linter"
+ruff: sync
+	@echo "Running Ruff"
 	@echo "--------------"
 	@uvx ruff check --unsafe-fixes --preview --fix
-	@uv run pylint $(PROJECT_NAME) || true
+
+pylint: sync
+	@echo "Running Pylint"
+	@echo "--------------"
+	@uv run pylint $(PROJECT_NAME)
+
+lint: sync pylint ruff
 
 format: sync
 	@echo "Running formatter"
