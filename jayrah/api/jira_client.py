@@ -340,7 +340,3 @@ class JiraHTTP:
             if self.verbose:
                 log(f"Error getting cache stats: {e}")
             return {"error": str(e)}
-
-
-# Backward compatibility alias
-JiraHTTP = JiraHTTP

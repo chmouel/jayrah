@@ -1,7 +1,7 @@
 """Helper functions and utilities for the issue browser."""
 
 from jayrah import utils
-from jayrah.utils import defaults
+from jayrah.config import defaults
 
 
 def get_row_data_for_issue(issue: dict) -> tuple:

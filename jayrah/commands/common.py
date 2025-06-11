@@ -6,7 +6,7 @@ import sys
 
 import click
 
-from .. import config as config
+from .. import config
 from .. import utils
 from ..ui import boards
 

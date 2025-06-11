@@ -49,7 +49,7 @@ def convert(markdown_text):
             code_line = re.sub(r"^\t", "", code_line)
             converted_lines.append(code_line)
             continue
-        elif in_code_block and not in_fenced_code:
+        if in_code_block and not in_fenced_code:
             converted_lines.append("{code}")
             in_code_block = False
 
@@ -61,7 +61,7 @@ def convert(markdown_text):
             quote_content = re.sub(r"^\s*>\s?", "", line)
             quote_lines.append(quote_content)
             continue
-        elif in_quote_block:
+        if in_quote_block:
             converted_lines.append("{quote}")
             converted_lines.extend(quote_lines)
             converted_lines.append("{quote}")

@@ -10,22 +10,18 @@ class FormatterBase(ABC):
     @abstractmethod
     def format_description(self, description: str) -> Union[str, Dict[str, Any]]:
         """Format description for the API version."""
-        pass
 
     @abstractmethod
     def format_comment(self, comment: Union[str, Dict[str, Any]]) -> Dict[str, Any]:
         """Format comment for the API version."""
-        pass
 
     @abstractmethod
     def format_assignee(self, assignee: str) -> Dict[str, str]:
         """Format assignee for the API version."""
-        pass
 
     @abstractmethod
     def get_issue_types_endpoint(self) -> str:
         """Get the endpoint for issue types."""
-        pass
 
 
 class V2Formatter(FormatterBase):
@@ -62,7 +58,7 @@ class V3Formatter(FormatterBase):
         if isinstance(comment, dict) and self._is_adf_format(comment):
             adf_content = comment
         else:
-            adf_content = self._convert_to_adf(comment)
+            adf_content = self._convert_to_adf(str(comment))
         return {"body": adf_content}
 
     def format_assignee(self, assignee: str) -> Dict[str, str]:
@@ -99,7 +95,6 @@ def create_formatter(api_version: str) -> FormatterBase:
     """Factory function to create appropriate formatter."""
     if api_version == "3":
         return V3Formatter()
-    elif api_version == "2":
+    if api_version == "2":
         return V2Formatter()
-    else:
-        raise ValueError(f"Unsupported API version: {api_version}")
+    raise ValueError(f"Unsupported API version: {api_version}")

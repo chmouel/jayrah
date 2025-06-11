@@ -9,8 +9,6 @@ import webbrowser
 
 import click
 
-from jayrah.config import defaults as defaults  # Third-party imports next
-
 
 def make_osc8_link(text, url):
     return f"\033]8;;{url}\033\\{text}\033]8;;\033\\"
