@@ -30,6 +30,128 @@ class ServerContext:
         self.boards_obj = boards.Boards(self.wconfig)
 
 
+def _create_board_resource(board: Dict) -> types.Resource:
+    """Create a resource object for a Jira board."""
+    board_name = board.get("name", "")
+    description = board.get("description", f"Jira board: {board_name}")
+
+    return types.Resource(
+        uri=AnyUrl(f"jira://board/{board_name}"),
+        name=f"Board: {board_name}",
+        description=description,
+        mimeType="application/json",
+    )
+
+
+def _format_issue_details(ticket: str, issue: Dict) -> str:
+    """Format issue details into a readable string."""
+    fields = issue.get("fields", {})
+    summary = fields.get("summary", "No summary")
+    description = fields.get("description", "No description")
+    status = fields.get("status", {}).get("name", "Unknown")
+    issue_type = fields.get("issuetype", {}).get("name", "Unknown")
+
+    formatted = [
+        f"Issue: {ticket}",
+        f"Type: {issue_type}",
+        f"Status: {status}",
+        f"Summary: {summary}",
+        "",
+        "Description:",
+        description,
+    ]
+
+    return "\n".join(formatted)
+
+
+def _format_transitions(ticket: str, transitions: Dict) -> str:
+    """Format transitions data into a readable string."""
+    result = f"Available transitions for {ticket}:\n\n"
+
+    for transition in transitions.get("transitions", []):
+        transition_id = transition.get("id")
+        transition_name = transition.get("name")
+        to_status = transition.get("to", {}).get("name")
+
+        result += f"ID: {transition_id}, Name: {transition_name}, To: {to_status}\n"
+
+    return result
+
+
+# pylint: disable=too-many-arguments
+def _format_issues_summary(
+    board_name: str,
+    issues: List[Dict],
+    limit: int = 10,
+    page: int = 1,
+    page_size: int = 100,
+    search_terms: List | None = None,
+    use_or: bool = False,
+    filters: List | None = None,
+    search_term: str | None = None,  # For backward compatibility
+) -> str:
+    """Format a list of issues into a readable summary."""
+    # Get the total number of issues (from the page)
+    total_in_page = len(issues)
+
+    # Calculate pagination info
+    start_index = (page - 1) * page_size
+
+    # Get total count if available in the first issue's metadata
+    total_count = None
+    if issues and "metadata" in issues[0] and "total" in issues[0]["metadata"]:
+        total_count = issues[0]["metadata"]["total"]
+
+    # Handle backward compatibility
+    if not search_terms and search_term:
+        search_terms = [search_term]
+
+    # Create the summary heading with search term info and filters if applicable
+    summary_parts = []
+    if search_terms:
+        # Use the common helper function to format search terms
+        terms_text = boards.format_search_terms(search_terms, use_or)
+        summary_parts.append(f"matching {terms_text}")
+
+    if filters:
+        filter_text = " AND ".join(f"{f}" for f in filters)
+        summary_parts.append(f"with filters: {filter_text}")
+
+    search_info = " " + " ".join(summary_parts) if summary_parts else ""
+
+    if total_count:
+        summary = f"Found {total_count} total issues{search_info} on board '{board_name}' (Page {page}, showing {total_in_page}):\n\n"
+    else:
+        summary = f"Found {total_in_page} issues{search_info} on board '{board_name}' (Page {page}):\n\n"
+
+    # Display issues up to the specified limit
+    display_count = min(limit, total_in_page)
+
+    for i, issue in enumerate(issues[:display_count]):
+        key = issue.get("key", "Unknown")
+        fields = issue.get("fields", {})
+        summary_text = fields.get("summary", "No summary")
+        status = fields.get("status", {}).get("name", "Unknown")
+
+        summary += f"{start_index + i + 1}. {key}: {summary_text} ({status})\n"
+
+    # Add pagination information
+    if total_in_page > display_count:
+        summary += (
+            f"\n... and {total_in_page - display_count} more issues on this page."
+        )
+
+    summary += f"\n\nShowing issues {start_index + 1}-{start_index + display_count}"
+    if total_count:
+        summary += f" of {total_count} total issues (page {page})."
+    else:
+        summary += f" of page {page}."
+
+    summary += "\nUse the 'page' parameter to navigate between pages and 'limit' to adjust how many issues are displayed."
+
+    return summary
+
+
 def create_server(context: ServerContext) -> Server:
     """Create and configure the MCP server with handlers that use the context."""
     server = Server("jayrah")
@@ -40,18 +162,6 @@ def create_server(context: ServerContext) -> Server:
         return [
             _create_board_resource(board) for board in context.wconfig.get("boards", [])
         ]
-
-    def _create_board_resource(board: Dict) -> types.Resource:
-        """Create a resource object for a Jira board."""
-        board_name = board.get("name", "")
-        description = board.get("description", f"Jira board: {board_name}")
-
-        return types.Resource(
-            uri=AnyUrl(f"jira://board/{board_name}"),
-            name=f"Board: {board_name}",
-            description=description,
-            mimeType="application/json",
-        )
 
     @server.read_resource()
     async def handle_read_resource(uri: AnyUrl) -> str:
@@ -414,80 +524,6 @@ def create_server(context: ServerContext) -> Server:
             )
         ]
 
-    # pylint: disable=too-many-locals
-    # pylint: disable=too-many-arguments
-    def _format_issues_summary(
-        board_name: str,
-        issues: List[Dict],
-        limit: int = 10,
-        page: int = 1,
-        page_size: int = 100,
-        search_terms: List | None = None,
-        use_or: bool = False,
-        filters: List | None = None,
-        search_term: str | None = None,  # For backward compatibility
-    ) -> str:
-        """Format a list of issues into a readable summary."""
-        # Get the total number of issues (from the page)
-        total_in_page = len(issues)
-
-        # Calculate pagination info
-        start_index = (page - 1) * page_size
-
-        # Get total count if available in the first issue's metadata
-        total_count = None
-        if issues and "metadata" in issues[0] and "total" in issues[0]["metadata"]:
-            total_count = issues[0]["metadata"]["total"]
-
-        # Handle backward compatibility
-        if not search_terms and search_term:
-            search_terms = [search_term]
-
-        # Create the summary heading with search term info and filters if applicable
-        summary_parts = []
-        if search_terms:
-            # Use the common helper function to format search terms
-            terms_text = boards.format_search_terms(search_terms, use_or)
-            summary_parts.append(f"matching {terms_text}")
-
-        if filters:
-            filter_text = " AND ".join(f"{f}" for f in filters)
-            summary_parts.append(f"with filters: {filter_text}")
-
-        search_info = " " + " ".join(summary_parts) if summary_parts else ""
-
-        if total_count:
-            summary = f"Found {total_count} total issues{search_info} on board '{board_name}' (Page {page}, showing {total_in_page}):\n\n"
-        else:
-            summary = f"Found {total_in_page} issues{search_info} on board '{board_name}' (Page {page}):\n\n"
-
-        # Display issues up to the specified limit
-        display_count = min(limit, total_in_page)
-
-        for i, issue in enumerate(issues[:display_count]):
-            key = issue.get("key", "Unknown")
-            fields = issue.get("fields", {})
-            summary_text = fields.get("summary", "No summary")
-            status = fields.get("status", {}).get("name", "Unknown")
-
-            summary += f"{start_index + i + 1}. {key}: {summary_text} ({status})\n"
-
-        # Add pagination information
-        if total_in_page > display_count:
-            summary += (
-                f"\n... and {total_in_page - display_count} more issues on this page."
-            )
-
-        summary += f"\n\nShowing issues {start_index + 1}-{start_index + display_count}"
-        if total_count:
-            summary += f" of {total_count} total issues (page {page})."
-        else:
-            summary += f" of page {page}."
-
-        summary += "\nUse the 'page' parameter to navigate between pages and 'limit' to adjust how many issues are displayed."
-
-        return summary
-
     async def _handle_create_issue(arguments: Dict) -> Sequence[ContentType]:
         """Handle the create-issue tool to create a new Jira issue."""
         issuetype = arguments.get("issuetype", "Story")
@@ -527,26 +563,6 @@ def create_server(context: ServerContext) -> Server:
         formatted_issue = _format_issue_details(ticket, issue)
         return [types.TextContent(type="text", text=formatted_issue)]
 
-    def _format_issue_details(ticket: str, issue: Dict) -> str:
-        """Format issue details into a readable string."""
-        fields = issue.get("fields", {})
-        summary = fields.get("summary", "No summary")
-        description = fields.get("description", "No description")
-        status = fields.get("status", {}).get("name", "Unknown")
-        issue_type = fields.get("issuetype", {}).get("name", "Unknown")
-
-        formatted = [
-            f"Issue: {ticket}",
-            f"Type: {issue_type}",
-            f"Status: {status}",
-            f"Summary: {summary}",
-            "",
-            "Description:",
-            description,
-        ]
-
-        return "\n".join(formatted)
-
     async def _handle_transition_issue(arguments: Dict) -> Sequence[ContentType]:
         """Handle the transition-issue tool to transition a Jira issue to a new status."""
         ticket = arguments.get("ticket")
@@ -575,19 +591,6 @@ def create_server(context: ServerContext) -> Server:
         formatted_transitions = _format_transitions(ticket, transitions)
 
         return [types.TextContent(type="text", text=formatted_transitions)]
-
-    def _format_transitions(ticket: str, transitions: Dict) -> str:
-        """Format transitions data into a readable string."""
-        result = f"Available transitions for {ticket}:\n\n"
-
-        for transition in transitions.get("transitions", []):
-            transition_id = transition.get("id")
-            transition_name = transition.get("name")
-            to_status = transition.get("to", {}).get("name")
-
-            result += f"ID: {transition_id}, Name: {transition_name}, To: {to_status}\n"
-
-        return result
 
     async def _handle_open_issue(arguments: Dict) -> Sequence[ContentType]:
         """Handle the open-issue tool to get URL to open a Jira issue in browser."""
