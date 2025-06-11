@@ -6,8 +6,12 @@ import yaml
 
 
 @pytest.fixture
-def sample_config():
-    """Return a sample configuration dictionary."""
+def sample_config(tmp_path):
+    """Return a sample configuration dictionary with isolated cache directory."""
+    # Use tmp_path to create a unique cache directory for each test
+    cache_dir = tmp_path / "test_cache"
+    cache_dir.mkdir(exist_ok=True)
+    
     return {
         "jira_server": "https://test-jira.example.com",
         "jira_user": "testuser",
@@ -20,6 +24,7 @@ def sample_config():
         "api_version": "2",
         "auth_method": "bearer",
         "cache_ttl": 3600,
+        "cache_dir": str(cache_dir),  # Use isolated cache directory
         "boards": [
             {
                 "name": "myissue",

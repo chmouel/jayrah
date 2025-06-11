@@ -30,7 +30,24 @@ class JiraCache:
         self.db_path = self.cache_dir / "cache.db"
         self._lock = threading.Lock()
         self._conn = sqlite3.connect(self.db_path, check_same_thread=False)
-        self._conn.execute("PRAGMA journal_mode=WAL;")
+        
+        # Set WAL mode for better concurrent access, with fallback
+        try:
+            self._conn.execute("PRAGMA journal_mode=WAL;")
+        except sqlite3.OperationalError as e:
+            # If WAL mode fails (e.g., due to file permissions or concurrent access),
+            # fall back to DELETE mode which should work in all environments
+            if "database is locked" in str(e).lower():
+                utils.log("WAL mode failed, falling back to DELETE mode")
+                try:
+                    self._conn.execute("PRAGMA journal_mode=DELETE;")
+                except sqlite3.OperationalError:
+                    # If DELETE mode also fails, continue without changing journal mode
+                    utils.log("Journal mode change failed, using default")
+            else:
+                # Re-raise if it's a different error
+                raise
+        
         self._init_db()
         self._preloaded_cache = None  # Will hold preloaded cache if used
 
@@ -152,7 +169,7 @@ class JiraCache:
 
     def prune(self, max_age: Optional[int] = None) -> int:
         if max_age is None:
-            max_age = self.cache_ttl
+            max_age = int(self.cache_ttl)
         cutoff_time = time.time() - max_age
         try:
             with self._lock:
