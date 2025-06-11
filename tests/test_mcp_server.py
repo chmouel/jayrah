@@ -181,12 +181,19 @@ class TestHelperFunctions:
     def test_format_issues_summary_with_search_terms(self):
         """Test _format_issues_summary with search terms."""
         board_name = "test-board"
-        issues = [{"key": "TEST-123", "fields": {"summary": "Test", "status": {"name": "Open"}}}]
+        issues = [
+            {
+                "key": "TEST-123",
+                "fields": {"summary": "Test", "status": {"name": "Open"}},
+            }
+        ]
         search_terms = ["bug", "urgent"]
 
         with patch("jayrah.mcp.server.boards.format_search_terms") as mock_format:
             mock_format.return_value = "'bug' AND 'urgent'"
-            result = _format_issues_summary(board_name, issues, search_terms=search_terms)
+            result = _format_issues_summary(
+                board_name, issues, search_terms=search_terms
+            )
 
         assert "matching 'bug' AND 'urgent'" in result
         mock_format.assert_called_once_with(search_terms, False)
@@ -194,7 +201,12 @@ class TestHelperFunctions:
     def test_format_issues_summary_with_filters(self):
         """Test _format_issues_summary with filters."""
         board_name = "test-board"
-        issues = [{"key": "TEST-123", "fields": {"summary": "Test", "status": {"name": "Open"}}}]
+        issues = [
+            {
+                "key": "TEST-123",
+                "fields": {"summary": "Test", "status": {"name": "Open"}},
+            }
+        ]
         filters = ["status=Open", "priority=High"]
 
         result = _format_issues_summary(board_name, issues, filters=filters)
@@ -212,7 +224,9 @@ class TestHelperFunctions:
             }
         ]
 
-        result = _format_issues_summary(board_name, issues, limit=1, page=2, page_size=10)
+        result = _format_issues_summary(
+            board_name, issues, limit=1, page=2, page_size=10
+        )
 
         assert "Found 50 total issues" in result
         assert "(Page 2, showing 1)" in result
@@ -236,7 +250,12 @@ class TestHelperFunctions:
     def test_format_issues_summary_backward_compatibility(self):
         """Test _format_issues_summary with deprecated search_term parameter."""
         board_name = "test-board"
-        issues = [{"key": "TEST-123", "fields": {"summary": "Test", "status": {"name": "Open"}}}]
+        issues = [
+            {
+                "key": "TEST-123",
+                "fields": {"summary": "Test", "status": {"name": "Open"}},
+            }
+        ]
 
         with patch("jayrah.mcp.server.boards.format_search_terms") as mock_format:
             mock_format.return_value = "'bug'"
@@ -268,21 +287,21 @@ class TestCreateServer:
     def test_create_server_returns_server(self, mock_context):
         """Test that create_server returns a Server instance."""
         server = create_server(mock_context)
-        assert hasattr(server, 'get_capabilities')
+        assert hasattr(server, "get_capabilities")
 
     def test_create_server_basic_properties(self, mock_context):
         """Test basic server properties after creation."""
         server = create_server(mock_context)
-        
+
         # Test that the server is created successfully
         assert server is not None
-        assert hasattr(server, 'get_capabilities')
-        
+        assert hasattr(server, "get_capabilities")
+
         # Test server capabilities with required parameters
         from mcp.server import NotificationOptions
+
         capabilities = server.get_capabilities(
-            notification_options=NotificationOptions(),
-            experimental_capabilities={}
+            notification_options=NotificationOptions(), experimental_capabilities={}
         )
         assert capabilities is not None
 
@@ -308,18 +327,18 @@ class TestIntegration:
         """Test server creation with context integration."""
         # Test that all components work together
         server = create_server(mock_context)
-        
+
         # Verify server creation
         assert server is not None
-        
+
         # Verify server has expected capabilities with required parameters
         from mcp.server import NotificationOptions
+
         capabilities = server.get_capabilities(
-            notification_options=NotificationOptions(),
-            experimental_capabilities={}
+            notification_options=NotificationOptions(), experimental_capabilities={}
         )
         assert capabilities is not None
-        
+
         # Verify context is properly configured
         assert mock_context.wconfig["jira_server"] == "https://test.jira.com"
         assert len(mock_context.wconfig["boards"]) == 1
@@ -331,11 +350,11 @@ class TestIntegration:
             "name": "integration-test-board",
             "description": "Board for integration testing",
             "jql": "project = TEST",
-            "order_by": "updated"
+            "order_by": "updated",
         }
-        
+
         resource = _create_board_resource(board_data)
-        
+
         assert resource.name == "Board: integration-test-board"
         assert resource.description == "Board for integration testing"
         assert str(resource.uri) == "jira://board/integration-test-board"
@@ -353,12 +372,12 @@ class TestIntegration:
                 "assignee": {"displayName": "Test User", "name": "testuser"},
                 "priority": {"name": "High", "id": "2"},
                 "created": "2023-01-01T10:00:00.000+0000",
-                "updated": "2023-01-02T11:00:00.000+0000"
-            }
+                "updated": "2023-01-02T11:00:00.000+0000",
+            },
         }
-        
+
         formatted = _format_issue_details(ticket, comprehensive_issue)
-        
+
         assert "Issue: INTEGRATION-123" in formatted
         assert "Type: Story" in formatted
         assert "Status: In Progress" in formatted
@@ -375,27 +394,27 @@ class TestIntegration:
                     "name": "To Do",
                     "to": {"name": "To Do", "id": "1"},
                     "hasScreen": False,
-                    "isGlobal": True
+                    "isGlobal": True,
                 },
                 {
-                    "id": "21", 
+                    "id": "21",
                     "name": "In Progress",
                     "to": {"name": "In Progress", "id": "3"},
                     "hasScreen": True,
-                    "isGlobal": False
+                    "isGlobal": False,
                 },
                 {
                     "id": "31",
                     "name": "Done",
                     "to": {"name": "Done", "id": "10001"},
                     "hasScreen": False,
-                    "isGlobal": True
-                }
+                    "isGlobal": True,
+                },
             ]
         }
-        
+
         formatted = _format_transitions(ticket, realistic_transitions)
-        
+
         assert "Available transitions for INTEGRATION-456:" in formatted
         assert "ID: 11, Name: To Do, To: To Do" in formatted
         assert "ID: 21, Name: In Progress, To: In Progress" in formatted

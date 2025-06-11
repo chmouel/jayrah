@@ -11,7 +11,7 @@ def sample_config(tmp_path):
     # Use tmp_path to create a unique cache directory for each test
     cache_dir = tmp_path / "test_cache"
     cache_dir.mkdir(exist_ok=True)
-    
+
     return {
         "jira_server": "https://test-jira.example.com",
         "jira_user": "testuser",

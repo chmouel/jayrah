@@ -30,7 +30,7 @@ class JiraCache:
         self.db_path = self.cache_dir / "cache.db"
         self._lock = threading.Lock()
         self._conn = sqlite3.connect(self.db_path, check_same_thread=False)
-        
+
         # Set WAL mode for better concurrent access, with fallback
         try:
             self._conn.execute("PRAGMA journal_mode=WAL;")
@@ -47,7 +47,7 @@ class JiraCache:
             else:
                 # Re-raise if it's a different error
                 raise
-        
+
         self._init_db()
         self._preloaded_cache = None  # Will hold preloaded cache if used
 
