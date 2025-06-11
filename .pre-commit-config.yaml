@@ -34,7 +34,7 @@ repos:
         language: system
         types: [file, python]
       - id: pylint
-        name: pytest
+        name: pylint
         entry: make pylint
         language: system
         types: [file, python]
