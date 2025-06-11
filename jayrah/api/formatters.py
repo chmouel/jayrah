@@ -20,7 +20,7 @@ class FormatterBase(ABC):
         """Format assignee for the API version."""
 
     @abstractmethod
-    def get_issue_types_endpoint(self) -> str:
+    def get_issue_types_endpoint(self, projectkey) -> str:
         """Get the endpoint for issue types."""
 
 
@@ -39,7 +39,7 @@ class V2Formatter(FormatterBase):
         """API v2 uses username."""
         return {"name": assignee}
 
-    def get_issue_types_endpoint(self) -> str:
+    def get_issue_types_endpoint(self, projectkey) -> str:
         """API v2 endpoint for issue types."""
         return "issuetype"
 
@@ -67,9 +67,9 @@ class V3Formatter(FormatterBase):
             return {"accountId": assignee}
         return {"name": assignee}
 
-    def get_issue_types_endpoint(self) -> str:
+    def get_issue_types_endpoint(self, projectkey) -> str:
         """API v3 endpoint for issue types."""
-        return "issuetypes"
+        return f"/issue/createmeta?projectKeys={projectkey}&expand=projects.issuetypes"
 
     def _convert_to_adf(self, text: str) -> Dict[str, Any]:
         """Convert plain text to Atlassian Document Format (ADF)."""

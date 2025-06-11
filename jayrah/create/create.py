@@ -9,7 +9,7 @@ from . import defaults
 from . import template_loader as tpl
 
 
-def get_description(
+def create_edit_issue(
     jayrah_obj,
     title,
     issuetype=None,
@@ -32,11 +32,17 @@ def get_description(
     if not content:
         content = defaults.DEFAULT_CONTENT
 
+    allissuetypes = jayrah_obj.jira.get_issue_types()
+    if issuetype and issuetype not in allissuetypes:
+        raise click.ClickException(
+            f"Issue type '{issuetype}' is not available. Available types: {', '.join(allissuetypes)}"
+        )
+
     tmpl = content
     if not content.strip().startswith("---"):
         tmpl = defaults.ISSUE_TEMPLATE.format(
             title=title or "",
-            issuetype=issuetype or "Story",
+            issuetype=issuetype or list(allissuetypes.keys())[0],
             content=content,
             components=",".join(components) if components else "",
             labels=",".join(labels) if labels else "",
@@ -57,6 +63,12 @@ def get_description(
             line = line.strip()
             if line.startswith("type"):
                 issuetype = line.split(":")[1].strip()
+                # # pylint: disable=W0511
+                # TODO: Offer to choose from available types if not found
+                if issuetype not in allissuetypes:
+                    raise click.ClickException(
+                        f"Issue type '{issuetype}' is not available. Available types: {', '.join(allissuetypes)}"
+                    )
             elif line.startswith("components"):
                 components = (
                     line.split(":")[1].strip().split(",") if ":" in line else []

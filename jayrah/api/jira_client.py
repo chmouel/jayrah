@@ -243,10 +243,23 @@ class JiraHTTP:
 
         return self._request("POST", f"issue/{issue_key}/comment", jeez=payload)
 
-    def get_issue_types(self) -> Dict[str, Any]:
+    def get_issue_types(self) -> Dict[str, str]:
         """Get all available issue types for the project."""
-        endpoint = self.formatter.get_issue_types_endpoint()
-        return self._request("GET", endpoint, label="Fetching issue types")
+        endpoint = self.formatter.get_issue_types_endpoint(
+            self.config.get("jira_project")
+        )
+        issuetype = self._request("GET", endpoint, label="Fetching issue types")
+        ret = {}
+        if self.config.get("api_version") == "2":
+            for it in issuetype:
+                if isinstance(it, dict) and "name" in it and "id" in it:
+                    ret[it["name"]] = it["id"]
+        else:
+            for it in issuetype.get("projects", []):
+                if it["key"] == self.config.get("jira_project"):
+                    for issue_type in it.get("issuetypes", []):
+                        ret[issue_type["name"]] = issue_type["id"]
+        return ret
 
     def get_priorities(self) -> Dict[str, Any]:
         """Get all available priorities."""

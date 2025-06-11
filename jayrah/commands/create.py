@@ -4,7 +4,7 @@ import os
 
 import click
 
-from ..create.create import get_description, interactive_create
+from ..create.create import create_edit_issue, interactive_create
 from .common import cli
 from .completions import ComponentType, IssueType, PriorityType
 
@@ -56,8 +56,8 @@ def create(
             body = f.read()
 
     if jayrah_obj.config.get("create"):
-        if not issuetype and jayrah_obj.config["create"].get("issuetype"):
-            issuetype = jayrah_obj.config["create"]["issuetype"]
+        if not issuetype and jayrah_obj.config["create"].get("type"):
+            issuetype = jayrah_obj.config["create"]["type"]
         if not components and jayrah_obj.config["create"].get("components"):
             components = jayrah_obj.config["create"]["components"]
         if not labels and jayrah_obj.config["create"].get("labels"):
@@ -67,7 +67,7 @@ def create(
         if not priority and jayrah_obj.config["create"].get("priority"):
             priority = jayrah_obj.config["create"]["priority"]
 
-    defaults = get_description(
+    defaults = create_edit_issue(
         jayrah_obj,
         title,
         issuetype,
