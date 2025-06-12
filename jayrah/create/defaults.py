@@ -1,5 +1,7 @@
 """Default values and helpers for Jayrah issue creation."""
 
+MARKER = "<!-- ##### *-* Anything after this line will be ignored *-* -->"
+
 ISSUE_TEMPLATE = """---
 title: {title}
 type: {issuetype}
@@ -8,7 +10,28 @@ labels: {labels}
 assignee: {assignee}
 priority: {priority}
 ---
-{content}"""
+{content}
+
+{marker}
+
+## Available Fields
+
+### Issue Types
+
+{allissuetypes}
+
+### Components
+
+{allcomponents}
+
+### Labels
+
+{alllabels}
+
+### Priorities
+
+{allpriorities}
+"""
 
 DEFAULT_CONTENT = """## Description
 
@@ -30,8 +53,8 @@ Describe what actually happened.
 
 ## Acceptance Criteria (for stories/features)
 
-- [ ] Clearly defined acceptance criterion
-- [ ] ...
+- Clearly defined acceptance criterion
+- ...
 
 ## Additional Information
 

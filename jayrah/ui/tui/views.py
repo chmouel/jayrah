@@ -591,7 +591,6 @@ class LabelsEditScreen(BaseModalScreen):
         all_labels = self._parent.jayrah_obj.jira.get_labels()
         if label_excludes := self.config.get("label_excludes"):
             labels_excldues_re = re.compile(label_excludes.strip())
-            print(labels_excldues_re)
             all_labels = [
                 label
                 for label in all_labels

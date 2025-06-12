@@ -1,5 +1,7 @@
 """Issue creation utilities for Jayrah."""
 
+import re
+
 import click
 import jira2markdown
 
@@ -37,17 +39,37 @@ def create_edit_issue(
         raise click.ClickException(
             f"Issue type '{issuetype}' is not available. Available types: {', '.join(allissuetypes)}"
         )
+    allissuetypes_f = [f"- {k.strip()}" for k in allissuetypes]
+    allpriorities = [k["name"].strip() for k in jayrah_obj.jira.get_priorities()]
+    allpriorities_f = [f"- {k.strip()}" for k in allpriorities]
+
+    labels_exclude = jayrah_obj.config.get("label_excludes", "")
+    labels_exclude_re = re.compile(labels_exclude.strip()) if labels_exclude else None
+
+    alllabels = jayrah_obj.jira.get_labels()
+    alllabels_f = [
+        f"- {k}"
+        for k in alllabels
+        if k and (not labels_exclude_re or not labels_exclude_re.match(k))
+    ]
+    allcomponents = jayrah_obj.jira.get_components()
+    allcomponents_f = [f"- {k}" for k in allcomponents]
 
     tmpl = content
     if not content.strip().startswith("---"):
         tmpl = defaults.ISSUE_TEMPLATE.format(
             title=title or "",
             issuetype=issuetype or list(allissuetypes.keys())[0],
-            content=content,
+            content=content.strip(),
             components=",".join(components) if components else "",
             labels=",".join(labels) if labels else "",
             assignee=assignee or "",
             priority=priority or "",
+            marker=defaults.MARKER,
+            allcomponents="\n".join(allcomponents_f),
+            alllabels="\n".join(alllabels_f),
+            allpriorities="\n".join(allpriorities_f),
+            allissuetypes="\n".join(allissuetypes_f),
         )
 
     edited_text = utils.edit_text_with_editor(tmpl, extension=".md")
@@ -84,6 +106,9 @@ def create_edit_issue(
             elif line.startswith("priority"):
                 priority = line.split(":")[1].strip() if ":" in line else ""
         edited_text = "\n".join(lines[:start] + lines[end + 1 :])
+
+    # Remove everything after the marker
+    edited_text = edited_text.split(defaults.MARKER)[0].strip()
 
     if not issuetype:
         raise click.ClickException("Issue type must be specified in the template.")
