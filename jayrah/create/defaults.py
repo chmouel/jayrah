@@ -14,7 +14,7 @@ priority: {priority}
 
 {marker}
 
-## Available Fields
+## Available Fields (just for reference to copy and paste easily)
 
 ### Issue Types
 
