@@ -6,6 +6,10 @@ Handles headings, formatting, lists, links, code, blockquotes, tables, images, e
 import re
 from typing import Any, Dict, List, Optional
 
+CODE_BLOCK_LANGS_TO_JIRA = {
+    "sh": "bash",
+}
+
 
 def convert(markdown_text):
     """
@@ -27,6 +31,8 @@ def convert(markdown_text):
                 in_code_block = True
                 in_fenced_code = True
                 code_block_lang = re.match(r"^```(\w*)$", line).group(1)
+                if CODE_BLOCK_LANGS_TO_JIRA.get(code_block_lang):
+                    code_block_lang = CODE_BLOCK_LANGS_TO_JIRA[code_block_lang]
                 if code_block_lang:
                     converted_lines.append(f"{{code:{code_block_lang}}}")
                 else:
