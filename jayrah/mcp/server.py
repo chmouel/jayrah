@@ -152,6 +152,49 @@ def _format_issues_summary(
     return summary
 
 
+def _format_search_results(
+    jql: str,
+    issues: List[Dict],
+    total: int,
+    limit: int = 10,
+    page: int = 1,
+    page_size: int = 100,
+    start_at: int = 0,
+) -> str:
+    """Format search results into a readable summary."""
+    # Create the summary heading
+    summary = f"Found {total} issues matching JQL: {jql}\n"
+    summary += f"Page {page} (showing {len(issues)} issues):\n\n"
+
+    # Display issues up to the specified limit
+    display_count = min(limit, len(issues))
+
+    for i, issue in enumerate(issues[:display_count]):
+        key = issue.get("key", "Unknown")
+        fields = issue.get("fields", {})
+        summary_text = fields.get("summary", "No summary")
+        status = fields.get("status", {}).get("name", "Unknown")
+        issue_type = fields.get("issuetype", {}).get("name", "Unknown")
+        assignee = fields.get("assignee", {})
+        assignee_name = (
+            assignee.get("displayName", "Unassigned") if assignee else "Unassigned"
+        )
+
+        summary += f"{start_at + i + 1}. {key} [{issue_type}]: {summary_text}\n"
+        summary += f"   Status: {status} | Assignee: {assignee_name}\n\n"
+
+    # Add pagination information
+    if len(issues) > display_count:
+        summary += (
+            f"... and {len(issues) - display_count} more issues on this page.\n\n"
+        )
+
+    summary += f"Showing issues {start_at + 1}-{start_at + display_count} of {total} total issues (page {page}).\n"
+    summary += "Use the 'page' parameter to navigate between pages and 'limit' to adjust how many issues are displayed."
+
+    return summary
+
+
 def create_server(context: ServerContext) -> Server:
     """Create and configure the MCP server with handlers that use the context."""
     server = Server("jayrah")
@@ -418,6 +461,116 @@ def create_server(context: ServerContext) -> Server:
                     "properties": {},
                 },
             ),
+            # Comprehensive Jira search
+            types.Tool(
+                name="search",
+                description="Comprehensive search across Jira issues with flexible JQL field filtering",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "jql": {
+                            "type": "string",
+                            "description": "Custom JQL query string (takes precedence over other parameters if provided)",
+                        },
+                        "text": {
+                            "type": "string",
+                            "description": "Text to search in summary and description fields",
+                        },
+                        "project": {
+                            "type": "string",
+                            "description": "Project key to filter by (e.g., 'PROJ')",
+                        },
+                        "status": {
+                            "type": "string",
+                            "description": "Status to filter by (e.g., 'In Progress', 'Done')",
+                        },
+                        "assignee": {
+                            "type": "string",
+                            "description": "Assignee username or email to filter by",
+                        },
+                        "reporter": {
+                            "type": "string",
+                            "description": "Reporter username or email to filter by",
+                        },
+                        "priority": {
+                            "type": "string",
+                            "description": "Priority to filter by (e.g., 'High', 'Critical')",
+                        },
+                        "issue_type": {
+                            "type": "string",
+                            "description": "Issue type to filter by (e.g., 'Bug', 'Story')",
+                        },
+                        "components": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "description": "List of component names to filter by",
+                        },
+                        "labels": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "description": "List of labels to filter by",
+                        },
+                        "created_after": {
+                            "type": "string",
+                            "description": "Filter issues created after this date (YYYY-MM-DD format)",
+                        },
+                        "created_before": {
+                            "type": "string",
+                            "description": "Filter issues created before this date (YYYY-MM-DD format)",
+                        },
+                        "updated_after": {
+                            "type": "string",
+                            "description": "Filter issues updated after this date (YYYY-MM-DD format)",
+                        },
+                        "updated_before": {
+                            "type": "string",
+                            "description": "Filter issues updated before this date (YYYY-MM-DD format)",
+                        },
+                        "fix_version": {
+                            "type": "string",
+                            "description": "Fix version to filter by",
+                        },
+                        "affects_version": {
+                            "type": "string",
+                            "description": "Affects version to filter by",
+                        },
+                        "epic": {
+                            "type": "string",
+                            "description": "Epic key or name to filter by",
+                        },
+                        "sprint": {
+                            "type": "string",
+                            "description": "Sprint name to filter by",
+                        },
+                        "custom_fields": {
+                            "type": "object",
+                            "description": "Custom field filters as key-value pairs (e.g., {'customfield_10001': 'value'})",
+                            "additionalProperties": {"type": "string"},
+                        },
+                        "order_by": {
+                            "type": "string",
+                            "description": "Field to order results by (e.g., 'created', 'updated', 'priority')",
+                        },
+                        "order_direction": {
+                            "type": "string",
+                            "enum": ["ASC", "DESC"],
+                            "description": "Sort direction (ASC or DESC, default: DESC)",
+                        },
+                        "limit": {
+                            "type": "integer",
+                            "description": "Maximum number of issues to display (default: 10)",
+                        },
+                        "page": {
+                            "type": "integer",
+                            "description": "Page number to retrieve (starts at 1)",
+                        },
+                        "page_size": {
+                            "type": "integer",
+                            "description": "Number of issues to retrieve per page (default: 100)",
+                        },
+                    },
+                },
+            ),
         ]
 
     @server.call_tool()
@@ -433,6 +586,7 @@ def create_server(context: ServerContext) -> Server:
             "get-transitions": _handle_get_transitions,
             "open-issue": _handle_open_issue,
             "list-boards": _handle_list_boards,
+            "search": _handle_search,
         }
 
         try:
@@ -611,6 +765,151 @@ def create_server(context: ServerContext) -> Server:
             formatted_boards += f"* {board_name}: {description}\n"
 
         return [types.TextContent(type="text", text=formatted_boards)]
+
+    async def _handle_search(arguments: Dict) -> Sequence[ContentType]:
+        """Handle the search tool for comprehensive Jira issue searching."""
+        # Get search parameters
+        custom_jql = arguments.get("jql")
+        text = arguments.get("text")
+        project = arguments.get("project")
+        status = arguments.get("status")
+        assignee = arguments.get("assignee")
+        reporter = arguments.get("reporter")
+        priority = arguments.get("priority")
+        issue_type = arguments.get("issue_type")
+        components = arguments.get("components", [])
+        labels = arguments.get("labels", [])
+        created_after = arguments.get("created_after")
+        created_before = arguments.get("created_before")
+        updated_after = arguments.get("updated_after")
+        updated_before = arguments.get("updated_before")
+        fix_version = arguments.get("fix_version")
+        affects_version = arguments.get("affects_version")
+        epic = arguments.get("epic")
+        sprint = arguments.get("sprint")
+        custom_fields = arguments.get("custom_fields", {})
+        order_by = arguments.get("order_by", "updated")
+        order_direction = arguments.get("order_direction", "DESC")
+        limit = arguments.get("limit", 10)
+        page = arguments.get("page", 1)
+        page_size = arguments.get("page_size", 100)
+
+        # If custom JQL is provided, use it directly
+        if custom_jql:
+            jql = custom_jql
+        else:
+            # Build JQL from individual parameters
+            jql_parts = []
+
+            # Project filter
+            if project:
+                jql_parts.append(f'project = "{project}"')
+
+            # Text search in summary and description
+            if text:
+                jql_parts.append(f'(summary ~ "{text}" OR description ~ "{text}")')
+
+            # Status filter
+            if status:
+                jql_parts.append(f'status = "{status}"')
+
+            # Assignee filter
+            if assignee:
+                jql_parts.append(f'assignee = "{assignee}"')
+
+            # Reporter filter
+            if reporter:
+                jql_parts.append(f'reporter = "{reporter}"')
+
+            # Priority filter
+            if priority:
+                jql_parts.append(f'priority = "{priority}"')
+
+            # Issue type filter
+            if issue_type:
+                jql_parts.append(f'issuetype = "{issue_type}"')
+
+            # Components filter
+            if components:
+                comp_filters = []
+                for comp in components:
+                    comp_filters.append(f'component = "{comp}"')
+                if comp_filters:
+                    jql_parts.append(f"({' OR '.join(comp_filters)})")
+
+            # Labels filter
+            if labels:
+                label_filters = []
+                for label in labels:
+                    label_filters.append(f'labels = "{label}"')
+                if label_filters:
+                    jql_parts.append(f"({' AND '.join(label_filters)})")
+
+            # Date filters
+            if created_after:
+                jql_parts.append(f'created >= "{created_after}"')
+            if created_before:
+                jql_parts.append(f'created <= "{created_before}"')
+            if updated_after:
+                jql_parts.append(f'updated >= "{updated_after}"')
+            if updated_before:
+                jql_parts.append(f'updated <= "{updated_before}"')
+
+            # Version filters
+            if fix_version:
+                jql_parts.append(f'fixVersion = "{fix_version}"')
+            if affects_version:
+                jql_parts.append(f'affectedVersion = "{affects_version}"')
+
+            # Epic filter
+            if epic:
+                # Try both epic key and epic name formats
+                jql_parts.append(f'("Epic Link" = "{epic}" OR "Epic Name" ~ "{epic}")')
+
+            # Sprint filter
+            if sprint:
+                jql_parts.append(f'Sprint = "{sprint}"')
+
+            # Custom fields
+            for field, value in custom_fields.items():
+                jql_parts.append(f'{field} = "{value}"')
+
+            # Combine all parts with AND
+            if jql_parts:
+                jql = " AND ".join(jql_parts)
+            else:
+                # Default search if no criteria provided
+                jql = "order by updated DESC"
+
+        # Add ordering if not already in the JQL
+        if "order by" not in jql.lower():
+            jql += f" ORDER BY {order_by} {order_direction}"
+
+        # Calculate pagination
+        start_at = (page - 1) * page_size
+
+        try:
+            # Execute the search
+            result = context.boards_obj.jira.search_issues(
+                jql, start_at=start_at, max_results=page_size
+            )
+
+            issues = result.get("issues", [])
+            total = result.get("total", 0)
+
+            # Format the results
+            summary_text = _format_search_results(
+                jql, issues, total, limit, page, page_size, start_at
+            )
+
+            return [types.TextContent(type="text", text=summary_text)]
+
+        except Exception as e:
+            return [
+                types.TextContent(
+                    type="text", text=f"Error executing search: {str(e)}\nJQL: {jql}"
+                )
+            ]
 
     return server
 
