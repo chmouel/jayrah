@@ -44,9 +44,9 @@
         }
 
         .header {
-            background: linear-gradient(135deg, var(--primary-color), var(--primary-hover));
-            color: white;
-            padding: 1.5rem 0;
+            background: linear-gradient(135deg, #f5deb3, #e6d2a3);
+            color: #8b4513;
+            padding: 0.75rem 0;
             box-shadow: var(--shadow);
             flex-shrink: 0;
         }
@@ -60,8 +60,17 @@
         }
 
         .header h1 {
-            font-size: 1.8rem;
+            font-size: 1.4rem;
             font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .header-logo {
+            height: 1.5rem;
+            width: auto;
+            object-fit: contain;
         }
 
         .header-controls {
@@ -71,9 +80,9 @@
         }
 
         .view-toggle {
-            background: rgba(255, 255, 255, 0.1);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            color: white;
+            background: rgba(139, 69, 19, 0.1);
+            border: 1px solid rgba(139, 69, 19, 0.2);
+            color: #8b4513;
             padding: 0.5rem;
             border-radius: var(--radius);
             cursor: pointer;
@@ -87,7 +96,7 @@
         }
 
         .view-toggle:hover {
-            background: rgba(255, 255, 255, 0.2);
+            background: rgba(139, 69, 19, 0.2);
             transform: scale(1.05);
         }
 
@@ -96,9 +105,9 @@
         }
 
         .board-selector {
-            background: rgba(255, 255, 255, 0.1);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            color: white;
+            background: rgba(139, 69, 19, 0.1);
+            border: 1px solid rgba(139, 69, 19, 0.2);
+            color: #8b4513;
             padding: 0.5rem 1rem;
             border-radius: var(--radius);
             cursor: pointer;
@@ -111,7 +120,7 @@
         }
 
         .board-selector:hover {
-            background: rgba(255, 255, 255, 0.2);
+            background: rgba(139, 69, 19, 0.2);
             transform: translateY(-1px);
         }
 
@@ -119,11 +128,59 @@
             transform: translateY(0);
         }
 
+        .search-toggle {
+            background: rgba(139, 69, 19, 0.1);
+            border: 1px solid rgba(139, 69, 19, 0.2);
+            color: #8b4513;
+            padding: 0.5rem;
+            border-radius: var(--radius);
+            cursor: pointer;
+            font-size: 1.2rem;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 2.5rem;
+            height: 2.5rem;
+        }
+
+        .search-toggle:hover {
+            background: rgba(139, 69, 19, 0.2);
+            transform: scale(1.05);
+        }
+
+        .search-toggle:active {
+            transform: scale(0.95);
+        }
+
+        .search-toggle.active {
+            background: rgba(139, 69, 19, 0.3);
+            color: #654321;
+        }
+
         .stats {
-            background: rgba(255, 255, 255, 0.1);
+            background: rgba(139, 69, 19, 0.1);
             padding: 0.5rem 1rem;
             border-radius: var(--radius);
             font-size: 0.9rem;
+        }
+
+        /* Layout state classes */
+        .layout-horizontal .main-content {
+            flex-direction: row;
+        }
+
+        .layout-vertical .main-content {
+            flex-direction: column;
+        }
+
+        .layout-vertical .issues-panel {
+            max-height: 50vh;
+            min-height: 300px;
+        }
+
+        .layout-vertical .detail-panel {
+            max-height: 50vh;
         }
 
         /* View state classes */
@@ -169,6 +226,25 @@
             border-radius: var(--radius);
             box-shadow: var(--shadow);
             flex-shrink: 0;
+            display: none;
+            /* Hidden by default */
+            animation: searchSlideDown 0.2s ease;
+        }
+
+        .search-container.visible {
+            display: block;
+        }
+
+        @keyframes searchSlideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
 
         .search-input {
@@ -208,17 +284,6 @@
             border-radius: var(--radius);
             box-shadow: var(--shadow);
             overflow: hidden;
-        }
-
-        .issues-header {
-            background: var(--secondary-color);
-            padding: 1rem;
-            border-bottom: 1px solid var(--border-color);
-            font-weight: 600;
-            color: var(--text-color);
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
         }
 
         .table-container {
@@ -739,9 +804,10 @@
 <body>
     <header class="header">
         <div class="header-content">
-            <h1>🚀 Jayrah - Jira Web UI</h1>
+            <h1><img src="/images/jayrah.png" alt="Jayrah" class="header-logo"> Jayrah - Jira Web UI</h1>
             <div class="header-controls">
                 <button class="board-selector" id="board-selector" title="Switch board (Press B)">📋 Board</button>
+                <button class="search-toggle" id="search-toggle" title="Toggle search (Press /)">🔍</button>
                 <button class="view-toggle" id="view-toggle" title="Toggle view mode (Press T)">📱</button>
                 <div class="stats" id="stats">Loading...</div>
             </div>
@@ -757,10 +823,6 @@
         <div id="view-container" class="view-both">
             <div class="main-content">
                 <div class="issues-panel">
-                    <div class="issues-header">
-                        <span>Issues</span>
-                        <span id="issue-count" class="stats">0 issues</span>
-                    </div>
                     <div class="table-container">
                         <table class="table">
                             <thead>
@@ -800,6 +862,14 @@
         let availableBoards = [];
         let currentBoard = null;
 
+        // Layout state management
+        const LAYOUT_STATES = {
+            HORIZONTAL: 'layout-horizontal',
+            VERTICAL: 'layout-vertical'
+        };
+
+        let currentLayoutState = LAYOUT_STATES.HORIZONTAL;
+
         // View state management
         const VIEW_STATES = {
             BOTH: 'view-both',
@@ -820,6 +890,40 @@
         };
 
         let currentViewState = VIEW_STATES.BOTH;
+
+        // Toggle layout state
+        function toggleLayoutState() {
+            const container = document.getElementById('view-container');
+
+            // Remove current layout class
+            container.classList.remove(currentLayoutState);
+
+            // Toggle between horizontal and vertical
+            currentLayoutState = currentLayoutState === LAYOUT_STATES.HORIZONTAL
+                ? LAYOUT_STATES.VERTICAL
+                : LAYOUT_STATES.HORIZONTAL;
+
+            // Apply new layout
+            container.classList.add(currentLayoutState);
+
+            // Store preference in localStorage
+            localStorage.setItem('jayrah-layout-state', currentLayoutState);
+
+            // Show notification
+            const layoutName = currentLayoutState === LAYOUT_STATES.HORIZONTAL ? 'horizontal (side by side)' : 'vertical (top/bottom)';
+            showNotification(`Layout changed to ${layoutName}`);
+        }
+
+        // Initialize layout state from localStorage or default
+        function initializeLayoutState() {
+            const savedLayout = localStorage.getItem('jayrah-layout-state');
+            if (savedLayout && Object.values(LAYOUT_STATES).includes(savedLayout)) {
+                currentLayoutState = savedLayout;
+            }
+
+            const container = document.getElementById('view-container');
+            container.classList.add(currentLayoutState);
+        }
 
         // Toggle view state
         function toggleViewState() {
@@ -865,7 +969,7 @@
         }
 
         // Navigation functions for keyboard shortcuts
-        function navigateIssueList(direction) {
+        function navigateIssueList(direction = 'down') {
             const tbody = document.getElementById('issues-tbody');
             const rows = Array.from(tbody.querySelectorAll('tr')).filter(row =>
                 !row.querySelector('.loading') && !row.querySelector('.no-issues')
@@ -1083,8 +1187,12 @@
                     <div style="display: grid; grid-template-columns: auto 1fr; gap: 0.5rem 1rem; margin-bottom: 1rem;">
                         <kbd style="background: #f6f8fa; border: 1px solid #d1d5da; border-radius: 3px; padding: 0.2rem 0.4rem; font-size: 0.8rem; font-weight: bold; color: #24292e;">t</kbd>
                         <span style="color: #586069;">Toggle view mode (list/detail/both)</span>
+                        <kbd style="background: #f6f8fa; border: 1px solid #d1d5da; border-radius: 3px; padding: 0.2rem 0.4rem; font-size: 0.8rem; font-weight: bold; color: #24292e;">v</kbd>
+                        <span style="color: #586069;">Toggle layout (horizontal/vertical)</span>
                         <kbd style="background: #f6f8fa; border: 1px solid #d1d5da; border-radius: 3px; padding: 0.2rem 0.4rem; font-size: 0.8rem; font-weight: bold; color: #24292e;">b</kbd>
                         <span style="color: #586069;">Switch board</span>
+                        <kbd style="background: #f6f8fa; border: 1px solid #d1d5da; border-radius: 3px; padding: 0.2rem 0.4rem; font-size: 0.8rem; font-weight: bold; color: #24292e;">/</kbd>
+                        <span style="color: #586069;">Toggle search bar</span>
                     </div>
                 </div>
                 
@@ -1101,8 +1209,10 @@
                 <div style="padding-top: 1rem; border-top: 1px solid #e1e4e8; color: #6a737d; font-size: 0.875rem;">
                     <p style="margin: 0 0 0.5rem 0; font-weight: 600; color: #24292e;">💡 Tips:</p>
                     <ul style="margin: 0; padding-left: 1.2rem; line-height: 1.4;">
+                        <li style="margin-bottom: 0.25rem;">Press '/' or click 🔍 to toggle the search bar</li>
                         <li style="margin-bottom: 0.25rem;">Use the search box to filter issues by key, summary, assignee, or status</li>
                         <li style="margin-bottom: 0.25rem;">Click on any issue to view its details</li>
+                        <li style="margin-bottom: 0.25rem;">Press 'v' to toggle between horizontal (side by side) and vertical (top/bottom) layouts</li>
                         <li style="margin-bottom: 0.25rem;">Navigation wraps around (j at bottom goes to top, k at top goes to bottom)</li>
                         <li style="margin-bottom: 0.25rem;">Page Up/Down jump ~10 issues; Home/End go to first/last issue</li>
                         <li style="margin-bottom: 0.25rem;">Use Shift+Page Up/Down for fast detail panel scrolling</li>
@@ -1580,7 +1690,6 @@
 
         function updateStats(count) {
             document.getElementById('stats').textContent = `${count} issue${count !== 1 ? 's' : ''}`;
-            document.getElementById('issue-count').textContent = `${count} issue${count !== 1 ? 's' : ''}`;
         }
 
         async function selectRow(row, key) {
@@ -1603,10 +1712,6 @@
             panel.classList.remove('empty');
 
             panel.innerHTML = `
-                <div class="detail-header">
-                    <div class="detail-title">${key}</div>
-                    <button class="close-btn" onclick="closeDetail()">&times;</button>
-                </div>
                 <div class="detail-content">${formatIssueDetail(detail)}</div>
             `;
         }
@@ -1635,7 +1740,41 @@
                 renderTable(issues);
                 closeDetail(); // Close detail panel when searching
             }, 300);
-        });        // Keyboard shortcuts
+        });
+
+        // Search toggle functionality
+        function toggleSearchBar() {
+            const searchContainer = document.querySelector('.search-container');
+            const searchToggle = document.getElementById('search-toggle');
+            const searchInput = document.getElementById('search');
+
+            if (searchContainer.classList.contains('visible')) {
+                // Hide search
+                searchContainer.classList.remove('visible');
+                searchToggle.classList.remove('active');
+                searchToggle.title = 'Show search (Press /)';
+
+                // Clear search if hiding
+                if (searchInput.value.trim()) {
+                    searchInput.value = '';
+                    // Trigger search to show all issues
+                    fetchIssues().then(issues => renderTable(issues));
+                    closeDetail();
+                }
+            } else {
+                // Show search
+                searchContainer.classList.add('visible');
+                searchToggle.classList.add('active');
+                searchToggle.title = 'Hide search (Press /)';
+
+                // Focus on search input after animation
+                setTimeout(() => {
+                    searchInput.focus();
+                }, 200);
+            }
+        }
+
+        // Keyboard shortcuts
         document.addEventListener('keydown', (e) => {
             // Don't trigger shortcuts when typing in input fields
             if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
@@ -1643,22 +1782,31 @@
             }
 
             if (e.key === 'Escape') {
-                // Close help overlay first, then board modal, then detail panel
+                // Close help overlay first, then board modal, then search, then detail panel
                 const helpOverlay = document.getElementById('help-overlay');
                 const boardModal = document.getElementById('board-modal');
+                const searchContainer = document.querySelector('.search-container');
                 if (helpOverlay && helpOverlay.style.display !== 'none') {
                     hideHelpOverlay();
                 } else if (boardModal) {
                     hideBoardSelector();
+                } else if (searchContainer && searchContainer.classList.contains('visible')) {
+                    toggleSearchBar();
                 } else {
                     closeDetail();
                 }
             } else if (e.key.toLowerCase() === 't') {
                 e.preventDefault();
                 toggleViewState();
+            } else if (e.key.toLowerCase() === 'v') {
+                e.preventDefault();
+                toggleLayoutState();
             } else if (e.key.toLowerCase() === 'b') {
                 e.preventDefault();
                 showBoardSelector();
+            } else if (e.key === '/') {
+                e.preventDefault();
+                toggleSearchBar();
             } else if (e.key === 'j') {
                 e.preventDefault();
                 navigateIssueList('down');
@@ -1707,11 +1855,17 @@
                 } else {
                     scrollDetailPanelPage('down');
                 }
+            } else if (e.key === '/') {
+                e.preventDefault();
+                toggleSearchBar();
             }
         });
 
         // View toggle event listener
         document.getElementById('view-toggle').addEventListener('click', toggleViewState);
+
+        // Search toggle event listener
+        document.getElementById('search-toggle').addEventListener('click', toggleSearchBar);
 
         // Board selector event listener
         document.getElementById('board-selector').addEventListener('click', showBoardSelector);
@@ -1887,6 +2041,7 @@
         // Initial load
         async function init() {
             initializeViewState();
+            initializeLayoutState();
             await loadConfig(); // Load Jira base URL
             await loadBoards(); // Load available boards
 
