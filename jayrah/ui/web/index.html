@@ -64,11 +64,67 @@
             font-weight: 600;
         }
 
+        .header-controls {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .view-toggle {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: white;
+            padding: 0.5rem;
+            border-radius: var(--radius);
+            cursor: pointer;
+            font-size: 1.2rem;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 2.5rem;
+            height: 2.5rem;
+        }
+
+        .view-toggle:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: scale(1.05);
+        }
+
+        .view-toggle:active {
+            transform: scale(0.95);
+        }
+
         .stats {
             background: rgba(255, 255, 255, 0.1);
             padding: 0.5rem 1rem;
             border-radius: var(--radius);
             font-size: 0.9rem;
+        }
+
+        /* View state classes */
+        .view-list-only .detail-panel {
+            display: none;
+        }
+
+        .view-details-only .issues-panel {
+            display: none;
+        }
+
+        .view-both .issues-panel,
+        .view-both .detail-panel {
+            display: flex;
+        }
+
+        /* Ensure panels maintain proper flex behavior in all states */
+        .view-list-only .issues-panel {
+            display: flex;
+            flex: 1;
+        }
+
+        .view-details-only .detail-panel {
+            display: flex;
+            flex: 1;
         }
 
         .container {
@@ -79,6 +135,8 @@
             padding: 1rem 2rem;
             gap: 1rem;
             min-height: 0;
+            overflow: hidden;
+            /* Prevent double scrollbars */
         }
 
         .search-container {
@@ -102,6 +160,13 @@
             outline: none;
             border-color: var(--primary-color);
             box-shadow: 0 0 0 3px rgba(0, 82, 204, 0.1);
+        }
+
+        #view-container {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            min-height: 0;
         }
 
         .main-content {
@@ -556,6 +621,15 @@
                 max-height: 50vh;
                 min-height: 300px;
             }
+
+            /* Auto-switch to column layout on tablet sizes */
+            .view-both .main-content {
+                flex-direction: column;
+            }
+
+            .view-both .issues-panel {
+                max-height: 45vh;
+            }
         }
 
         @media (max-width: 768px) {
@@ -588,6 +662,15 @@
             .user-avatar span {
                 display: none;
             }
+
+            /* On mobile, optimize panel heights */
+            .view-both .main-content {
+                flex-direction: column;
+            }
+
+            .view-both .detail-panel {
+                max-height: 40vh;
+            }
         }
     </style>
 </head>
@@ -596,7 +679,10 @@
     <header class="header">
         <div class="header-content">
             <h1>🚀 Jayrah - Jira Web UI</h1>
-            <div class="stats" id="stats">Loading...</div>
+            <div class="header-controls">
+                <button class="view-toggle" id="view-toggle" title="Toggle view mode (Press T)">📱</button>
+                <div class="stats" id="stats">Loading...</div>
+            </div>
         </div>
     </header>
 
@@ -606,38 +692,40 @@
                 placeholder="🔍 Search issues by key, summary, assignee, status..." />
         </div>
 
-        <div class="main-content">
-            <div class="issues-panel">
-                <div class="issues-header">
-                    <span>Issues</span>
-                    <span id="issue-count" class="stats">0 issues</span>
+        <div id="view-container" class="view-both">
+            <div class="main-content">
+                <div class="issues-panel">
+                    <div class="issues-header">
+                        <span>Issues</span>
+                        <span id="issue-count" class="stats">0 issues</span>
+                    </div>
+                    <div class="table-container">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Type</th>
+                                    <th>Key</th>
+                                    <th>Summary</th>
+                                    <th>Status</th>
+                                    <th>Assignee</th>
+                                    <th>Reporter</th>
+                                    <th>Created</th>
+                                    <th>Updated</th>
+                                </tr>
+                            </thead>
+                            <tbody id="issues-tbody">
+                                <tr>
+                                    <td colspan="8" class="loading">Loading issues...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
-                <div class="table-container">
-                    <table class="table">
-                        <thead>
-                            <tr>
-                                <th>Type</th>
-                                <th>Key</th>
-                                <th>Summary</th>
-                                <th>Status</th>
-                                <th>Assignee</th>
-                                <th>Reporter</th>
-                                <th>Created</th>
-                                <th>Updated</th>
-                            </tr>
-                        </thead>
-                        <tbody id="issues-tbody">
-                            <tr>
-                                <td colspan="8" class="loading">Loading issues...</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
 
-            <div id="detail-panel" class="detail-panel empty">
-                <div style="text-align: center; color: var(--text-muted);">
-                    📋 Select an issue to view details
+                <div id="detail-panel" class="detail-panel empty">
+                    <div style="text-align: center; color: var(--text-muted);">
+                        📋 Select an issue to view details
+                    </div>
                 </div>
             </div>
         </div>
@@ -647,10 +735,76 @@
         let allIssues = [];
         let selectedRow = null;
 
+        // View state management
+        const VIEW_STATES = {
+            BOTH: 'view-both',
+            LIST_ONLY: 'view-list-only',
+            DETAILS_ONLY: 'view-details-only'
+        };
+
+        const VIEW_ICONS = {
+            [VIEW_STATES.BOTH]: '📱',
+            [VIEW_STATES.LIST_ONLY]: '📋',
+            [VIEW_STATES.DETAILS_ONLY]: '📄'
+        };
+
+        const VIEW_TITLES = {
+            [VIEW_STATES.BOTH]: 'Showing both panels - click or press T to show list only',
+            [VIEW_STATES.LIST_ONLY]: 'Showing list only - click or press T to show details only',
+            [VIEW_STATES.DETAILS_ONLY]: 'Showing details only - click or press T to show both panels'
+        };
+
+        let currentViewState = VIEW_STATES.BOTH;
+
+        // Toggle view state
+        function toggleViewState() {
+            const container = document.getElementById('view-container');
+            const toggleBtn = document.getElementById('view-toggle');
+
+            // Remove current state class
+            container.classList.remove(currentViewState);
+
+            // Cycle through states
+            switch (currentViewState) {
+                case VIEW_STATES.BOTH:
+                    currentViewState = VIEW_STATES.LIST_ONLY;
+                    break;
+                case VIEW_STATES.LIST_ONLY:
+                    currentViewState = VIEW_STATES.DETAILS_ONLY;
+                    break;
+                case VIEW_STATES.DETAILS_ONLY:
+                    currentViewState = VIEW_STATES.BOTH;
+                    break;
+            }
+
+            // Apply new state
+            container.classList.add(currentViewState);
+            toggleBtn.textContent = VIEW_ICONS[currentViewState];
+            toggleBtn.title = VIEW_TITLES[currentViewState];
+
+            // Store preference in localStorage
+            localStorage.setItem('jayrah-view-state', currentViewState);
+        }
+
+        // Initialize view state from localStorage or default
+        function initializeViewState() {
+            const savedState = localStorage.getItem('jayrah-view-state');
+            if (savedState && Object.values(VIEW_STATES).includes(savedState)) {
+                currentViewState = savedState;
+            }
+
+            const container = document.getElementById('view-container');
+            const toggleBtn = document.getElementById('view-toggle');
+
+            container.classList.add(currentViewState);
+            toggleBtn.textContent = VIEW_ICONS[currentViewState];
+            toggleBtn.title = VIEW_TITLES[currentViewState];
+        }
+
         // Convert Jira markup to standard markdown
         function convertJiraToMarkdown(text) {
             if (!text) return '';
-            
+
             // Handle different text formats
             if (typeof text === 'object') {
                 // If it's an object, try to extract text content
@@ -663,48 +817,48 @@
                     text = JSON.stringify(text);
                 }
             }
-            
+
             // Convert Jira markup to standard markdown
             let markdown = text.toString();
-            
+
             // Headers: h1. -> #, h2. -> ##, etc.
             markdown = markdown.replace(/^h([1-6])\.\s+(.+)$/gm, (match, level, content) => {
                 return '#'.repeat(parseInt(level)) + ' ' + content;
             });
-            
+
             // Bold: *text* -> **text**
             markdown = markdown.replace(/\*([^*]+)\*/g, '**$1**');
-            
+
             // Italic: _text_ -> *text*
             markdown = markdown.replace(/_([^_]+)_/g, '*$1*');
-            
+
             // Code blocks: {code} -> ```
             markdown = markdown.replace(/\{code(?::([^}]*))?\}([\s\S]*?)\{code\}/g, (match, lang, code) => {
                 return '```' + (lang || '') + '\n' + code.trim() + '\n```';
             });
-            
+
             // Inline code: {{text}} -> `text`
             markdown = markdown.replace(/\{\{([^}]+)\}\}/g, '`$1`');
-            
+
             // Links: [text|url] -> [text](url)
             markdown = markdown.replace(/\[([^|\]]+)\|([^\]]+)\]/g, '[$1]($2)');
-            
+
             // Lists: * item -> - item (already compatible)
             // Numbers: # item -> 1. item
             markdown = markdown.replace(/^#\s+(.+)$/gm, '1. $1');
-            
+
             // Line breaks: Convert \r\n or \n to proper breaks
             markdown = markdown.replace(/\r\n/g, '\n');
-            
+
             return markdown;
         }
-        
+
         // Extract text from Atlassian Document Format (ADF)
         function extractTextFromADF(adf) {
             if (!adf || typeof adf !== 'object') return '';
-            
+
             let text = '';
-            
+
             if (adf.type === 'text') {
                 text = adf.text || '';
                 // Apply marks if present
@@ -745,10 +899,10 @@
                 // Recursively process content array
                 text = adf.content.map(extractTextFromADF).join('');
             }
-            
+
             return text;
         }
-        
+
         // Convert markdown to HTML
         function markdownToHtml(markdown) {
             if (!markdown) return '';
@@ -1101,13 +1255,25 @@
 
         // Keyboard shortcuts
         document.addEventListener('keydown', (e) => {
+            // Don't trigger shortcuts when typing in input fields
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+                return;
+            }
+
             if (e.key === 'Escape') {
                 closeDetail();
+            } else if (e.key.toLowerCase() === 't') {
+                e.preventDefault(); // Prevent any default browser behavior
+                toggleViewState();
             }
         });
 
+        // View toggle event listener
+        document.getElementById('view-toggle').addEventListener('click', toggleViewState);
+
         // Initial load
         async function init() {
+            initializeViewState();
             allIssues = await fetchIssues();
             renderTable(allIssues);
         }
