@@ -104,6 +104,30 @@
             transform: scale(0.95);
         }
 
+        .layout-toggle {
+            background: rgba(139, 69, 19, 0.1);
+            border: 1px solid rgba(139, 69, 19, 0.2);
+            color: #8b4513;
+            padding: 0.5rem;
+            border-radius: var(--radius);
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 2.5rem;
+            height: 2.5rem;
+        }
+
+        .layout-toggle:hover {
+            background: rgba(139, 69, 19, 0.2);
+            transform: scale(1.05);
+        }
+
+        .layout-toggle:active {
+            transform: scale(0.95);
+        }
+
         .board-selector {
             background: rgba(139, 69, 19, 0.1);
             border: 1px solid rgba(139, 69, 19, 0.2);
@@ -375,12 +399,13 @@
         }
 
         .table tbody tr:hover {
-            background: rgba(0, 82, 204, 0.04);
+            background: rgba(139, 69, 19, 0.08);
         }
 
         .table tbody tr.selected {
-            background: rgba(0, 82, 204, 0.08);
-            border-left: 4px solid var(--primary-color);
+            background: linear-gradient(135deg, rgba(245, 222, 179, 0.4), rgba(230, 210, 163, 0.4));
+            border-left: 4px solid #8b4513;
+            box-shadow: 0 2px 4px rgba(139, 69, 19, 0.1);
         }
 
         .issue-type {
@@ -806,9 +831,57 @@
         <div class="header-content">
             <h1><img src="/images/jayrah.png" alt="Jayrah" class="header-logo"> Jayrah - Jira Web UI</h1>
             <div class="header-controls">
-                <button class="board-selector" id="board-selector" title="Switch board (Press B)">📋 Board</button>
-                <button class="search-toggle" id="search-toggle" title="Toggle search (Press /)">🔍</button>
-                <button class="view-toggle" id="view-toggle" title="Toggle view mode (Press T)">📱</button>
+                <button class="board-selector" id="board-selector" title="Switch board (Press B)">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                        <rect x="2" y="3" width="12" height="10" rx="1" stroke="currentColor" stroke-width="1"
+                            fill="none" />
+                        <rect x="3" y="4" width="10" height="1" fill="currentColor" />
+                        <rect x="3" y="6" width="4" height="1" fill="currentColor" />
+                        <rect x="9" y="6" width="4" height="1" fill="currentColor" />
+                        <rect x="3" y="8" width="4" height="1" fill="currentColor" />
+                        <rect x="9" y="8" width="4" height="1" fill="currentColor" />
+                        <rect x="3" y="10" width="4" height="1" fill="currentColor" />
+                        <rect x="9" y="10" width="4" height="1" fill="currentColor" />
+                        <line x1="7.5" y1="5" x2="7.5" y2="11" stroke="currentColor" stroke-width="1" />
+                    </svg>
+                    Board
+                </button>
+                <button class="search-toggle" id="search-toggle" title="Toggle search (Press /)">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                        <circle cx="6.5" cy="6.5" r="4" stroke="currentColor" stroke-width="1.5" fill="none" />
+                        <line x1="9.5" y1="9.5" x2="13" y2="13" stroke="currentColor" stroke-width="1.5"
+                            stroke-linecap="round" />
+                    </svg>
+                </button>
+                <button class="layout-toggle" id="layout-toggle" title="Toggle layout (Press V)">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                        <rect x="1" y="3" width="6" height="10" rx="1" stroke="currentColor" stroke-width="1"
+                            fill="none" />
+                        <rect x="9" y="3" width="6" height="10" rx="1" stroke="currentColor" stroke-width="1"
+                            fill="none" />
+                        <rect x="2" y="4" width="4" height="1" fill="currentColor" />
+                        <rect x="2" y="6" width="4" height="1" fill="currentColor" />
+                        <rect x="2" y="8" width="3" height="1" fill="currentColor" />
+                        <rect x="10" y="4" width="4" height="1" fill="currentColor" />
+                        <rect x="10" y="6" width="4" height="1" fill="currentColor" />
+                        <rect x="10" y="8" width="4" height="1" fill="currentColor" />
+                        <rect x="10" y="10" width="3" height="1" fill="currentColor" />
+                    </svg>
+                </button>
+                <button class="view-toggle" id="view-toggle" title="Toggle view mode (Press T)">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                        <rect x="1" y="2" width="6" height="12" rx="1" stroke="currentColor" stroke-width="1"
+                            fill="none" />
+                        <rect x="9" y="4" width="6" height="10" rx="1" stroke="currentColor" stroke-width="1"
+                            fill="none" />
+                        <rect x="2" y="3" width="4" height="1" fill="currentColor" />
+                        <rect x="2" y="5" width="4" height="1" fill="currentColor" />
+                        <rect x="2" y="7" width="3" height="1" fill="currentColor" />
+                        <rect x="10" y="5" width="4" height="1" fill="currentColor" />
+                        <rect x="10" y="7" width="4" height="1" fill="currentColor" />
+                        <rect x="10" y="9" width="3" height="1" fill="currentColor" />
+                    </svg>
+                </button>
                 <div class="stats" id="stats">Loading...</div>
             </div>
         </div>
@@ -817,7 +890,7 @@
     <div class="container">
         <div class="search-container">
             <input type="text" id="search" class="search-input"
-                placeholder="🔍 Search issues by key, summary, assignee, status..." />
+                placeholder="Search issues by key, summary, assignee, status..." />
         </div>
 
         <div id="view-container" class="view-both">
@@ -878,9 +951,73 @@
         };
 
         const VIEW_ICONS = {
-            [VIEW_STATES.BOTH]: '📱',
-            [VIEW_STATES.LIST_ONLY]: '📋',
-            [VIEW_STATES.DETAILS_ONLY]: '📄'
+            [VIEW_STATES.BOTH]: `
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                    <rect x="1" y="2" width="6" height="12" rx="1" stroke="currentColor" stroke-width="1" fill="none"/>
+                    <rect x="9" y="4" width="6" height="10" rx="1" stroke="currentColor" stroke-width="1" fill="none"/>
+                    <rect x="2" y="3" width="4" height="1" fill="currentColor"/>
+                    <rect x="2" y="5" width="4" height="1" fill="currentColor"/>
+                    <rect x="2" y="7" width="3" height="1" fill="currentColor"/>
+                    <rect x="10" y="5" width="4" height="1" fill="currentColor"/>
+                    <rect x="10" y="7" width="4" height="1" fill="currentColor"/>
+                    <rect x="10" y="9" width="3" height="1" fill="currentColor"/>
+                </svg>
+            `,
+            [VIEW_STATES.LIST_ONLY]: `
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                    <rect x="2" y="2" width="12" height="12" rx="1" stroke="currentColor" stroke-width="1" fill="none"/>
+                    <rect x="3" y="3" width="10" height="1" fill="currentColor"/>
+                    <rect x="3" y="5" width="10" height="1" fill="currentColor"/>
+                    <rect x="3" y="7" width="8" height="1" fill="currentColor"/>
+                    <rect x="3" y="9" width="10" height="1" fill="currentColor"/>
+                    <rect x="3" y="11" width="7" height="1" fill="currentColor"/>
+                </svg>
+            `,
+            [VIEW_STATES.DETAILS_ONLY]: `
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                    <rect x="4" y="2" width="8" height="12" rx="1" stroke="currentColor" stroke-width="1" fill="none"/>
+                    <rect x="5" y="3" width="6" height="1" fill="currentColor"/>
+                    <rect x="5" y="5" width="6" height="1" fill="currentColor"/>
+                    <rect x="5" y="7" width="5" height="1" fill="currentColor"/>
+                    <rect x="5" y="9" width="6" height="1" fill="currentColor"/>
+                    <rect x="5" y="11" width="4" height="1" fill="currentColor"/>
+                </svg>
+            `
+        };
+
+        // Layout toggle icons (SVG)
+        const LAYOUT_ICONS = {
+            [LAYOUT_STATES.HORIZONTAL]: `
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                    <rect x="1" y="3" width="6" height="10" rx="1" stroke="currentColor" stroke-width="1" fill="none"/>
+                    <rect x="9" y="3" width="6" height="10" rx="1" stroke="currentColor" stroke-width="1" fill="none"/>
+                    <rect x="2" y="4" width="4" height="1" fill="currentColor"/>
+                    <rect x="2" y="6" width="4" height="1" fill="currentColor"/>
+                    <rect x="2" y="8" width="3" height="1" fill="currentColor"/>
+                    <rect x="10" y="4" width="4" height="1" fill="currentColor"/>
+                    <rect x="10" y="6" width="4" height="1" fill="currentColor"/>
+                    <rect x="10" y="8" width="4" height="1" fill="currentColor"/>
+                    <rect x="10" y="10" width="3" height="1" fill="currentColor"/>
+                </svg>
+            `,
+            [LAYOUT_STATES.VERTICAL]: `
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                    <rect x="3" y="1" width="10" height="5" rx="1" stroke="currentColor" stroke-width="1" fill="none"/>
+                    <rect x="3" y="8" width="10" height="7" rx="1" stroke="currentColor" stroke-width="1" fill="none"/>
+                    <rect x="4" y="2" width="4" height="1" fill="currentColor"/>
+                    <rect x="4" y="3.5" width="4" height="1" fill="currentColor"/>
+                    <rect x="4" y="5" width="3" height="1" fill="currentColor"/>
+                    <rect x="4" y="9" width="4" height="1" fill="currentColor"/>
+                    <rect x="4" y="10.5" width="4" height="1" fill="currentColor"/>
+                    <rect x="4" y="12" width="4" height="1" fill="currentColor"/>
+                    <rect x="4" y="13.5" width="3" height="1" fill="currentColor"/>
+                </svg>
+            `
+        };
+
+        const LAYOUT_TITLES = {
+            [LAYOUT_STATES.HORIZONTAL]: 'Current layout: horizontal (side by side) - click or press V to switch to vertical',
+            [LAYOUT_STATES.VERTICAL]: 'Current layout: vertical (top/bottom) - click or press V to switch to horizontal'
         };
 
         const VIEW_TITLES = {
@@ -894,6 +1031,7 @@
         // Toggle layout state
         function toggleLayoutState() {
             const container = document.getElementById('view-container');
+            const layoutToggleBtn = document.getElementById('layout-toggle');
 
             // Remove current layout class
             container.classList.remove(currentLayoutState);
@@ -905,6 +1043,12 @@
 
             // Apply new layout
             container.classList.add(currentLayoutState);
+
+            // Update button icon and title
+            if (layoutToggleBtn) {
+                layoutToggleBtn.innerHTML = LAYOUT_ICONS[currentLayoutState];
+                layoutToggleBtn.title = LAYOUT_TITLES[currentLayoutState];
+            }
 
             // Store preference in localStorage
             localStorage.setItem('jayrah-layout-state', currentLayoutState);
@@ -922,7 +1066,15 @@
             }
 
             const container = document.getElementById('view-container');
+            const layoutToggleBtn = document.getElementById('layout-toggle');
+
             container.classList.add(currentLayoutState);
+
+            // Initialize button icon and title
+            if (layoutToggleBtn) {
+                layoutToggleBtn.innerHTML = LAYOUT_ICONS[currentLayoutState];
+                layoutToggleBtn.title = LAYOUT_TITLES[currentLayoutState];
+            }
         }
 
         // Toggle view state
@@ -948,7 +1100,7 @@
 
             // Apply new state
             container.classList.add(currentViewState);
-            toggleBtn.textContent = VIEW_ICONS[currentViewState];
+            toggleBtn.innerHTML = VIEW_ICONS[currentViewState];
             toggleBtn.title = VIEW_TITLES[currentViewState];
 
             // Store preference in localStorage
@@ -964,7 +1116,7 @@
             const toggleBtn = document.getElementById('view-toggle');
 
             container.classList.add(currentViewState);
-            toggleBtn.textContent = VIEW_ICONS[currentViewState];
+            toggleBtn.innerHTML = VIEW_ICONS[currentViewState];
             toggleBtn.title = VIEW_TITLES[currentViewState];
         }
 
@@ -1874,6 +2026,9 @@
 
         // View toggle event listener
         document.getElementById('view-toggle').addEventListener('click', toggleViewState);
+
+        // Layout toggle event listener
+        document.getElementById('layout-toggle').addEventListener('click', toggleLayoutState);
 
         // Search toggle event listener
         document.getElementById('search-toggle').addEventListener('click', toggleSearchBar);
