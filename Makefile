@@ -30,4 +30,8 @@ format: sync
 coverage: sync
 	@echo "Running coverage"
 	@echo "---------------"
-	@uv run pytest --cov=$(PROJECT_NAME) --cov-report=html --cov-report=term-missing 
+	@uv run pytest --cov=$(PROJECT_NAME) --cov-report=html --cov-report=term-missing
+
+web:
+	@echo "Starting Jayrah Web UI at http://127.0.0.1:8000 ..."
+	@uvicorn jayrah.ui.web.server:app --reload --reload-dir ./jayrah/ui/web

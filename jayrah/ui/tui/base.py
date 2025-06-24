@@ -1,7 +1,7 @@
 """Base classes and mixins for the TUI components."""
 
 from textual.screen import ModalScreen
-from .. import boards
+import importlib
 
 
 class JayrahAppMixin:
@@ -10,6 +10,8 @@ class JayrahAppMixin:
     def __init__(self, config: dict | None = None):
         self.config = config or {}
         self.verbose = self.config.get("verbose", False)
+        # Lazy import boards to avoid circular import
+        boards = importlib.import_module("jayrah.ui.boards")
         self.jayrah_obj = boards.Boards(self.config)
 
 
