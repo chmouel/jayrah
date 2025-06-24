@@ -103,6 +103,65 @@ def serve_index():
     return FileResponse(os.path.join(os.path.dirname(__file__), "index.html"))
 
 
+@app.get("/api/boards")
+def get_boards():
+    """Get list of available boards from configuration"""
+    try:
+        boards = state.config.get("boards", [])
+        # Extract board names and descriptions
+        board_list = []
+        for board in boards:
+            if isinstance(board, dict) and "name" in board:
+                board_list.append(
+                    {
+                        "name": board["name"],
+                        "description": board.get("description", board["name"]),
+                        "jql": board.get("jql", ""),
+                    }
+                )
+        return {"boards": board_list}
+    except Exception as e:
+        print(f"Error getting boards: {e}")
+        return {"boards": []}
+
+
+@app.post("/api/boards/{board_name}/switch")
+def switch_board(board_name: str):
+    """Switch to a different board and reload issues"""
+    try:
+        # Import here to avoid circular imports
+        from jayrah.ui import boards
+
+        # Get the new board's JQL and order_by
+        jql, order_by = boards.check(board_name, state.config)
+        if not jql:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid board or missing JQL: {board_name}",
+            )
+
+        # Search for issues with the new board's JQL
+        result = state.jayrah_obj.jira.search_issues(jql=jql, max_results=100)
+        new_issues = result.get("issues", []) if result else []
+
+        # Update the state with new issues
+        state.issues = new_issues
+
+        print(
+            f"Switched to board '{board_name}' with {len(new_issues)} issues using JQL: {jql}"
+        )
+
+        return {
+            "success": True,
+            "board_name": board_name,
+            "issue_count": len(new_issues),
+            "jql": jql,
+        }
+    except Exception as e:
+        print(f"Error switching board: {e}")
+        raise HTTPException(status_code=500, detail=f"Error switching board: {str(e)}")
+
+
 def main():
     # Initialize the app state
     uvicorn.run(app, host="127.0.0.1", port=8000)

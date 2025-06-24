@@ -95,6 +95,30 @@
             transform: scale(0.95);
         }
 
+        .board-selector {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: var(--radius);
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            white-space: nowrap;
+        }
+
+        .board-selector:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: translateY(-1px);
+        }
+
+        .board-selector:active {
+            transform: translateY(0);
+        }
+
         .stats {
             background: rgba(255, 255, 255, 0.1);
             padding: 0.5rem 1rem;
@@ -717,6 +741,7 @@
         <div class="header-content">
             <h1>🚀 Jayrah - Jira Web UI</h1>
             <div class="header-controls">
+                <button class="board-selector" id="board-selector" title="Switch board (Press B)">📋 Board</button>
                 <button class="view-toggle" id="view-toggle" title="Toggle view mode (Press T)">📱</button>
                 <div class="stats" id="stats">Loading...</div>
             </div>
@@ -772,6 +797,8 @@
         let allIssues = [];
         let selectedRow = null;
         let jiraBaseUrl = null;
+        let availableBoards = [];
+        let currentBoard = null;
 
         // View state management
         const VIEW_STATES = {
@@ -1018,10 +1045,26 @@
                         <span style="color: #586069;">Move down in issue list</span>
                         <kbd style="background: #f6f8fa; border: 1px solid #d1d5da; border-radius: 3px; padding: 0.2rem 0.4rem; font-size: 0.8rem; font-weight: bold; color: #24292e;">k</kbd>
                         <span style="color: #586069;">Move up in issue list</span>
+                        <kbd style="background: #f6f8fa; border: 1px solid #d1d5da; border-radius: 3px; padding: 0.2rem 0.4rem; font-size: 0.8rem; font-weight: bold; color: #24292e;">Page Down</kbd>
+                        <span style="color: #586069;">Jump down ~10 issues</span>
+                        <kbd style="background: #f6f8fa; border: 1px solid #d1d5da; border-radius: 3px; padding: 0.2rem 0.4rem; font-size: 0.8rem; font-weight: bold; color: #24292e;">Page Up</kbd>
+                        <span style="color: #586069;">Jump up ~10 issues</span>
+                        <kbd style="background: #f6f8fa; border: 1px solid #d1d5da; border-radius: 3px; padding: 0.2rem 0.4rem; font-size: 0.8rem; font-weight: bold; color: #24292e;">Home</kbd>
+                        <span style="color: #586069;">Go to first issue</span>
+                        <kbd style="background: #f6f8fa; border: 1px solid #d1d5da; border-radius: 3px; padding: 0.2rem 0.4rem; font-size: 0.8rem; font-weight: bold; color: #24292e;">End</kbd>
+                        <span style="color: #586069;">Go to last issue</span>
                         <kbd style="background: #f6f8fa; border: 1px solid #d1d5da; border-radius: 3px; padding: 0.2rem 0.4rem; font-size: 0.8rem; font-weight: bold; color: #24292e;">J</kbd>
                         <span style="color: #586069;">Scroll detail panel down</span>
                         <kbd style="background: #f6f8fa; border: 1px solid #d1d5da; border-radius: 3px; padding: 0.2rem 0.4rem; font-size: 0.8rem; font-weight: bold; color: #24292e;">K</kbd>
                         <span style="color: #586069;">Scroll detail panel up</span>
+                        <kbd style="background: #f6f8fa; border: 1px solid #d1d5da; border-radius: 3px; padding: 0.2rem 0.4rem; font-size: 0.8rem; font-weight: bold; color: #24292e;">Shift+Page Down</kbd>
+                        <span style="color: #586069;">Scroll detail panel down (page)</span>
+                        <kbd style="background: #f6f8fa; border: 1px solid #d1d5da; border-radius: 3px; padding: 0.2rem 0.4rem; font-size: 0.8rem; font-weight: bold; color: #24292e;">Shift+Page Up</kbd>
+                        <span style="color: #586069;">Scroll detail panel up (page)</span>
+                        <kbd style="background: #f6f8fa; border: 1px solid #d1d5da; border-radius: 3px; padding: 0.2rem 0.4rem; font-size: 0.8rem; font-weight: bold; color: #24292e;">Space</kbd>
+                        <span style="color: #586069;">Scroll detail panel down (page)</span>
+                        <kbd style="background: #f6f8fa; border: 1px solid #d1d5da; border-radius: 3px; padding: 0.2rem 0.4rem; font-size: 0.8rem; font-weight: bold; color: #24292e;">Shift+Space</kbd>
+                        <span style="color: #586069;">Scroll detail panel up (page)</span>
                     </div>
                 </div>
                 
@@ -1036,10 +1079,12 @@
                 </div>
                 
                 <div style="margin-bottom: 1.5rem;">
-                    <h3 style="margin: 0 0 0.75rem 0; color: #0366d6; font-size: 1rem; border-bottom: 1px solid #f1f3f4; padding-bottom: 0.5rem;">👁️ View</h3>
+                    <h3 style="margin: 0 0 0.75rem 0; color: #0366d6; font-size: 1rem; border-bottom: 1px solid #f1f3f4; padding-bottom: 0.5rem;">👁️ View & Navigation</h3>
                     <div style="display: grid; grid-template-columns: auto 1fr; gap: 0.5rem 1rem; margin-bottom: 1rem;">
                         <kbd style="background: #f6f8fa; border: 1px solid #d1d5da; border-radius: 3px; padding: 0.2rem 0.4rem; font-size: 0.8rem; font-weight: bold; color: #24292e;">t</kbd>
                         <span style="color: #586069;">Toggle view mode (list/detail/both)</span>
+                        <kbd style="background: #f6f8fa; border: 1px solid #d1d5da; border-radius: 3px; padding: 0.2rem 0.4rem; font-size: 0.8rem; font-weight: bold; color: #24292e;">b</kbd>
+                        <span style="color: #586069;">Switch board</span>
                     </div>
                 </div>
                 
@@ -1059,6 +1104,8 @@
                         <li style="margin-bottom: 0.25rem;">Use the search box to filter issues by key, summary, assignee, or status</li>
                         <li style="margin-bottom: 0.25rem;">Click on any issue to view its details</li>
                         <li style="margin-bottom: 0.25rem;">Navigation wraps around (j at bottom goes to top, k at top goes to bottom)</li>
+                        <li style="margin-bottom: 0.25rem;">Page Up/Down jump ~10 issues; Home/End go to first/last issue</li>
+                        <li style="margin-bottom: 0.25rem;">Use Shift+Page Up/Down for fast detail panel scrolling</li>
                         <li style="margin-bottom: 0;">All shortcuts work except when typing in search box</li>
                     </ul>
                 </div>
@@ -1596,16 +1643,22 @@
             }
 
             if (e.key === 'Escape') {
-                // Close help overlay first, then detail panel
+                // Close help overlay first, then board modal, then detail panel
                 const helpOverlay = document.getElementById('help-overlay');
+                const boardModal = document.getElementById('board-modal');
                 if (helpOverlay && helpOverlay.style.display !== 'none') {
                     hideHelpOverlay();
+                } else if (boardModal) {
+                    hideBoardSelector();
                 } else {
                     closeDetail();
                 }
             } else if (e.key.toLowerCase() === 't') {
                 e.preventDefault();
                 toggleViewState();
+            } else if (e.key.toLowerCase() === 'b') {
+                e.preventDefault();
+                showBoardSelector();
             } else if (e.key === 'j') {
                 e.preventDefault();
                 navigateIssueList('down');
@@ -1627,21 +1680,344 @@
             } else if (e.key === '?') {
                 e.preventDefault();
                 showHelpOverlay();
+            } else if (e.key === 'Home') {
+                e.preventDefault();
+                navigateToFirstIssue();
+            } else if (e.key === 'End') {
+                e.preventDefault();
+                navigateToLastIssue();
+            } else if (e.key === 'PageUp') {
+                e.preventDefault();
+                if (e.shiftKey) {
+                    scrollDetailPanelPage('up');
+                } else {
+                    navigatePageUp();
+                }
+            } else if (e.key === 'PageDown') {
+                e.preventDefault();
+                if (e.shiftKey) {
+                    scrollDetailPanelPage('down');
+                } else {
+                    navigatePageDown();
+                }
+            } else if (e.key === ' ') {
+                e.preventDefault();
+                if (e.shiftKey) {
+                    scrollDetailPanelPage('up');
+                } else {
+                    scrollDetailPanelPage('down');
+                }
             }
         });
 
         // View toggle event listener
         document.getElementById('view-toggle').addEventListener('click', toggleViewState);
 
+        // Board selector event listener
+        document.getElementById('board-selector').addEventListener('click', showBoardSelector);
+
+        // Board management functions
+        async function loadBoards() {
+            try {
+                const res = await fetch('/api/boards');
+                if (res.ok) {
+                    const data = await res.json();
+                    availableBoards = data.boards || [];
+                    updateBoardSelectorText();
+                }
+            } catch (error) {
+                console.error('Error loading boards:', error);
+            }
+        }
+
+        function updateBoardSelectorText() {
+            const selector = document.getElementById('board-selector');
+            if (currentBoard && selector) {
+                selector.textContent = `📋 ${currentBoard}`;
+            } else if (selector) {
+                selector.textContent = '📋 Board';
+            }
+        }
+
+        function showBoardSelector() {
+            if (availableBoards.length === 0) {
+                showNotification('No boards configured', 'error');
+                return;
+            }
+
+            // Remove existing modal if it exists
+            const existingModal = document.getElementById('board-modal');
+            if (existingModal) {
+                existingModal.remove();
+            }
+
+            // Create board selection modal
+            const modal = document.createElement('div');
+            modal.id = 'board-modal';
+            modal.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100vw;
+                height: 100vh;
+                background-color: rgba(0, 0, 0, 0.7);
+                z-index: 10000;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                animation: fadeIn 0.2s ease;
+            `;
+
+            const modalContent = document.createElement('div');
+            modalContent.style.cssText = `
+                background: #ffffff;
+                color: #333333;
+                border: 1px solid #e1e4e8;
+                border-radius: 8px;
+                padding: 1.5rem;
+                max-width: 400px;
+                max-height: 80vh;
+                overflow-y: auto;
+                box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+                margin: 1rem;
+                min-width: 300px;
+            `;
+
+            let boardsHtml = `
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; border-bottom: 1px solid #e1e4e8; padding-bottom: 1rem;">
+                    <h3 style="margin: 0; color: #0366d6; font-size: 1.1rem;">📋 Select Board</h3>
+                    <button id="close-board-modal" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #6a737d; padding: 0.25rem;">&times;</button>
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+            `;
+
+            availableBoards.forEach((board, index) => {
+                const isSelected = board.name === currentBoard;
+                boardsHtml += `
+                    <button class="board-option" data-board-name="${board.name}" style="
+                        background: ${isSelected ? '#f1f8ff' : '#ffffff'};
+                        border: 1px solid ${isSelected ? '#0366d6' : '#e1e4e8'};
+                        border-radius: 6px;
+                        padding: 0.75rem;
+                        cursor: pointer;
+                        text-align: left;
+                        transition: all 0.2s ease;
+                        color: ${isSelected ? '#0366d6' : '#24292e'};
+                    ">
+                        <div style="font-weight: 600; margin-bottom: 0.25rem;">${board.name} ${isSelected ? '✓' : ''}</div>
+                        <div style="font-size: 0.875rem; color: #6a737d;">${board.description}</div>
+                    </button>
+                `;
+            });
+
+            boardsHtml += '</div>';
+            modalContent.innerHTML = boardsHtml;
+            modal.appendChild(modalContent);
+            document.body.appendChild(modal);
+
+            // Add event listeners
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) {
+                    hideBoardSelector();
+                }
+            });
+
+            document.getElementById('close-board-modal').addEventListener('click', hideBoardSelector);
+
+            // Add click handlers for board options
+            modalContent.querySelectorAll('.board-option').forEach(button => {
+                button.addEventListener('click', () => {
+                    const boardName = button.getAttribute('data-board-name');
+                    switchToBoard(boardName);
+                });
+
+                button.addEventListener('mouseenter', () => {
+                    if (!button.style.backgroundColor.includes('f1f8ff')) {
+                        button.style.backgroundColor = '#f6f8fa';
+                        button.style.borderColor = '#d1d5da';
+                    }
+                });
+
+                button.addEventListener('mouseleave', () => {
+                    if (!button.style.backgroundColor.includes('f1f8ff')) {
+                        button.style.backgroundColor = '#ffffff';
+                        button.style.borderColor = '#e1e4e8';
+                    }
+                });
+            });
+        }
+
+        function hideBoardSelector() {
+            const modal = document.getElementById('board-modal');
+            if (modal) {
+                modal.remove();
+            }
+        }
+
+        async function switchToBoard(boardName) {
+            try {
+                hideBoardSelector();
+                showNotification(`🔄 Switching to ${boardName}...`, 'info');
+
+                const res = await fetch(`/api/boards/${encodeURIComponent(boardName)}/switch`, {
+                    method: 'POST'
+                });
+
+                if (!res.ok) {
+                    throw new Error(`HTTP ${res.status}`);
+                }
+
+                const result = await res.json();
+                currentBoard = boardName;
+                updateBoardSelectorText();
+
+                // Reload issues
+                allIssues = await fetchIssues();
+                renderTable(allIssues);
+                closeDetail();
+
+                showNotification(`✅ Switched to ${boardName} (${result.issue_count} issues)`, 'success');
+            } catch (error) {
+                console.error('Error switching board:', error);
+                showNotification(`❌ Failed to switch to ${boardName}`, 'error');
+            }
+        }
+
         // Initial load
         async function init() {
             initializeViewState();
             await loadConfig(); // Load Jira base URL
+            await loadBoards(); // Load available boards
+
+            // Try to detect current board from first board in config or use default
+            if (availableBoards.length > 0) {
+                currentBoard = availableBoards[0].name;
+                updateBoardSelectorText();
+            }
+
             allIssues = await fetchIssues();
             renderTable(allIssues);
         }
 
         init();
+
+        // Additional navigation functions for Page Up/Down, Home/End
+        function navigateToFirstIssue() {
+            const tbody = document.getElementById('issues-tbody');
+            const firstRow = tbody.querySelector('tr:not(.loading):not(.no-issues)');
+            if (firstRow) {
+                const keyCell = firstRow.querySelector('td:nth-child(2) a');
+                if (keyCell) {
+                    const issueKey = keyCell.textContent.trim();
+                    selectRow(firstRow, issueKey);
+                    firstRow.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                }
+            }
+        }
+
+        function navigateToLastIssue() {
+            const tbody = document.getElementById('issues-tbody');
+            const rows = Array.from(tbody.querySelectorAll('tr')).filter(row =>
+                !row.querySelector('.loading') && !row.querySelector('.no-issues')
+            );
+            const lastRow = rows[rows.length - 1];
+            if (lastRow) {
+                const keyCell = lastRow.querySelector('td:nth-child(2) a');
+                if (keyCell) {
+                    const issueKey = keyCell.textContent.trim();
+                    selectRow(lastRow, issueKey);
+                    lastRow.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                }
+            }
+        }
+
+        function navigatePageUp() {
+            const tbody = document.getElementById('issues-tbody');
+            const rows = Array.from(tbody.querySelectorAll('tr')).filter(row =>
+                !row.querySelector('.loading') && !row.querySelector('.no-issues')
+            );
+
+            if (rows.length === 0) return;
+
+            let currentIndex = -1;
+            if (selectedRow) {
+                currentIndex = rows.findIndex(row => row === selectedRow);
+            }
+
+            // If no selection, start from the end when going up
+            if (currentIndex === -1) {
+                currentIndex = rows.length;
+            }
+
+            // Move up by ~10 rows (or to beginning if less than 10)
+            const pageSize = Math.min(10, rows.length);
+            let newIndex = Math.max(0, currentIndex - pageSize);
+
+            const newRow = rows[newIndex];
+            if (newRow) {
+                const keyCell = newRow.querySelector('td:nth-child(2) a');
+                if (keyCell) {
+                    const issueKey = keyCell.textContent.trim();
+                    selectRow(newRow, issueKey);
+                    newRow.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                }
+            }
+        }
+
+        function navigatePageDown() {
+            const tbody = document.getElementById('issues-tbody');
+            const rows = Array.from(tbody.querySelectorAll('tr')).filter(row =>
+                !row.querySelector('.loading') && !row.querySelector('.no-issues')
+            );
+
+            if (rows.length === 0) return;
+
+            let currentIndex = -1;
+            if (selectedRow) {
+                currentIndex = rows.findIndex(row => row === selectedRow);
+            }
+
+            // If no selection, start from the beginning when going down
+            if (currentIndex === -1) {
+                currentIndex = -1;
+            }
+
+            // Move down by ~10 rows (or to end if less than 10)
+            const pageSize = Math.min(10, rows.length);
+            let newIndex = Math.min(rows.length - 1, currentIndex + pageSize);
+
+            const newRow = rows[newIndex];
+            if (newRow) {
+                const keyCell = newRow.querySelector('td:nth-child(2) a');
+                if (keyCell) {
+                    const issueKey = keyCell.textContent.trim();
+                    selectRow(newRow, issueKey);
+                    newRow.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                }
+            }
+        }
+
+        function scrollDetailPanelPage(direction) {
+            const detailContent = document.querySelector('.detail-content');
+            if (!detailContent) return;
+
+            const containerHeight = detailContent.clientHeight;
+            const scrollAmount = containerHeight * 0.8; // Scroll 80% of visible area
+            const currentScroll = detailContent.scrollTop;
+
+            if (direction === 'down') {
+                detailContent.scrollTo({
+                    top: currentScroll + scrollAmount,
+                    behavior: 'smooth'
+                });
+            } else {
+                detailContent.scrollTo({
+                    top: Math.max(0, currentScroll - scrollAmount),
+                    behavior: 'smooth'
+                });
+            }
+        }
     </script>
 </body>
 
