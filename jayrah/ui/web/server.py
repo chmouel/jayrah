@@ -85,7 +85,17 @@ def get_issue_detail(key: str):
 @app.get("/api/config")
 def get_config():
     """Get configuration including custom fields for the frontend"""
-    return {"custom_fields": state.config.get("custom_fields", [])}
+    jira_url = None
+    try:
+        # Get Jira server URL from config
+        jira_url = state.config.get("jira_server")
+    except Exception:
+        pass
+
+    return {
+        "custom_fields": state.config.get("custom_fields", []),
+        "jira_base_url": jira_url,
+    }
 
 
 @app.get("/")

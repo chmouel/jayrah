@@ -672,6 +672,43 @@
                 max-height: 40vh;
             }
         }
+
+        /* Animations */
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+
+            to {
+                opacity: 1;
+            }
+        }
+
+        /* Help overlay styles */
+        .help-overlay {
+            animation: fadeIn 0.2s ease;
+        }
+
+        .help-overlay kbd {
+            background: var(--secondary-color);
+            border: 1px solid var(--border-color);
+            border-radius: 3px;
+            padding: 0.2rem 0.4rem;
+            font-size: 0.8rem;
+            font-weight: bold;
+            color: var(--primary-color);
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+        }
+
+        .help-overlay strong {
+            color: var(--primary-color);
+            grid-column: 1 / -1;
+            margin-top: 0.5rem;
+        }
+
+        .help-overlay strong:first-child {
+            margin-top: 0;
+        }
     </style>
 </head>
 
@@ -734,6 +771,7 @@
     <script>
         let allIssues = [];
         let selectedRow = null;
+        let jiraBaseUrl = null;
 
         // View state management
         const VIEW_STATES = {
@@ -784,9 +822,7 @@
 
             // Store preference in localStorage
             localStorage.setItem('jayrah-view-state', currentViewState);
-        }
-
-        // Initialize view state from localStorage or default
+        }        // Initialize view state from localStorage or default
         function initializeViewState() {
             const savedState = localStorage.getItem('jayrah-view-state');
             if (savedState && Object.values(VIEW_STATES).includes(savedState)) {
@@ -799,6 +835,307 @@
             container.classList.add(currentViewState);
             toggleBtn.textContent = VIEW_ICONS[currentViewState];
             toggleBtn.title = VIEW_TITLES[currentViewState];
+        }
+
+        // Navigation functions for keyboard shortcuts
+        function navigateIssueList(direction) {
+            const tbody = document.getElementById('issues-tbody');
+            const rows = Array.from(tbody.querySelectorAll('tr')).filter(row =>
+                !row.querySelector('.loading') && !row.querySelector('.no-issues')
+            );
+
+            if (rows.length === 0) return;
+
+            let currentIndex = -1;
+            if (selectedRow) {
+                currentIndex = rows.findIndex(row => row === selectedRow);
+            }
+
+            let newIndex;
+            if (direction === 'down') {
+                newIndex = currentIndex + 1;
+                if (newIndex >= rows.length) newIndex = 0; // Wrap to top
+            } else {
+                newIndex = currentIndex - 1;
+                if (newIndex < 0) newIndex = rows.length - 1; // Wrap to bottom
+            }
+
+            const newRow = rows[newIndex];
+            if (newRow) {
+                // Extract issue key from the row
+                const keyCell = newRow.querySelector('td:nth-child(2) a');
+                if (keyCell) {
+                    const issueKey = keyCell.textContent.trim();
+                    selectRow(newRow, issueKey);
+
+                    // Scroll row into view
+                    newRow.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                }
+            }
+        }
+
+        function scrollDetailPanel(direction) {
+            const detailContent = document.querySelector('.detail-content');
+            if (!detailContent) return;
+
+            const scrollAmount = 100; // pixels to scroll
+            const currentScroll = detailContent.scrollTop;
+
+            if (direction === 'down') {
+                detailContent.scrollTo({
+                    top: currentScroll + scrollAmount,
+                    behavior: 'smooth'
+                });
+            } else {
+                detailContent.scrollTo({
+                    top: currentScroll - scrollAmount,
+                    behavior: 'smooth'
+                });
+            }
+        }
+
+        function openSelectedIssueInNewTab() {
+            if (!selectedRow) {
+                // If no row selected, try to select the first one
+                const tbody = document.getElementById('issues-tbody');
+                const firstRow = tbody.querySelector('tr:not(.loading):not(.no-issues)');
+                if (firstRow) {
+                    const keyCell = firstRow.querySelector('td:nth-child(2) a');
+                    if (keyCell) {
+                        const issueKey = keyCell.textContent.trim();
+                        selectRow(firstRow, issueKey);
+                    }
+                }
+            }
+
+            if (selectedRow) {
+                const keyCell = selectedRow.querySelector('td:nth-child(2) a');
+                if (keyCell) {
+                    const issueKey = keyCell.textContent.trim();
+                    const jiraBaseUrl = getJiraBaseUrl();
+                    if (jiraBaseUrl) {
+                        const issueUrl = `${jiraBaseUrl}/browse/${issueKey}`;
+                        window.open(issueUrl, '_blank');
+                        showNotification(`Opened ${issueKey} in new tab`);
+                    } else {
+                        showNotification('Error: Jira base URL not configured', 'error');
+                    }
+                }
+            } else {
+                showNotification('No issue selected', 'error');
+            }
+        }
+
+        function yankIssueUrl() {
+            if (!selectedRow) {
+                // If no row selected, try to select the first one
+                const tbody = document.getElementById('issues-tbody');
+                const firstRow = tbody.querySelector('tr:not(.loading):not(.no-issues)');
+                if (firstRow) {
+                    const keyCell = firstRow.querySelector('td:nth-child(2) a');
+                    if (keyCell) {
+                        const issueKey = keyCell.textContent.trim();
+                        selectRow(firstRow, issueKey);
+                    }
+                }
+            }
+
+            if (selectedRow) {
+                const keyCell = selectedRow.querySelector('td:nth-child(2) a');
+                if (keyCell) {
+                    const issueKey = keyCell.textContent.trim();
+                    const jiraBaseUrl = getJiraBaseUrl();
+                    if (jiraBaseUrl) {
+                        const issueUrl = `${jiraBaseUrl}/browse/${issueKey}`;
+                        navigator.clipboard.writeText(issueUrl).then(() => {
+                            showNotification(`Copied ${issueKey} URL to clipboard`);
+                        }).catch(() => {
+                            showNotification(`Failed to copy URL for ${issueKey}`, 'error');
+                        });
+                    } else {
+                        // Fallback: copy just the issue key
+                        navigator.clipboard.writeText(issueKey).then(() => {
+                            showNotification(`Copied issue key ${issueKey} to clipboard`);
+                        }).catch(() => {
+                            showNotification(`Failed to copy issue key ${issueKey}`, 'error');
+                        });
+                    }
+                }
+            } else {
+                showNotification('No issue selected', 'error');
+            }
+        }
+
+        function showHelpOverlay() {
+            // Remove existing overlay if it exists
+            const existingOverlay = document.getElementById('help-overlay');
+            if (existingOverlay) {
+                existingOverlay.remove();
+            }
+
+            // Create new help overlay
+            const overlay = document.createElement('div');
+            overlay.id = 'help-overlay';
+            overlay.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100vw;
+                height: 100vh;
+                background-color: rgba(0, 0, 0, 0.7);
+                z-index: 10000;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                animation: fadeIn 0.2s ease;
+            `;
+
+            const helpContent = document.createElement('div');
+            helpContent.style.cssText = `
+                background: #ffffff;
+                color: #333333;
+                border: 1px solid #e1e4e8;
+                border-radius: 8px;
+                padding: 2rem;
+                max-width: 550px;
+                max-height: 80vh;
+                overflow-y: auto;
+                box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+                margin: 1rem;
+            `;
+
+            helpContent.innerHTML = `
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; border-bottom: 1px solid #e1e4e8; padding-bottom: 1rem;">
+                    <h2 style="margin: 0; color: #0366d6; font-size: 1.25rem;">🚀 Jayrah Keyboard Shortcuts</h2>
+                    <button id="close-help" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #6a737d; padding: 0.25rem;">&times;</button>
+                </div>
+                
+                <div style="margin-bottom: 1.5rem;">
+                    <h3 style="margin: 0 0 0.75rem 0; color: #0366d6; font-size: 1rem; border-bottom: 1px solid #f1f3f4; padding-bottom: 0.5rem;">📋 Navigation</h3>
+                    <div style="display: grid; grid-template-columns: auto 1fr; gap: 0.5rem 1rem; margin-bottom: 1rem;">
+                        <kbd style="background: #f6f8fa; border: 1px solid #d1d5da; border-radius: 3px; padding: 0.2rem 0.4rem; font-size: 0.8rem; font-weight: bold; color: #24292e;">j</kbd>
+                        <span style="color: #586069;">Move down in issue list</span>
+                        <kbd style="background: #f6f8fa; border: 1px solid #d1d5da; border-radius: 3px; padding: 0.2rem 0.4rem; font-size: 0.8rem; font-weight: bold; color: #24292e;">k</kbd>
+                        <span style="color: #586069;">Move up in issue list</span>
+                        <kbd style="background: #f6f8fa; border: 1px solid #d1d5da; border-radius: 3px; padding: 0.2rem 0.4rem; font-size: 0.8rem; font-weight: bold; color: #24292e;">J</kbd>
+                        <span style="color: #586069;">Scroll detail panel down</span>
+                        <kbd style="background: #f6f8fa; border: 1px solid #d1d5da; border-radius: 3px; padding: 0.2rem 0.4rem; font-size: 0.8rem; font-weight: bold; color: #24292e;">K</kbd>
+                        <span style="color: #586069;">Scroll detail panel up</span>
+                    </div>
+                </div>
+                
+                <div style="margin-bottom: 1.5rem;">
+                    <h3 style="margin: 0 0 0.75rem 0; color: #0366d6; font-size: 1rem; border-bottom: 1px solid #f1f3f4; padding-bottom: 0.5rem;">⚡ Actions</h3>
+                    <div style="display: grid; grid-template-columns: auto 1fr; gap: 0.5rem 1rem; margin-bottom: 1rem;">
+                        <kbd style="background: #f6f8fa; border: 1px solid #d1d5da; border-radius: 3px; padding: 0.2rem 0.4rem; font-size: 0.8rem; font-weight: bold; color: #24292e;">o</kbd>
+                        <span style="color: #586069;">Open selected issue in new Jira tab</span>
+                        <kbd style="background: #f6f8fa; border: 1px solid #d1d5da; border-radius: 3px; padding: 0.2rem 0.4rem; font-size: 0.8rem; font-weight: bold; color: #24292e;">y</kbd>
+                        <span style="color: #586069;">Yank (copy) issue URL to clipboard</span>
+                    </div>
+                </div>
+                
+                <div style="margin-bottom: 1.5rem;">
+                    <h3 style="margin: 0 0 0.75rem 0; color: #0366d6; font-size: 1rem; border-bottom: 1px solid #f1f3f4; padding-bottom: 0.5rem;">👁️ View</h3>
+                    <div style="display: grid; grid-template-columns: auto 1fr; gap: 0.5rem 1rem; margin-bottom: 1rem;">
+                        <kbd style="background: #f6f8fa; border: 1px solid #d1d5da; border-radius: 3px; padding: 0.2rem 0.4rem; font-size: 0.8rem; font-weight: bold; color: #24292e;">t</kbd>
+                        <span style="color: #586069;">Toggle view mode (list/detail/both)</span>
+                    </div>
+                </div>
+                
+                <div style="margin-bottom: 1.5rem;">
+                    <h3 style="margin: 0 0 0.75rem 0; color: #0366d6; font-size: 1rem; border-bottom: 1px solid #f1f3f4; padding-bottom: 0.5rem;">❓ Help</h3>
+                    <div style="display: grid; grid-template-columns: auto 1fr; gap: 0.5rem 1rem; margin-bottom: 1rem;">
+                        <kbd style="background: #f6f8fa; border: 1px solid #d1d5da; border-radius: 3px; padding: 0.2rem 0.4rem; font-size: 0.8rem; font-weight: bold; color: #24292e;">?</kbd>
+                        <span style="color: #586069;">Show this help overlay</span>
+                        <kbd style="background: #f6f8fa; border: 1px solid #d1d5da; border-radius: 3px; padding: 0.2rem 0.4rem; font-size: 0.8rem; font-weight: bold; color: #24292e;">Esc</kbd>
+                        <span style="color: #586069;">Close detail panel or help overlay</span>
+                    </div>
+                </div>
+                
+                <div style="padding-top: 1rem; border-top: 1px solid #e1e4e8; color: #6a737d; font-size: 0.875rem;">
+                    <p style="margin: 0 0 0.5rem 0; font-weight: 600; color: #24292e;">💡 Tips:</p>
+                    <ul style="margin: 0; padding-left: 1.2rem; line-height: 1.4;">
+                        <li style="margin-bottom: 0.25rem;">Use the search box to filter issues by key, summary, assignee, or status</li>
+                        <li style="margin-bottom: 0.25rem;">Click on any issue to view its details</li>
+                        <li style="margin-bottom: 0.25rem;">Navigation wraps around (j at bottom goes to top, k at top goes to bottom)</li>
+                        <li style="margin-bottom: 0;">All shortcuts work except when typing in search box</li>
+                    </ul>
+                </div>
+            `;
+
+            overlay.appendChild(helpContent);
+            document.body.appendChild(overlay);
+
+            // Close on click outside or close button
+            overlay.addEventListener('click', (e) => {
+                if (e.target === overlay) {
+                    hideHelpOverlay();
+                }
+            });
+
+            const closeBtn = helpContent.querySelector('#close-help');
+            if (closeBtn) {
+                closeBtn.addEventListener('click', hideHelpOverlay);
+            }
+        }
+
+        function hideHelpOverlay() {
+            const overlay = document.getElementById('help-overlay');
+            if (overlay) {
+                overlay.remove();
+            }
+        }
+
+        function getJiraBaseUrl() {
+            return jiraBaseUrl;
+        }
+
+        async function loadConfig() {
+            try {
+                const res = await fetch('/api/config');
+                if (res.ok) {
+                    const config = await res.json();
+                    jiraBaseUrl = config.jira_base_url;
+                }
+            } catch (error) {
+                console.error('Error loading config:', error);
+            }
+        }
+
+        function showNotification(message, type = 'success') {
+            // Create a simple notification
+            const notification = document.createElement('div');
+            let bgColor = 'var(--primary-color)';
+            if (type === 'success') {
+                bgColor = 'var(--success-color)';
+            } else if (type === 'error') {
+                bgColor = '#dc3545'; // Red for errors
+            }
+
+            notification.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                background: ${bgColor};
+                color: white;
+                padding: 0.75rem 1rem;
+                border-radius: var(--radius);
+                box-shadow: var(--shadow);
+                z-index: 1000;
+                font-size: 0.875rem;
+                max-width: 300px;
+            `;
+            notification.textContent = message;
+
+            document.body.appendChild(notification);
+
+            // Remove after 3 seconds
+            setTimeout(() => {
+                if (notification.parentNode) {
+                    notification.parentNode.removeChild(notification);
+                }
+            }, 3000);
         }
 
         // Convert Jira markup to standard markdown
@@ -1251,9 +1588,7 @@
                 renderTable(issues);
                 closeDetail(); // Close detail panel when searching
             }, 300);
-        });
-
-        // Keyboard shortcuts
+        });        // Keyboard shortcuts
         document.addEventListener('keydown', (e) => {
             // Don't trigger shortcuts when typing in input fields
             if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
@@ -1261,10 +1596,37 @@
             }
 
             if (e.key === 'Escape') {
-                closeDetail();
+                // Close help overlay first, then detail panel
+                const helpOverlay = document.getElementById('help-overlay');
+                if (helpOverlay && helpOverlay.style.display !== 'none') {
+                    hideHelpOverlay();
+                } else {
+                    closeDetail();
+                }
             } else if (e.key.toLowerCase() === 't') {
-                e.preventDefault(); // Prevent any default browser behavior
+                e.preventDefault();
                 toggleViewState();
+            } else if (e.key === 'j') {
+                e.preventDefault();
+                navigateIssueList('down');
+            } else if (e.key === 'k') {
+                e.preventDefault();
+                navigateIssueList('up');
+            } else if (e.key === 'J') {
+                e.preventDefault();
+                scrollDetailPanel('down');
+            } else if (e.key === 'K') {
+                e.preventDefault();
+                scrollDetailPanel('up');
+            } else if (e.key === 'o' || e.key === 'O') {
+                e.preventDefault();
+                openSelectedIssueInNewTab();
+            } else if (e.key === 'y' || e.key === 'Y') {
+                e.preventDefault();
+                yankIssueUrl();
+            } else if (e.key === '?') {
+                e.preventDefault();
+                showHelpOverlay();
             }
         });
 
@@ -1274,6 +1636,7 @@
         // Initial load
         async function init() {
             initializeViewState();
+            await loadConfig(); // Load Jira base URL
             allIssues = await fetchIssues();
             renderTable(allIssues);
         }
