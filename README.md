@@ -1,5 +1,6 @@
-# Jayrah
+<img align="right" src="https://github.com/user-attachments/assets/e65d653a-2442-4034-aba0-b302a0094a59" alt="ChatGPT Image" width="128" height="128">
 
+# Jayrah
 A simple CLI and TUI for working with Jira from your terminal.
 
 ## Install
