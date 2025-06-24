@@ -97,6 +97,40 @@ When editing a description:
 4. You can navigate with emacs or readline keys.
 5. Press `Ctrl+S` to save your changes or `Escape` to cancel
 
+## Custom Fields
+
+You can display and edit custom Jira fields in the TUI by adding a section to your config:
+
+```yaml
+custom_fields:
+  - name: Git PR
+    description: "URL to the git pull request"
+    field: customfield_12310220
+    type: url
+  - name: Release Note
+    description: "Release note for the issue"
+    field: customfield_12317313
+    type: text
+  - name: Some Number Field
+    description: "A numeric value"
+    field: customfield_999999
+    type: number
+  - name: Some Other Custom Field
+    field: customfield_45678
+    type: string
+```
+
+- `type` can be `string` (default), `text`, `url`, or `number`.
+  - `url` fields are validated as URLs.
+  - `text` fields use a multi-line editor.
+  - `number` fields require a valid number.
+  - `string` fields use a single-line input.
+- `description` is shown in the edit dialog if provided.
+
+If a custom field is not empty, it will be shown in the issue details view. You can also edit these fields from the edit menu.
+
+To find the correct custom field ID (e.g., `customfield_12310`), the easiest way is to use your web browser's developer tools while editing a field in Jira. Look at the network requests and see which field is being updated in the REST API call. Use that field ID in your config.
+
 ## MCP Server for AI integration
 
 Jayrah can run as an MCP server to work with AI tools like VS Code Copilot.

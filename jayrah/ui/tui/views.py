@@ -1691,37 +1691,79 @@ class CustomFieldEditScreen(BaseModalScreen):
         self.config = config
         self.issue_key = issue_key
         self.field_id = field_id
-        # TODO: multiple values support
-        self.current_value = current_value[0]
+        # Find custom field config
+        self.custom_field_cfg = None
+        for cf in self.config.get("custom_fields", []):
+            if cf.get("field") == field_id:
+                self.custom_field_cfg = cf
+                break
+        self.current_value = (
+            current_value[0] if isinstance(current_value, list) else current_value
+        )
+        self.type = (
+            self.custom_field_cfg.get("type", "string")
+            if self.custom_field_cfg
+            else "string"
+        )
+        self.description = (
+            self.custom_field_cfg.get("description") if self.custom_field_cfg else None
+        )
 
     def compose(self) -> ComposeResult:
         with Vertical(id="customfield-container"):
             yield Label(
                 f"Update {self.field_id} for {self.issue_key}", id="customfield-title"
             )
-            print(self.current_value)
+            if self.description:
+                yield Label(self.description, id="customfield-desc")
             yield Label(
                 f"Current: {self.current_value[:60] + '...' if len(self.current_value) > 60 else self.current_value}",
                 id="customfield-current",
             )
-            yield EmacsInput(
-                placeholder="Enter new value",
-                id="customfield-input",
-                value=self.current_value,
-            )
+            if self.type == "text":
+                from .enhanced_widgets import EmacsTextArea
+
+                yield EmacsTextArea(
+                    text=self.current_value,
+                    id="customfield-input",
+                    language="markdown",
+                )
+            else:
+                from .enhanced_widgets import EmacsInput
+
+                yield EmacsInput(
+                    placeholder="Enter new value",
+                    id="customfield-input",
+                    value=self.current_value,
+                )
             yield Label(
                 "Press Enter to update, Escape to cancel", id="customfield-help"
             )
 
-    def on_input_submitted(self, event: EmacsInput.Submitted) -> None:
-        self.action_apply()
-
     def action_apply(self) -> None:
-        value = self.query_one("#customfield-input", EmacsInput).value.strip()
+        if self.type == "text":
+            from .enhanced_widgets import EmacsTextArea
+
+            value = self.query_one("#customfield-input", EmacsTextArea).text.strip()
+        else:
+            from .enhanced_widgets import EmacsInput
+
+            value = self.query_one("#customfield-input", EmacsInput).value.strip()
         if value == self.current_value:
             self._parent.notify("No changes made", severity="warning")
             self.safe_pop_screen()
             return
+        if self.type == "url":
+            url_regex = re.compile(r"^(https?|ftp)://[^\s/$.?#].[^\s]*$")
+            if not url_regex.match(value):
+                self._parent.notify("Invalid URL format", severity="error")
+                return
+        if self.type == "number":
+            try:
+                value = float(value) if "." in value else int(value)
+            except Exception:
+                self._parent.notify("Invalid number format", severity="error")
+                return
         try:
             self._parent.jayrah_obj.jira.update_issue(
                 self.issue_key, {self.field_id: value}

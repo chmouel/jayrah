@@ -151,13 +151,19 @@ def build_issue(issue, config, comments_count):
     for cf in custom_fields:
         field_id = cf.get("field")
         field_name = cf.get("name", field_id)
+        field_type = cf.get("type", "string")
         if field_id and fields.get(field_id):
             value = fields[field_id]
             # If value is a list, join, else str
             if isinstance(value, list):
                 value = ", ".join(str(v) for v in value if v)
             if value:
-                output.append(f"* {field_name}: {value}")
+                if field_type == "text":
+                    output.append(f"* {field_name}:\n```\n{value}\n```")
+                elif field_type == "url":
+                    output.append(f"* {field_name}: [{value}]({value})")
+                else:
+                    output.append(f"* {field_name}: {value}")
 
     # Description
     markdown_description = "\n## Description\n"
