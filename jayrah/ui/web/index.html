@@ -1244,6 +1244,17 @@
             }
         }
 
+        function openIssueInTab(issueKey) {
+            const jiraBaseUrl = getJiraBaseUrl();
+            if (jiraBaseUrl) {
+                const issueUrl = `${jiraBaseUrl}/browse/${issueKey}`;
+                window.open(issueUrl, '_blank');
+                showNotification(`Opened ${issueKey} in new tab`);
+            } else {
+                showNotification('Error: Jira base URL not configured', 'error');
+            }
+        }
+
         function getJiraBaseUrl() {
             return jiraBaseUrl;
         }
@@ -1454,7 +1465,7 @@
                     <h3>📋 Issue Information</h3>
                     <div class="detail-field">
                         <div class="detail-label">Key:</div>
-                        <div class="detail-value"><strong>${key}</strong></div>
+                        <div class="detail-value"><strong><a href="#" class="issue-key" onclick="openIssueInTab('${key}'); return false;">${key}</a></strong></div>
                     </div>
                     <div class="detail-field">
                         <div class="detail-label">Type:</div>
