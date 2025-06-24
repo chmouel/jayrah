@@ -224,6 +224,47 @@ class IssueBrowserActions:
         except Exception as exc:
             cast(Any, self).notify(f"Error opening issue: {exc}", severity="error")
 
+    def action_copy_url(self) -> None:  # noqa: D401
+        """Copy the URL of the selected issue to clipboard."""
+        if not cast(Any, self).selected_issue:
+            cast(Any, self).notify("No issue selected", severity="error")
+            return
+
+        try:
+            from jayrah.utils.clipboard import copy_to_clipboard, get_clipboard_command
+
+            # Get the Jira server URL from config
+            server = cast(Any, self).config.get("jira_server")
+            if not server:
+                cast(Any, self).notify("Jira server not configured", severity="error")
+                return
+
+            # Construct the full URL
+            url = utils.make_full_url(cast(Any, self).selected_issue, server)
+
+            # Check if clipboard is available for the platform
+            clipboard_cmd = get_clipboard_command()
+            if not clipboard_cmd:
+                cast(Any, self).notify(
+                    "Clipboard not supported on this platform",
+                    severity="warning",
+                )
+                return
+
+            # Copy to clipboard
+            if copy_to_clipboard(url):
+                cast(Any, self).notify(
+                    f"✅ Copied URL to clipboard: {cast(Any, self).selected_issue}"
+                )
+            else:
+                cast(Any, self).notify(
+                    f"Failed to copy URL (clipboard command: {clipboard_cmd})",
+                    severity="error",
+                )
+
+        except Exception as exc:
+            cast(Any, self).notify(f"Error copying URL: {exc}", severity="error")
+
     def action_quit(self) -> None:  # noqa: D401
         """Quit the application."""
         cast(Any, self).exit()  # *app.selected_issue* persists after exit

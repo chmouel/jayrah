@@ -66,6 +66,7 @@ class IssueBrowserApp(App, JayrahAppMixin, IssueBrowserActions):
     BINDINGS = [
         Binding("escape", "quit", "Quit", show=False),
         Binding("o", "open_issue", "Open"),
+        Binding("y", "copy_url", "Copy URL", show=False),
         Binding("r", "reload", "Reload"),
         Binding("a", "show_actions", "Actions"),
         Binding("c", "view_comments", "Comments"),
