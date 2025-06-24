@@ -115,8 +115,9 @@ def read_config(ret: dict, config_file: pathlib.Path) -> dict:
 
         if "api_version" not in ret:
             ret["api_version"] = ""
-        else:
-            ret["api_version"] = str(ret["api_version"])
+
+        if "custom_fields" not in ret:
+            ret["custom_fields"] = []
 
     checks()
     if not config_file.exists():
@@ -143,6 +144,11 @@ def read_config(ret: dict, config_file: pathlib.Path) -> dict:
                 "api_version",
             ]:
                 ret[x] = set_general(x) if set_general(x) is not None else ret.get(x)
+            # Add support for custom_fields in general
+            if general.get("custom_fields"):
+                ret["custom_fields"] = general["custom_fields"]
+        if config.get("custom_fields"):
+            ret["custom_fields"] = config["custom_fields"]
         if config.get("boards"):
             ret["boards"] = config["boards"]
         if config.get("create"):
@@ -170,6 +176,7 @@ def write_config(config, config_file: pathlib.Path):
         "label_excludes",
         "create",
         "insecure",
+        "custom_fields",
     ]:
         if config.get(key):
             yaml_config["general"][key] = config[key]

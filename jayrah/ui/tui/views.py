@@ -1131,6 +1131,15 @@ class EditSelectionScreen(BaseModalScreen):
             table.add_row("title", "Edit issue title/summary", key="title")
             table.add_row("description", "Edit issue description", key="description")
 
+            # Add custom field edit options from config
+            custom_fields = self.config.get("custom_fields", [])
+            for cf in custom_fields:
+                name = cf.get("name")
+                field = cf.get("field")
+                description = cf.get("description", f"Update custom field {field}")
+                if name and field:
+                    table.add_row(name, description, key=f"customfield:{field}")
+
             yield table
             yield Label(
                 "Press Enter to select edit type, Escape to cancel", id="edit-help"
@@ -1188,7 +1197,21 @@ class EditSelectionScreen(BaseModalScreen):
                         self.config,
                     )
                 )
-
+            elif self.selected_edit_type.startswith("customfield:"):
+                field_id = self.selected_edit_type.split(":", 1)[1]
+                # Get current value for the custom field
+                issue_data = self._parent.jayrah_obj.jira.get_issue(self.issue_key)
+                current_value = issue_data.get("fields", {}).get(field_id, "")
+                self.safe_pop_screen()
+                self._parent.push_screen(
+                    CustomFieldEditScreen(
+                        self._parent,
+                        self.issue_key,
+                        field_id,
+                        current_value,
+                        self.config,
+                    )
+                )
         except Exception as exc:
             if self.verbose:
                 raise exc
@@ -1616,3 +1639,100 @@ class ActionsPanel(BaseModalScreen):
         """Shortcut to select board action."""
         self.selected_action = "change_board"
         self.action_apply()
+
+
+class CustomFieldEditScreen(BaseModalScreen):
+    """Modal screen for editing a custom field."""
+
+    BINDINGS = [
+        Binding("escape", "cancel", "Cancel"),
+        Binding("enter", "apply", "Apply"),
+        Binding("f1", "help", "Help"),
+    ]
+
+    CSS = """
+    #customfield-container {
+        dock: bottom;
+        padding: 1;
+        width: 100%;
+        height: auto;
+        background: $surface;
+        border-top: thick $primary;
+        margin: 0;
+    }
+    #customfield-title {
+        text-align: center;
+        text-style: bold;
+        width: 100%;
+        height: 1;
+        content-align: center middle;
+    }
+    #customfield-current {
+        width: 100%;
+        margin: 0 0 1 0;
+        text-align: center;
+        color: $text-muted;
+    }
+    #customfield-input {
+        width: 100%;
+        margin: 0;
+    }
+    #customfield-help {
+        text-align: center;
+        color: $text-muted;
+        margin-top: 0;
+    }
+    """
+
+    def __init__(
+        self, parent, issue_key: str, field_id: str, current_value: str, config: dict
+    ):
+        super().__init__(parent)
+        self.config = config
+        self.issue_key = issue_key
+        self.field_id = field_id
+        # TODO: multiple values support
+        self.current_value = current_value[0]
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="customfield-container"):
+            yield Label(
+                f"Update {self.field_id} for {self.issue_key}", id="customfield-title"
+            )
+            print(self.current_value)
+            yield Label(
+                f"Current: {self.current_value[:60] + '...' if len(self.current_value) > 60 else self.current_value}",
+                id="customfield-current",
+            )
+            yield EmacsInput(
+                placeholder="Enter new value",
+                id="customfield-input",
+                value=self.current_value,
+            )
+            yield Label(
+                "Press Enter to update, Escape to cancel", id="customfield-help"
+            )
+
+    def on_input_submitted(self, event: EmacsInput.Submitted) -> None:
+        self.action_apply()
+
+    def action_apply(self) -> None:
+        value = self.query_one("#customfield-input", EmacsInput).value.strip()
+        if value == self.current_value:
+            self._parent.notify("No changes made", severity="warning")
+            self.safe_pop_screen()
+            return
+        try:
+            self._parent.jayrah_obj.jira.update_issue(
+                self.issue_key, {self.field_id: value}
+            )
+            detail_panel = self._parent.query_one(IssueDetailPanel)
+            if detail_panel.ticket == self.issue_key:
+                detail_panel.update_issue(
+                    self.issue_key, self._parent.config, use_cache=False
+                )
+            self._parent.action_reload()
+            self._parent.notify(f"✅ Updated {self.field_id} for {self.issue_key}")
+        except Exception as exc:
+            self._parent.notify(f"Error updating field: {exc}", severity="error")
+        self.safe_pop_screen()

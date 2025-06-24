@@ -146,6 +146,19 @@ def build_issue(issue, config, comments_count):
     output.append(f"* Created: 📅 {created_date.strftime('%Y-%m-%d %H:%M:%S')}")
     output.append(f"* Updated: 🔄 {updated_date.strftime('%Y-%m-%d %H:%M:%S')}")
 
+    # Show custom fields if present and not empty
+    custom_fields = config.get("custom_fields", [])
+    for cf in custom_fields:
+        field_id = cf.get("field")
+        field_name = cf.get("name", field_id)
+        if field_id and fields.get(field_id):
+            value = fields[field_id]
+            # If value is a list, join, else str
+            if isinstance(value, list):
+                value = ", ".join(str(v) for v in value if v)
+            if value:
+                output.append(f"* {field_name}: {value}")
+
     # Description
     markdown_description = "\n## Description\n"
 
