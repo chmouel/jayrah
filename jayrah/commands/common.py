@@ -28,12 +28,12 @@ from ..ui import boards
 @click.option(
     "--jira-component",
     default=os.environ.get("JIRA_COMPONENT"),
-    help="Jira user",
+    help="Jira component",
 )
 @click.option(
     "--jira-password",
     default=os.environ.get("JIRA_PASSWORD"),
-    help="Jira user",
+    help="Jira password",
 )
 @click.option("--cache-ttl", "-t", help="Cache TTL in seconds")
 @click.option(

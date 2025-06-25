@@ -9,8 +9,8 @@ Options:
   --insecure              Disable SSL verification for requests
   --jira-server TEXT      Jira server URL
   --jira-user TEXT        Jira user
-  --jira-component TEXT   Jira user
-  --jira-password TEXT    Jira user
+  --jira-component TEXT   Jira component
+  --jira-password TEXT    Jira password
   -t, --cache-ttl TEXT    Cache TTL in seconds
   -c, --config-file TEXT  Config file to use
   --help                  Show this message and exit.
