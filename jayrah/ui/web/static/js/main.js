@@ -1467,6 +1467,11 @@ document
   .getElementById("board-selector")
   .addEventListener("click", showBoardSelector);
 
+// Help button event listener
+document
+  .getElementById("help-button")
+  .addEventListener("click", showHelpOverlay);
+
 // Board management functions
 async function loadBoards() {
   try {

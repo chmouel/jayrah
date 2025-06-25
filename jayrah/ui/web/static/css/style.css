@@ -190,7 +190,8 @@ body {
 .search-toggle img,
 .refresh-button img,
 .layout-toggle img,
-.view-toggle img {
+.view-toggle img,
+.help-button img {
   width: 16px;
   height: 16px;
 }
@@ -237,6 +238,31 @@ body {
   to {
     transform: rotate(360deg);
   }
+}
+
+.help-button {
+  background: rgba(139, 69, 19, 0.1);
+  border: 1px solid rgba(139, 69, 19, 0.2);
+  color: #8b4513;
+  padding: 0.5rem;
+  border-radius: var(--radius);
+  cursor: pointer;
+  font-size: 1.2rem;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+}
+
+.help-button:hover {
+  background: rgba(139, 69, 19, 0.2);
+  transform: scale(1.05);
+}
+
+.help-button:active {
+  transform: scale(0.95);
 }
 
 .stats {
