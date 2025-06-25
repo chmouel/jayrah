@@ -68,7 +68,7 @@ def get_app_state() -> WebAppState:
     """Dependency function to get the application state"""
     # Use FastAPI's app.state to store application state
     if not hasattr(app.state, "jayrah_state"):
-        raise HTTPException(status_code=503, detail="Application not initialized")
+        initialize_app_state()
     return app.state.jayrah_state
 
 
@@ -199,7 +199,7 @@ def switch_board(board_name: str, state: WebAppState = Depends(get_app_state)):
     type=str,
     help="Comma-separated list of directories to watch for reloads.",
 )
-def main(host, port, reload, workers, log_level, reloads_dirs=None):
+def cli(host, port, reload, workers, log_level, reloads_dirs=None):
     initialize_app_state()
     if reloads_dirs:
         reloads_dirs = reloads_dirs.split(",")
@@ -216,3 +216,7 @@ def main(host, port, reload, workers, log_level, reloads_dirs=None):
         )
     except KeyboardInterrupt:
         print("Server stopped by user.")
+
+
+def main():
+    cli.main(auto_envvar_prefix="JAYRAH_WEB", obj=None)
