@@ -2,8 +2,9 @@ import os
 import pathlib
 from typing import Optional
 
+import click
 import uvicorn
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -63,12 +64,23 @@ class WebAppState(JayrahAppMixin):
             self.issues = []
 
 
-# Initialize with proper config loading
-state = WebAppState()
+def get_app_state() -> WebAppState:
+    """Dependency function to get the application state"""
+    # Use FastAPI's app.state to store application state
+    if not hasattr(app.state, "jayrah_state"):
+        raise HTTPException(status_code=503, detail="Application not initialized")
+    return app.state.jayrah_state
+
+
+def initialize_app_state(user_config=None):
+    """Initialize the application state"""
+    app.state.jayrah_state = WebAppState(user_config)
 
 
 @app.get("/api/issues")
-def get_issues(q: Optional[str] = Query(None)):
+def get_issues(
+    q: Optional[str] = Query(None), state: WebAppState = Depends(get_app_state)
+):
     if not state.issues:
         raise HTTPException(
             status_code=503, detail="No issues available - check Jira configuration"
@@ -80,7 +92,7 @@ def get_issues(q: Optional[str] = Query(None)):
 
 
 @app.get("/api/issue/{key}")
-def get_issue_detail(key: str):
+def get_issue_detail(key: str, state: WebAppState = Depends(get_app_state)):
     if not state.issues:
         raise HTTPException(status_code=503, detail="No issues available")
     for issue in state.issues:
@@ -94,7 +106,7 @@ def get_issue_detail(key: str):
 
 
 @app.get("/api/config")
-def get_config():
+def get_config(state: WebAppState = Depends(get_app_state)):
     """Get configuration including custom fields for the frontend"""
     jira_url = None
     try:
@@ -115,7 +127,7 @@ def serve_index():
 
 
 @app.get("/api/boards")
-def get_boards():
+def get_boards(state: WebAppState = Depends(get_app_state)):
     """Get list of available boards from configuration"""
     try:
         boards = state.config.get("boards", [])
@@ -137,7 +149,7 @@ def get_boards():
 
 
 @app.post("/api/boards/{board_name}/switch")
-def switch_board(board_name: str):
+def switch_board(board_name: str, state: WebAppState = Depends(get_app_state)):
     """Switch to a different board and reload issues"""
     try:
         # Import here to avoid circular imports
@@ -170,13 +182,37 @@ def switch_board(board_name: str):
         }
     except Exception as e:
         print(f"Error switching board: {e}")
-        raise HTTPException(status_code=500, detail=f"Error switching board: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Error switching board: {str(e)}"
+        ) from e
 
 
-def main():
-    # Initialize the app state
-    uvicorn.run(app, host="127.0.0.1", port=8000)
-
-
-if __name__ == "__main__":
-    main()
+@click.command()
+@click.option("--host", default="127.0.0.1", help="Host address to bind.")
+@click.option("--port", default=8000, type=int, help="Port to bind.")
+@click.option("--reload", is_flag=True, default=False, help="Enable auto-reload.")
+@click.option("--workers", default=1, type=int, help="Number of worker processes.")
+@click.option("--log-level", default="info", help="Logging level.")
+@click.option(
+    "--reloads-dirs",
+    default=None,
+    type=str,
+    help="Comma-separated list of directories to watch for reloads.",
+)
+def main(host, port, reload, workers, log_level, reloads_dirs=None):
+    initialize_app_state()
+    if reloads_dirs:
+        reloads_dirs = reloads_dirs.split(",")
+        reload = True
+    try:
+        uvicorn.run(
+            "jayrah.ui.web.server:app",
+            host=host,
+            port=port,
+            reload=reload,
+            workers=workers,
+            log_level=log_level,
+            reload_dirs=reloads_dirs,
+        )
+    except KeyboardInterrupt:
+        print("Server stopped by user.")
