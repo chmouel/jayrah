@@ -11,7 +11,8 @@ from fastapi.staticfiles import StaticFiles
 
 from jayrah import config as jayrah_config
 from jayrah.config import defaults
-from jayrah.ui.shared_helpers import filter_issues_by_text, get_row_data_for_issue
+from jayrah.ui.shared_helpers import (filter_issues_by_text,
+                                      get_row_data_for_issue)
 from jayrah.ui.tui.base import JayrahAppMixin
 
 app = FastAPI()
@@ -29,11 +30,6 @@ app.add_middleware(
 static_dir = os.path.join(os.path.dirname(__file__), "static")
 if os.path.exists(static_dir):
     app.mount("/static", StaticFiles(directory=static_dir), name="static")
-
-# Also mount images directory if it exists
-images_dir = os.path.join(os.path.dirname(__file__), "images")
-if os.path.exists(images_dir):
-    app.mount("/images", StaticFiles(directory=images_dir), name="images")
 
 
 class WebAppState(JayrahAppMixin):

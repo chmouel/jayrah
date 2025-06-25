@@ -1,133 +1,242 @@
 <!doctype html>
 <html lang="en">
-
-<head>
+  <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Jayrah - Jira Web UI</title>
     <script src="https://cdn.jsdelivr.net/npm/marked@9.1.6/marked.min.js"></script>
-    <link href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.css" rel="stylesheet" />
+    <link
+      href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.css"
+      rel="stylesheet"
+    />
     <script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
     <link rel="stylesheet" href="/static/css/style.css" />
-    <link rel="icon" type="image/x-icon" href="/images/favicon.ico" />
-</head>
+    <link rel="icon" type="image/x-icon" href="/static/images/favicon.ico" />
+  </head>
 
-<body>
+  <body>
     <header class="header">
-        <div class="header-content">
-            <h1>
-                <img src="/images/jayrah.png" alt="Jayrah" class="header-logo" />
-                Jayrah - Jira Web UI
-            </h1>
-            <div class="header-controls">
-                <button class="board-selector" id="board-selector" title="Switch board (Press B)">
-                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                        <rect x="2" y="3" width="12" height="10" rx="1" stroke="currentColor" stroke-width="1"
-                            fill="none" />
-                        <rect x="3" y="4" width="10" height="1" fill="currentColor" />
-                        <rect x="3" y="6" width="4" height="1" fill="currentColor" />
-                        <rect x="9" y="6" width="4" height="1" fill="currentColor" />
-                        <rect x="3" y="8" width="4" height="1" fill="currentColor" />
-                        <rect x="9" y="8" width="4" height="1" fill="currentColor" />
-                        <rect x="3" y="10" width="4" height="1" fill="currentColor" />
-                        <rect x="9" y="10" width="4" height="1" fill="currentColor" />
-                        <line x1="7.5" y1="5" x2="7.5" y2="11" stroke="currentColor" stroke-width="1" />
-                    </svg>
-                    Board
-                </button>
-                <button class="search-toggle" id="search-toggle" title="Toggle search (Press /)">
-                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                        <circle cx="6.5" cy="6.5" r="4" stroke="currentColor" stroke-width="1.5" fill="none" />
-                        <line x1="9.5" y1="9.5" x2="13" y2="13" stroke="currentColor" stroke-width="1.5"
-                            stroke-linecap="round" />
-                    </svg>
-                </button>
-                <button class="refresh-button" id="refresh-button" title="Refresh issues and clear cache (Press R)">
-                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                        <path d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2v1z" />
-                        <path
-                            d="M8 4.466V.534a.25.25 0 0 1 .41-.192l2.36 1.966c.12.1.12.284 0 .384L8.41 4.658A.25.25 0 0 1 8 4.466z" />
-                    </svg>
-                </button>
-                <button class="layout-toggle" id="layout-toggle" title="Toggle layout (Press V)">
-                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                        <rect x="1" y="3" width="6" height="10" rx="1" stroke="currentColor" stroke-width="1"
-                            fill="none" />
-                        <rect x="9" y="3" width="6" height="10" rx="1" stroke="currentColor" stroke-width="1"
-                            fill="none" />
-                    </svg>
-                </button>
-                <button class="view-toggle" id="view-toggle" title="Toggle view mode (Press T)">
-                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                        <rect x="1" y="2" width="6" height="12" rx="1" stroke="currentColor" stroke-width="1"
-                            fill="none" />
-                        <rect x="9" y="4" width="6" height="10" rx="1" stroke="currentColor" stroke-width="1"
-                            fill="none" />
-                        <rect x="2" y="3" width="4" height="1" fill="currentColor" />
-                        <rect x="2" y="5" width="4" height="1" fill="currentColor" />
-                        <rect x="2" y="7" width="3" height="1" fill="currentColor" />
-                        <rect x="10" y="5" width="4" height="1" fill="currentColor" />
-                        <rect x="10" y="7" width="4" height="1" fill="currentColor" />
-                        <rect x="10" y="9" width="3" height="1" fill="currentColor" />
-                    </svg>
-                </button>
-                <button class="help-button" id="help-button" title="Show help (Press ?)">
-                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                        <circle cx="8" cy="8" r="7" stroke="currentColor" stroke-width="1.5" fill="none" />
-                        <path d="M6.2 6.2a2 2 0 1 1 2.83 2.83c-.5.5-.83 1-.83 1.5V11" stroke="currentColor"
-                            stroke-width="1.5" fill="none" stroke-linecap="round" />
-                        <circle cx="8" cy="13" r="0.5" fill="currentColor" />
-                    </svg>
-                </button>
-                <div class="stats" id="stats">Loading...</div>
-            </div>
+      <div class="header-content">
+        <h1>
+          <img
+            src="/static/images/jayrah.png"
+            alt="Jayrah"
+            class="header-logo"
+          />
+          Jayrah - Jira Web UI
+        </h1>
+        <div class="header-controls">
+          <button
+            class="board-selector"
+            id="board-selector"
+            title="Switch board (Press B)"
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+              <rect
+                x="2"
+                y="3"
+                width="12"
+                height="10"
+                rx="1"
+                stroke="currentColor"
+                stroke-width="1"
+                fill="none"
+              />
+              <rect x="3" y="4" width="10" height="1" fill="currentColor" />
+              <rect x="3" y="6" width="4" height="1" fill="currentColor" />
+              <rect x="9" y="6" width="4" height="1" fill="currentColor" />
+              <rect x="3" y="8" width="4" height="1" fill="currentColor" />
+              <rect x="9" y="8" width="4" height="1" fill="currentColor" />
+              <rect x="3" y="10" width="4" height="1" fill="currentColor" />
+              <rect x="9" y="10" width="4" height="1" fill="currentColor" />
+              <line
+                x1="7.5"
+                y1="5"
+                x2="7.5"
+                y2="11"
+                stroke="currentColor"
+                stroke-width="1"
+              />
+            </svg>
+            Board
+          </button>
+          <button
+            class="search-toggle"
+            id="search-toggle"
+            title="Toggle search (Press /)"
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+              <circle
+                cx="6.5"
+                cy="6.5"
+                r="4"
+                stroke="currentColor"
+                stroke-width="1.5"
+                fill="none"
+              />
+              <line
+                x1="9.5"
+                y1="9.5"
+                x2="13"
+                y2="13"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linecap="round"
+              />
+            </svg>
+          </button>
+          <button
+            class="refresh-button"
+            id="refresh-button"
+            title="Refresh issues and clear cache (Press R)"
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+              <path
+                d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2v1z"
+              />
+              <path
+                d="M8 4.466V.534a.25.25 0 0 1 .41-.192l2.36 1.966c.12.1.12.284 0 .384L8.41 4.658A.25.25 0 0 1 8 4.466z"
+              />
+            </svg>
+          </button>
+          <button
+            class="layout-toggle"
+            id="layout-toggle"
+            title="Toggle layout (Press V)"
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+              <rect
+                x="1"
+                y="3"
+                width="6"
+                height="10"
+                rx="1"
+                stroke="currentColor"
+                stroke-width="1"
+                fill="none"
+              />
+              <rect
+                x="9"
+                y="3"
+                width="6"
+                height="10"
+                rx="1"
+                stroke="currentColor"
+                stroke-width="1"
+                fill="none"
+              />
+            </svg>
+          </button>
+          <button
+            class="view-toggle"
+            id="view-toggle"
+            title="Toggle view mode (Press T)"
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+              <rect
+                x="1"
+                y="2"
+                width="6"
+                height="12"
+                rx="1"
+                stroke="currentColor"
+                stroke-width="1"
+                fill="none"
+              />
+              <rect
+                x="9"
+                y="4"
+                width="6"
+                height="10"
+                rx="1"
+                stroke="currentColor"
+                stroke-width="1"
+                fill="none"
+              />
+              <rect x="2" y="3" width="4" height="1" fill="currentColor" />
+              <rect x="2" y="5" width="4" height="1" fill="currentColor" />
+              <rect x="2" y="7" width="3" height="1" fill="currentColor" />
+              <rect x="10" y="5" width="4" height="1" fill="currentColor" />
+              <rect x="10" y="7" width="4" height="1" fill="currentColor" />
+              <rect x="10" y="9" width="3" height="1" fill="currentColor" />
+            </svg>
+          </button>
+          <button
+            class="help-button"
+            id="help-button"
+            title="Show help (Press ?)"
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+              <circle
+                cx="8"
+                cy="8"
+                r="7"
+                stroke="currentColor"
+                stroke-width="1.5"
+                fill="none"
+              />
+              <path
+                d="M6.2 6.2a2 2 0 1 1 2.83 2.83c-.5.5-.83 1-.83 1.5V11"
+                stroke="currentColor"
+                stroke-width="1.5"
+                fill="none"
+                stroke-linecap="round"
+              />
+              <circle cx="8" cy="13" r="0.5" fill="currentColor" />
+            </svg>
+          </button>
+          <div class="stats" id="stats">Loading...</div>
         </div>
+      </div>
     </header>
 
     <div class="container">
-        <div class="search-container">
-            <input type="text" id="search" class="search-input"
-                placeholder="Search issues by key, summary, assignee, status..." />
-        </div>
+      <div class="search-container">
+        <input
+          type="text"
+          id="search"
+          class="search-input"
+          placeholder="Search issues by key, summary, assignee, status..."
+        />
+      </div>
 
-        <div id="view-container" class="view-both">
-            <div class="main-content">
-                <div class="issues-panel">
-                    <div class="table-container">
-                        <table class="table">
-                            <thead>
-                                <tr>
-                                    <th>Type</th>
-                                    <th>Key</th>
-                                    <th>Summary</th>
-                                    <th>Status</th>
-                                    <th>Assignee</th>
-                                    <th>Reporter</th>
-                                    <th>Created</th>
-                                    <th>Updated</th>
-                                </tr>
-                            </thead>
-                            <tbody id="issues-tbody">
-                                <tr>
-                                    <td colspan="8" class="loading">Loading issues...</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-
-                <div class="resizer" id="resizer"></div>
-
-                <div id="detail-panel" class="detail-panel empty">
-                    <div style="text-align: center; color: var(--text-muted)">
-                        📋 Select an issue to view details
-                    </div>
-                </div>
+      <div id="view-container" class="view-both">
+        <div class="main-content">
+          <div class="issues-panel">
+            <div class="table-container">
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th>Type</th>
+                    <th>Key</th>
+                    <th>Summary</th>
+                    <th>Status</th>
+                    <th>Assignee</th>
+                    <th>Reporter</th>
+                    <th>Created</th>
+                    <th>Updated</th>
+                  </tr>
+                </thead>
+                <tbody id="issues-tbody">
+                  <tr>
+                    <td colspan="8" class="loading">Loading issues...</td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
+          </div>
+
+          <div class="resizer" id="resizer"></div>
+
+          <div id="detail-panel" class="detail-panel empty">
+            <div style="text-align: center; color: var(--text-muted)">
+              📋 Select an issue to view details
+            </div>
+          </div>
         </div>
+      </div>
     </div>
 
     <script src="/static/js/main.js"></script>
-</body>
-
+  </body>
 </html>
