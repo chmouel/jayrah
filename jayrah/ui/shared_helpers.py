@@ -5,24 +5,29 @@ from jayrah.config import defaults
 
 
 def get_row_data_for_issue(issue: dict) -> tuple:
-    issue_type = issue["fields"]["issuetype"]["name"]
+    fields = issue["fields"]
+    priority_field = fields.get("priority")
+    print(f"DEBUG: {issue['key']} priority field: {priority_field}")
+    issue_type = fields["issuetype"]["name"]
     issue_type = defaults.ISSUE_TYPE_EMOJIS.get(issue_type, (issue_type[:4],))[0]
     key = issue["key"]
-    summary = issue["fields"]["summary"]
+    summary = fields["summary"]
     if len(summary) > defaults.SUMMARY_MAX_LENGTH:
         summary = f"{summary[: defaults.SUMMARY_MAX_LENGTH - 1]}…"
     assignee = "None"
-    if assignee_field := issue["fields"].get("assignee"):
+    if assignee_field := fields.get("assignee"):
         assignee = utils.parse_email(assignee_field)
-    reporter = utils.parse_email(issue["fields"].get("reporter", ""))
-    created = utils.show_time(issue["fields"].get("created", ""))
-    updated = utils.show_time(issue["fields"].get("updated", ""))
-    status = issue["fields"]["status"]["name"]
+    reporter = utils.parse_email(fields.get("reporter", ""))
+    created = utils.show_time(fields.get("created", ""))
+    updated = utils.show_time(fields.get("updated", ""))
+    status = fields["status"]["name"]
+    priority = fields.get("priority", {}).get("name", "Unknown")
     return (
         issue_type,
         key,
         summary,
         status,
+        priority,
         assignee,
         reporter,
         created,

@@ -97,7 +97,10 @@ def build_issue(issue, config, comments_count):
 
     # Add status, priority, and type
     output.append(f"* Status: {issue_status} {status_emoji}")
-    output.append(f"* Priority: {issue_priority} {priority_emoji}")
+    # Colorize priority
+    color_code = defaults.PRIORITY_COLORS.get(issue_priority, "")
+    reset_code = "\033[0m" if color_code else ""
+    output.append(f"* Priority: {color_code}{issue_priority}{reset_code}")
     output.append(f"* Type: {issue_type} {type_emoji}")
 
     # Add fix versions if available

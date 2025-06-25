@@ -23,6 +23,7 @@ FIELDS = [
     "issuetype",
     "fixVersion",
     "status",
+    "priority",
 ]
 FZFOPTS = [
     "--highlight-line",
@@ -173,9 +174,9 @@ PRIORITY_EMOJI = {
 PRIORITY_COLORS = {
     "Blocker": "\033[91m",  # Bright red
     "Critical": "\033[31m",  # Red
-    "Major": "\033[33m",  # Yellow
-    "Minor": "\033[36m",  # Cyan
-    "Trivial": "\033[32m",  # Green
+    # "Major": "\033[33m",  # Yellow
+    # "Minor": "\033[36m",  # Cyan
+    # "Trivial": "\033[32m",  # Green
 }
 
 LOG_LEVELS = {
