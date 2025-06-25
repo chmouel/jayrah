@@ -1,7 +1,8 @@
 """Base classes and mixins for the TUI components."""
 
-from textual.screen import ModalScreen
 import importlib
+
+from textual.screen import ModalScreen
 
 
 class JayrahAppMixin:
