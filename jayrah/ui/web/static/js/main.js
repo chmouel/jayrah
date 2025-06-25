@@ -236,7 +236,7 @@ function initializeLayoutState() {
     layoutToggleBtn.innerHTML = LAYOUT_ICONS[currentLayoutState];
     layoutToggleBtn.title = LAYOUT_TITLES[currentLayoutState];
   }
-  
+
   // Ensure panels are properly sized for the initial layout
   setTimeout(() => {
     resetPanelSizes();
@@ -1001,7 +1001,10 @@ function formatIssueDetail(data) {
                     <div class="detail-section">
                         <h3>🏷️ Labels 
                             <button class="edit-label-btn" onclick="editLabels('${key}', ${JSON.stringify(labels).replace(/"/g, "&quot;")})">
-                                ✏️ Edit
+                                <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="color:#666;">
+                                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                                    <path d="m18.5 2.5 a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                                </svg>
                             </button>
                         </h3>
                         <div class="detail-labels">
@@ -2008,16 +2011,16 @@ function showTransitionModal(issueKey, transitions) {
                     </thead>
                     <tbody>
                         ${transitions
-                          .map(
-                            (tr) => `
+      .map(
+        (tr) => `
                             <tr tabindex="0" data-id="${tr.id}" style="cursor:pointer;" onmouseenter="this.style.backgroundColor='#f8f9fa'" onmouseleave="this.style.backgroundColor=''">
                                 <td style="padding:0.5rem;border-bottom:1px solid #f0f0f0;font-weight:500;">${tr.name}</td>
                                 <td style="padding:0.5rem;border-bottom:1px solid #f0f0f0;"><span style="background:#e3f2fd;color:#1976d2;padding:0.2rem 0.5rem;border-radius:4px;font-size:0.8rem;">${tr.to.name}</span></td>
                                 <td style="padding:0.5rem;border-bottom:1px solid #f0f0f0;color:#666;">${tr.to.description || "No description"}</td>
                             </tr>
                         `,
-                          )
-                          .join("")}
+      )
+      .join("")}
                     </tbody>
                 </table>
                 <div style="margin-top:1rem;text-align:right;">
@@ -2217,7 +2220,7 @@ function initializeResizer() {
       if (newTopHeight >= minHeight && newTopHeight <= maxHeight) {
         const topPercentage = (newTopHeight / containerHeight) * 100;
         issuesPanel.style.height = `${topPercentage}%`;
-        
+
         // Ensure detail panel takes remaining space
         const remainingPercentage = 100 - topPercentage;
         detailPanel.style.height = `${remainingPercentage}%`;
@@ -2297,6 +2300,6 @@ function resetPanelSizes() {
     detailPanel.style.height = "";
     detailPanel.style.width = "";  // detail panel uses flex: 1
   }
-  
+
   console.log("Panel sizes reset for layout:", isVertical ? "vertical" : "horizontal");
 }
