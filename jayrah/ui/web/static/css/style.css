@@ -1377,6 +1377,25 @@ body {
   background: var(--secondary-color);
 }
 
+/* Custom field edit button styles */
+.custom-field-edit-btn {
+  background: none;
+  border: none;
+  color: var(--primary-color);
+  cursor: pointer;
+  font-size: 0.75rem;
+  margin-left: 0.5rem;
+  padding: 0.25rem;
+  border-radius: var(--radius);
+  opacity: 0.7;
+  transition: opacity 0.2s ease;
+}
+
+.custom-field-edit-btn:hover {
+  opacity: 1;
+  background: var(--secondary-color);
+}
+
 /* Tom Select customization to match theme */
 .ts-control {
   border: 1px solid var(--border-color) !important;
@@ -1422,4 +1441,193 @@ body {
 .ts-control .item {
   font-size: 1rem !important;
   padding: 0.25rem 0.5rem !important;
+}
+
+/* Custom Field Edit Modal Styles */
+.custom-field-edit-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: fadeIn 0.2s ease;
+}
+
+.custom-field-edit-content {
+  background: white;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 1.5rem;
+  width: 95vw;
+  max-width: 600px;
+  min-width: 320px;
+  max-height: 80vh;
+  overflow-y: auto;
+  margin: 0.5rem;
+}
+
+.custom-field-edit-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.custom-field-edit-header h3 {
+  margin: 0;
+  color: var(--text-color);
+}
+
+.custom-field-edit-close {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: var(--text-muted);
+  padding: 0.25rem;
+  border-radius: var(--radius);
+}
+
+.custom-field-edit-close:hover {
+  background: var(--secondary-color);
+  color: var(--text-color);
+}
+
+.custom-field-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.custom-field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.custom-field-label {
+  font-weight: 600;
+  color: var(--text-color);
+  font-size: 0.9rem;
+}
+
+.custom-field-input,
+.custom-field-textarea {
+  padding: 0.75rem;
+  border: 2px solid var(--border-color);
+  border-radius: var(--radius);
+  font-size: 0.9rem;
+  font-family: inherit;
+  transition: border-color 0.2s ease;
+}
+
+.custom-field-input:focus,
+.custom-field-textarea:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px rgba(0, 82, 204, 0.1);
+}
+
+.custom-field-textarea {
+  min-height: 100px;
+  resize: vertical;
+}
+
+.custom-field-buttons {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+  margin-top: 1rem;
+}
+
+.custom-field-save,
+.custom-field-cancel {
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: var(--radius);
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: all 0.2s ease;
+}
+
+.custom-field-save {
+  background: var(--primary-color);
+  color: white;
+}
+
+.custom-field-save:hover {
+  background: var(--primary-hover);
+}
+
+.custom-field-save:disabled {
+  background: var(--text-muted);
+  cursor: not-allowed;
+}
+
+.custom-field-cancel {
+  background: var(--secondary-color);
+  color: var(--text-color);
+  border: 1px solid var(--border-color);
+}
+
+.custom-field-cancel:hover {
+  background: var(--border-color);
+}
+
+.custom-field-edit-button {
+  background: none;
+  border: none;
+  color: var(--primary-color);
+  cursor: pointer;
+  font-size: 0.8rem;
+  margin-left: 0.5rem;
+  padding: 0.25rem;
+  border-radius: var(--radius);
+  transition: all 0.2s ease;
+}
+
+.custom-field-edit-button:hover {
+  background: rgba(0, 82, 204, 0.1);
+  transform: scale(1.05);
+}
+
+.custom-field-edit-button:active {
+  transform: scale(0.95);
+}
+
+.custom-field-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.custom-field-row:last-child {
+  border-bottom: none;
+}
+
+.custom-field-name {
+  font-weight: 500;
+  color: var(--text-color);
+  flex: 1;
+}
+
+.custom-field-value {
+  color: var(--text-muted);
+  flex: 2;
+  margin-right: 0.5rem;
+}
+
+.custom-field-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
 }

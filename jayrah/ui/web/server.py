@@ -447,6 +447,71 @@ def get_stats(state: WebAppState = Depends(get_app_state)):
     }
 
 
+@app.put("/api/issue/{key}/customfield")
+def update_issue_custom_field(
+    key: str, field_data: dict, state: WebAppState = Depends(get_app_state)
+):
+    """Update a custom field for an issue"""
+    try:
+        field_id = field_data.get("field_id")
+        value = field_data.get("value")
+        field_type = field_data.get("type", "string")
+
+        if not field_id:
+            raise HTTPException(status_code=400, detail="field_id is required")
+
+        # Validate and convert value based on field type
+        if field_type == "number":
+            try:
+                if value is None:
+                    value = 0
+                value_str = str(value)
+                value = float(value_str) if "." in value_str else int(value_str)
+            except (ValueError, TypeError):
+                raise HTTPException(status_code=400, detail="Invalid number format")
+        elif field_type == "url":
+            import re
+
+            if value and not re.match(
+                r"^(https?|ftp)://[^\s/$.?#].[^\s]*$", str(value)
+            ):
+                raise HTTPException(status_code=400, detail="Invalid URL format")
+        elif field_type in ["string", "text"]:
+            value = str(value) if value is not None else ""
+
+        # Update the issue with the new custom field value
+        state.jayrah_obj.jira.update_issue(key, {field_id: value})
+
+        # Update the local cache with new field data
+        try:
+            updated_issue_data = state.jayrah_obj.jira.get_issue(key)
+            for i, issue in enumerate(state.issues):
+                if issue["key"] == key:
+                    # Update the fields in the cached issue
+                    if "fields" not in state.issues[i]:
+                        state.issues[i]["fields"] = {}
+                    state.issues[i]["fields"][field_id] = value
+                    # Also update with fresh data to ensure consistency
+                    state.issues[i] = updated_issue_data
+                    break
+        except Exception as cache_error:
+            print(f"Warning: Could not update local cache: {cache_error}")
+
+        return {
+            "success": True,
+            "message": f"Custom field {field_id} updated for {key}",
+            "field_id": field_id,
+            "value": value,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error updating custom field for {key}: {e}")
+        raise HTTPException(
+            status_code=500, detail=f"Error updating custom field: {str(e)}"
+        ) from e
+
+
 @click.command()
 @click.option("--host", default="127.0.0.1", help="Host address to bind.")
 @click.option("--port", default=8000, type=int, help="Port to bind.")

@@ -1085,12 +1085,22 @@ function formatIssueDetail(data) {
         }
 
         if (value) {
+          // Properly escape the value for JavaScript onclick attribute
+          const escapedValue = value.toString()
+            .replace(/\\/g, '\\\\')  // Escape backslashes first
+            .replace(/'/g, "\\'")    // Escape single quotes
+            .replace(/"/g, '\\"')    // Escape double quotes
+            .replace(/\r/g, '\\r')   // Escape carriage returns
+            .replace(/\n/g, '\\n')   // Escape newlines
+            .replace(/\t/g, '\\t');  // Escape tabs
+
           if (fieldType === "text") {
             customFieldsHtml += `
                                     <div class="detail-field">
                                         <div class="detail-label">${fieldName}:</div>
                                         <div class="detail-value">
                                             <div class="detail-description">${value}</div>
+                                            <button class="custom-field-edit-btn" onclick="editCustomField('${fieldId}', '${fieldName}', '${fieldType}', '${escapedValue}')">✏️</button>
                                         </div>
                                     </div>
                                 `;
@@ -1100,6 +1110,7 @@ function formatIssueDetail(data) {
                                         <div class="detail-label">${fieldName}:</div>
                                         <div class="detail-value">
                                             <a href="${value}" class="detail-link" target="_blank">${value}</a>
+                                            <button class="custom-field-edit-btn" onclick="editCustomField('${fieldId}', '${fieldName}', '${fieldType}', '${escapedValue}')">✏️</button>
                                         </div>
                                     </div>
                                 `;
@@ -1107,10 +1118,24 @@ function formatIssueDetail(data) {
             customFieldsHtml += `
                                     <div class="detail-field">
                                         <div class="detail-label">${fieldName}:</div>
-                                        <div class="detail-value">${value}</div>
+                                        <div class="detail-value">
+                                            ${value}
+                                            <button class="custom-field-edit-btn" onclick="editCustomField('${fieldId}', '${fieldName}', '${fieldType}', '${escapedValue}')">✏️</button>
+                                        </div>
                                     </div>
                                 `;
           }
+        } else {
+          // Show empty field with edit button for fields that don't have values yet
+          customFieldsHtml += `
+                                <div class="detail-field">
+                                    <div class="detail-label">${fieldName}:</div>
+                                    <div class="detail-value">
+                                        <em>(empty)</em>
+                                        <button class="custom-field-edit-btn" onclick="editCustomField('${fieldId}', '${fieldName}', '${fieldType}', '')">✏️</button>
+                                    </div>
+                                </div>
+                            `;
         }
       }
     });
@@ -1256,6 +1281,10 @@ async function selectRow(row, key) {
 }
 
 function showDetail(key, detail) {
+  // Store current issue key and details for custom field editing
+  window.currentIssueKey = key;
+  window.currentIssue = detail;
+  
   const panel = document.getElementById("detail-panel");
   panel.classList.remove("empty");
 
@@ -1357,10 +1386,11 @@ document.addEventListener("keydown", (e) => {
   }
 
   if (e.key === "Escape") {
-    // Close help overlay first, then stats modal, then board modal, then search, then detail panel
+    // Close help overlay first, then stats modal, then board modal, then custom field modal, then search, then detail panel
     const helpOverlay = document.getElementById("help-overlay");
     const statsModal = document.getElementById("stats-modal");
     const boardModal = document.getElementById("board-modal");
+    const customFieldModal = document.getElementById("custom-field-modal");
     const searchContainer = document.querySelector(".search-container");
     if (helpOverlay && helpOverlay.style.display !== "none") {
       hideHelpOverlay();
@@ -1368,6 +1398,8 @@ document.addEventListener("keydown", (e) => {
       hideStatsModal();
     } else if (boardModal) {
       hideBoardSelector();
+    } else if (customFieldModal && customFieldModal.style.display !== "none") {
+      hideCustomFieldModal();
     } else if (
       searchContainer &&
       searchContainer.classList.contains("visible")
@@ -2456,4 +2488,182 @@ function renderStatsContent(stats) {
       ${renderStatsSection('Resolution Status', '✅', resolution_stats)}
     </div>
   `;
+}
+
+// Custom field editing functionality
+function editCustomField(fieldId, fieldName, fieldType, currentValue) {
+  // Store current issue key for the API call
+  const issueKey = window.currentIssueKey;
+  if (!issueKey) {
+    console.error('No current issue key available');
+    return;
+  }
+  
+  showCustomFieldEditModal(fieldId, fieldName, fieldType, currentValue, issueKey);
+}
+
+function showCustomFieldEditModal(fieldId, fieldName, fieldType, currentValue, issueKey) {
+  // Remove existing modal if it exists
+  const existingModal = document.getElementById('custom-field-modal');
+  if (existingModal) {
+    existingModal.remove();
+  }
+
+  // Create modal HTML
+  const modalHtml = `
+    <div id="custom-field-modal" class="custom-field-edit-modal">
+      <div class="custom-field-edit-content">
+        <div class="custom-field-edit-header">
+          <h3>Edit ${fieldName}</h3>
+          <button class="custom-field-edit-close" onclick="hideCustomFieldModal()">&times;</button>
+        </div>
+        <div class="custom-field-form">
+          <form id="custom-field-form">
+            <div class="custom-field-group">
+              <label for="custom-field-input" class="custom-field-label">${fieldName}:</label>
+              ${renderCustomFieldInput(fieldType, currentValue)}
+            </div>
+            <div class="custom-field-buttons">
+              <button type="button" class="custom-field-save" onclick="saveCustomField('${fieldId}', '${issueKey}')">Save</button>
+              <button type="button" class="custom-field-cancel" onclick="hideCustomFieldModal()">Cancel</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  `;
+
+  // Add modal to body
+  document.body.insertAdjacentHTML('beforeend', modalHtml);
+  
+  // Show modal
+  const modal = document.getElementById('custom-field-modal');
+  modal.style.display = 'flex';
+  
+  // Add click-outside-to-close event listener
+  modal.addEventListener('click', (e) => {
+    if (e.target.id === 'custom-field-modal') {
+      hideCustomFieldModal();
+    }
+  });
+  
+  // Focus on input
+  const input = modal.querySelector('#custom-field-input');
+  if (input) {
+    input.focus();
+    if (input.type === 'text' || input.tagName === 'TEXTAREA') {
+      input.select();
+    }
+  }
+}
+
+function renderCustomFieldInput(fieldType, currentValue) {
+  // For HTML attributes, we need different escaping than for JavaScript strings
+  const htmlEscapedValue = currentValue
+    .replace(/&/g, '&amp;')     // Escape ampersands first
+    .replace(/"/g, '&quot;')     // Escape double quotes for HTML attributes
+    .replace(/'/g, '&#39;')      // Escape single quotes for HTML attributes
+    .replace(/</g, '&lt;')       // Escape less-than signs
+    .replace(/>/g, '&gt;');      // Escape greater-than signs
+  
+  switch (fieldType) {
+    case 'text':
+      return `<textarea id="custom-field-input" class="custom-field-textarea" rows="4" cols="50">${htmlEscapedValue}</textarea>`;
+    case 'url':
+      return `<input type="url" id="custom-field-input" class="custom-field-input" value="${htmlEscapedValue}" placeholder="https://example.com">`;
+    case 'email':
+      return `<input type="email" id="custom-field-input" class="custom-field-input" value="${htmlEscapedValue}" placeholder="user@example.com">`;
+    case 'number':
+      return `<input type="number" id="custom-field-input" class="custom-field-input" value="${htmlEscapedValue}">`;
+    case 'date':
+      return `<input type="date" id="custom-field-input" class="custom-field-input" value="${htmlEscapedValue}">`;
+    case 'datetime':
+      return `<input type="datetime-local" id="custom-field-input" class="custom-field-input" value="${htmlEscapedValue}">`;
+    default:
+      return `<input type="text" id="custom-field-input" class="custom-field-input" value="${htmlEscapedValue}">`;
+  }
+}
+
+function hideCustomFieldModal() {
+  const modal = document.getElementById('custom-field-modal');
+  if (modal) {
+    modal.remove();
+  }
+}
+
+async function saveCustomField(fieldId, issueKey) {
+  const input = document.getElementById('custom-field-input');
+  if (!input) {
+    console.error('Custom field input not found');
+    return;
+  }
+
+  const newValue = input.value;
+  
+  // Get the field type from the input element or default to string
+  let fieldType = 'string';
+  if (input.tagName === 'TEXTAREA') {
+    fieldType = 'text';
+  } else if (input.type === 'url') {
+    fieldType = 'url';
+  } else if (input.type === 'email') {
+    fieldType = 'email';
+  } else if (input.type === 'number') {
+    fieldType = 'number';
+  } else if (input.type === 'date') {
+    fieldType = 'date';
+  } else if (input.type === 'datetime-local') {
+    fieldType = 'datetime';
+  }
+  
+  try {
+    // Show loading feedback
+    const saveButton = document.querySelector('#custom-field-modal .custom-field-save');
+    const originalText = saveButton.textContent;
+    saveButton.textContent = 'Saving...';
+    saveButton.disabled = true;
+
+    const response = await fetch(`/api/issue/${issueKey}/customfield`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        field_id: fieldId,
+        value: newValue,
+        type: fieldType
+      })
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+    }
+
+    const result = await response.json();
+    console.log('Custom field updated successfully:', result);
+    
+    // Hide modal
+    hideCustomFieldModal();
+    
+    // Refresh the current issue to show the updated value
+    if (window.currentIssueKey) {
+      const updatedDetail = await fetchIssueDetail(window.currentIssueKey);
+      showDetail(window.currentIssueKey, updatedDetail);
+    }
+    
+    // Show success message
+    showNotification('Custom field updated successfully!', 'success');
+    
+  } catch (error) {
+    console.error('Error updating custom field:', error);
+    showNotification(`Error updating custom field: ${error.message}`, 'error');
+    
+    // Restore button state
+    const saveButton = document.querySelector('#custom-field-modal .custom-field-save');
+    if (saveButton) {
+      saveButton.textContent = originalText;
+      saveButton.disabled = false;
+    }
+  }
 }
