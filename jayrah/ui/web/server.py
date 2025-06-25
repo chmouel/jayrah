@@ -336,9 +336,21 @@ def get_stats(state: WebAppState = Depends(get_app_state)):
             "created_this_week": 0,
             "updated_this_week": 0,
             "resolution_stats": {},
+            "trend_created": [],
+            "trend_closed": [],
+            "overdue_issues_count": 0,
+            "overdue_issues": [],
+            "stuck_issues_count": 0,
+            "stuck_issues": [],
+            "high_priority_issues_count": 0,
+            "high_priority_issues": [],
+            "blocked_issues_count": 0,
+            "blocked_issues": [],
+            "top_labels": [],
+            "top_components": [],
         }
 
-    from collections import defaultdict
+    from collections import defaultdict, Counter
     from datetime import datetime, timedelta
 
     # Initialize counters
@@ -355,17 +367,33 @@ def get_stats(state: WebAppState = Depends(get_app_state)):
     created_this_week = 0
     updated_this_week = 0
 
+    # For trends
+    weeks_back = 4
+    now = datetime.now()
+    week_bins = [
+        (now - timedelta(days=7 * i)).isocalendar()[:2]
+        for i in range(weeks_back, 0, -1)
+    ]
+    trend_created = [0] * weeks_back
+    trend_closed = [0] * weeks_back
+
+    overdue_issues = []
+    stuck_issues = []
+    high_priority_issues = []
+    blocked_issues = []
+
     for issue in state.issues:
+        fields = issue.get("fields", {})
         # Issue types
-        issue_type = issue.get("issuetype", {}).get("name", "Unknown")
+        issue_type = fields.get("issuetype", {}).get("name", "Unknown")
         issue_types[issue_type] += 1
 
         # Statuses
-        status = issue.get("status", {}).get("name", "Unknown")
+        status = fields.get("status", {}).get("name", "Unknown")
         statuses[status] += 1
 
         # Assignees
-        assignee = issue.get("assignee")
+        assignee = fields.get("assignee")
         if assignee:
             assignee_name = assignee.get("displayName", assignee.get("name", "Unknown"))
         else:
@@ -373,13 +401,15 @@ def get_stats(state: WebAppState = Depends(get_app_state)):
         assignees[assignee_name] += 1
 
         # Priorities
-        priority = issue.get("priority")
+        priority = fields.get("priority")
         if priority:
             priority_name = priority.get("name", "Unknown")
             priorities[priority_name] += 1
+        else:
+            priority_name = None
 
         # Components
-        components_list = issue.get("components", [])
+        components_list = fields.get("components", [])
         if components_list:
             for component in components_list:
                 comp_name = component.get("name", "Unknown")
@@ -388,7 +418,7 @@ def get_stats(state: WebAppState = Depends(get_app_state)):
             components["No Component"] += 1
 
         # Labels
-        labels_list = issue.get("labels", [])
+        labels_list = fields.get("labels", [])
         if labels_list:
             for label in labels_list:
                 labels[label] += 1
@@ -396,7 +426,7 @@ def get_stats(state: WebAppState = Depends(get_app_state)):
             labels["No Labels"] += 1
 
         # Resolution
-        resolution = issue.get("resolution")
+        resolution = fields.get("resolution")
         if resolution:
             resolution_name = resolution.get("name", "Unresolved")
         else:
@@ -405,26 +435,85 @@ def get_stats(state: WebAppState = Depends(get_app_state)):
 
         # Recent activity
         try:
-            created_str = issue.get("created", "")
+            created_str = fields.get("created", "")
             if created_str:
-                # Parse ISO format datetime
                 created_date = datetime.fromisoformat(
                     created_str.replace("Z", "+00:00")
                 )
                 if created_date.replace(tzinfo=None) > week_ago:
                     created_this_week += 1
+                # Trend: created
+                for i, (y, w) in enumerate(week_bins):
+                    if created_date.isocalendar()[:2] == (y, w):
+                        trend_created[i] += 1
+                        break
 
-            updated_str = issue.get("updated", "")
+            updated_str = fields.get("updated", "")
             if updated_str:
                 updated_date = datetime.fromisoformat(
                     updated_str.replace("Z", "+00:00")
                 )
                 if updated_date.replace(tzinfo=None) > week_ago:
                     updated_this_week += 1
+
+            # Overdue: due date in the past
+            due_str = fields.get("duedate")
+            if due_str:
+                due_date = datetime.fromisoformat(due_str)
+                if due_date < now and (
+                    not resolution or resolution_name == "Unresolved"
+                ):
+                    overdue_issues.append(
+                        {"key": issue.get("key"), "summary": fields.get("summary", "")}
+                    )
+
+            # Stuck: not updated in >7 days
+            if updated_str:
+                updated_date = datetime.fromisoformat(
+                    updated_str.replace("Z", "+00:00")
+                )
+                if updated_date.replace(tzinfo=None) < week_ago and (
+                    not resolution or resolution_name == "Unresolved"
+                ):
+                    stuck_issues.append(
+                        {"key": issue.get("key"), "summary": fields.get("summary", "")}
+                    )
+
+            # Closed trend: closed in week
+            if resolution and "date" in resolution:
+                closed_date = datetime.fromisoformat(
+                    resolution["date"].replace("Z", "+00:00")
+                )
+                for i, (y, w) in enumerate(week_bins):
+                    if closed_date.isocalendar()[:2] == (y, w):
+                        trend_closed[i] += 1
+                        break
         except Exception:
             pass  # Skip date parsing errors
 
-    # Convert to regular dict and sort by count (descending)
+        # High priority
+        if priority_name and priority_name.lower() in (
+            "high",
+            "highest",
+            "critical",
+            "blocker",
+        ):
+            high_priority_issues.append(
+                {"key": issue.get("key"), "summary": fields.get("summary", "")}
+            )
+
+        # Blocked: status or label
+        if status.lower() == "blocked" or "blocked" in [l.lower() for l in labels_list]:
+            blocked_issues.append(
+                {"key": issue.get("key"), "summary": fields.get("summary", "")}
+            )
+
+    # Top labels/components
+    top_labels = [l for l, _ in Counter(labels).most_common(5) if l != "No Labels"]
+    top_components = [
+        c for c, _ in Counter(components).most_common(5) if c != "No Component"
+    ]
+
     return {
         "total_issues": len(state.issues),
         "issue_types": dict(
@@ -444,6 +533,18 @@ def get_stats(state: WebAppState = Depends(get_app_state)):
         "resolution_stats": dict(
             sorted(resolutions.items(), key=lambda x: x[1], reverse=True)
         ),
+        "trend_created": trend_created,
+        "trend_closed": trend_closed,
+        "overdue_issues_count": len(overdue_issues),
+        "overdue_issues": overdue_issues,
+        "stuck_issues_count": len(stuck_issues),
+        "stuck_issues": stuck_issues,
+        "high_priority_issues_count": len(high_priority_issues),
+        "high_priority_issues": high_priority_issues,
+        "blocked_issues_count": len(blocked_issues),
+        "blocked_issues": blocked_issues,
+        "top_labels": top_labels,
+        "top_components": top_components,
     }
 
 

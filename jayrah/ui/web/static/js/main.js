@@ -666,6 +666,7 @@ async function loadConfig() {
     if (res.ok) {
       const config = await res.json();
       jiraBaseUrl = config.jira_base_url;
+      window.jiraBaseUrl = jiraBaseUrl; // Ensure global for stats modal
     }
   } catch (error) {
     console.error("Error loading config:", error);
@@ -2437,48 +2438,70 @@ function renderStatsContent(stats) {
     created_this_week,
     updated_this_week,
     resolution_stats,
+    trend_created = [],
+    trend_closed = [],
+    overdue_issues_count = 0,
+    overdue_issues = [],
+    stuck_issues_count = 0,
+    stuck_issues = [],
+    high_priority_issues_count = 0,
+    high_priority_issues = [],
+    blocked_issues_count = 0,
+    blocked_issues = [],
+    top_labels = [],
+    top_components = [],
   } = stats;
 
-  // Helper function to render a stats section
-  function renderStatsSection(title, emoji, data, maxItems = 10) {
-    if (!data || Object.keys(data).length === 0) {
-      return `
-        <div class="stats-section">
-          <h3>${emoji} ${title}</h3>
-          <p style="color: var(--text-muted); text-align: center; padding: 1rem;">No data available</p>
-        </div>
-      `;
-    }
-
-    const items = Object.entries(data)
-      .slice(0, maxItems)
-      .map(
-        ([name, count]) => `
-        <li>
-          <span class="stats-name">${name}</span>
-          <span class="stats-count">${count}</span>
-        </li>
-      `,
-      )
-      .join("");
-
-    const hasMore = Object.keys(data).length > maxItems;
-    const moreText = hasMore
-      ? `<li style="text-align: center; color: var(--text-muted); font-style: italic;">... and ${Object.keys(data).length - maxItems} more</li>`
-      : "";
-
+  // Helper to render actionable issue lists
+  function renderIssueList(title, emoji, issues) {
+    if (!issues || issues.length === 0) return '';
     return `
       <div class="stats-section">
         <h3>${emoji} ${title}</h3>
         <ul class="stats-list">
-          ${items}
-          ${moreText}
+          ${issues
+        .map((issue) => {
+          const key = issue.key;
+          const summary = issue.summary || '';
+          let keyHtml = `<span class='issue-key'>${key}</span>`;
+          if (window.jiraBaseUrl) {
+            keyHtml = `<a href='${window.jiraBaseUrl}/browse/${key}' class='issue-key' target='_blank' rel='noopener'>${key}</a>`;
+          }
+          return `<li class='stats-issue-list-item'>${keyHtml}<div class='issue-summary'>${summary}</div></li>`;
+        })
+        .join('')}
         </ul>
       </div>
     `;
   }
 
-  return `
+  // Chart containers
+  const chartHtml = `
+    <div style="display: flex; flex-wrap: wrap; gap: 2rem; justify-content: center; margin-bottom: 2rem;">
+      <div style="flex:1; min-width: 320px; max-width: 400px;">
+        <canvas id="trendChart"></canvas>
+      </div>
+      <div style="flex:1; min-width: 220px; max-width: 300px;">
+        <canvas id="statusChart"></canvas>
+      </div>
+      <div style="flex:1; min-width: 220px; max-width: 300px;">
+        <canvas id="assigneeChart"></canvas>
+      </div>
+    </div>
+  `;
+
+  // Render actionable lists
+  const actionableHtml = `
+    <div class="stats-grid">
+      ${renderIssueList('Overdue Issues', '⏰', overdue_issues)}
+      ${renderIssueList('Stuck Issues', '🐢', stuck_issues)}
+      ${renderIssueList('High Priority Issues', '🚨', high_priority_issues)}
+      ${renderIssueList('Blocked Issues', '⛔', blocked_issues)}
+    </div>
+  `;
+
+  // Existing summary
+  const summaryHtml = `
     <div class="stats-summary">
       <h3>📊 Board Overview</h3>
       <div class="stats-highlight">
@@ -2500,7 +2523,45 @@ function renderStatsContent(stats) {
         </div>
       </div>
     </div>
-    
+  `;
+
+  // Existing grid
+  function renderStatsSection(title, emoji, data, maxItems = 10) {
+    if (!data || Object.keys(data).length === 0) {
+      return `
+        <div class="stats-section">
+          <h3>${emoji} ${title}</h3>
+          <p style="color: var(--text-muted); text-align: center; padding: 1rem;">No data available</p>
+        </div>
+      `;
+    }
+    const items = Object.entries(data)
+      .slice(0, maxItems)
+      .map(
+        ([name, count]) => `
+        <li>
+          <span class="stats-name">${name}</span>
+          <span class="stats-count">${count}</span>
+        </li>
+      `,
+      )
+      .join("");
+    const hasMore = Object.keys(data).length > maxItems;
+    const moreText = hasMore
+      ? `<li style="text-align: center; color: var(--text-muted); font-style: italic;">... and ${Object.keys(data).length - maxItems} more</li>`
+      : "";
+    return `
+      <div class="stats-section">
+        <h3>${emoji} ${title}</h3>
+        <ul class="stats-list">
+          ${items}
+          ${moreText}
+        </ul>
+      </div>
+    `;
+  }
+
+  const gridHtml = `
     <div class="stats-grid">
       ${renderStatsSection("Issue Types", "🎯", issue_types)}
       ${renderStatsSection("Statuses", "📈", statuses)}
@@ -2509,6 +2570,85 @@ function renderStatsContent(stats) {
       ${renderStatsSection("Components", "🧩", components, 8)}
       ${renderStatsSection("Resolution Status", "✅", resolution_stats)}
     </div>
+  `;
+
+  // Compose all sections
+  setTimeout(() => {
+    // Trend chart
+    if (window.trendChartInstance) window.trendChartInstance.destroy();
+    const trendCtx = document.getElementById('trendChart').getContext('2d');
+    window.trendChartInstance = new Chart(trendCtx, {
+      type: 'line',
+      data: {
+        labels: ['-4w', '-3w', '-2w', 'Last week'],
+        datasets: [
+          {
+            label: 'Created',
+            data: trend_created,
+            borderColor: '#8b4513',
+            backgroundColor: 'rgba(139,69,19,0.1)',
+            tension: 0.3,
+            fill: true,
+          },
+          {
+            label: 'Closed',
+            data: trend_closed,
+            borderColor: '#228B22',
+            backgroundColor: 'rgba(34,139,34,0.1)',
+            tension: 0.3,
+            fill: true,
+          },
+        ],
+      },
+      options: {
+        plugins: { legend: { display: true } },
+        scales: { y: { beginAtZero: true, precision: 0 } },
+      },
+    });
+    // Status pie chart
+    if (window.statusChartInstance) window.statusChartInstance.destroy();
+    const statusCtx = document.getElementById('statusChart').getContext('2d');
+    window.statusChartInstance = new Chart(statusCtx, {
+      type: 'pie',
+      data: {
+        labels: Object.keys(statuses),
+        datasets: [{
+          data: Object.values(statuses),
+          backgroundColor: [
+            '#8b4513', '#e6d2a3', '#f5deb3', '#228B22', '#d2691e', '#deb887', '#b8860b', '#cd853f', '#a0522d', '#f4a460',
+          ],
+        }],
+      },
+      options: {
+        plugins: { legend: { display: true, position: 'bottom' } },
+      },
+    });
+    // Assignee bar chart
+    if (window.assigneeChartInstance) window.assigneeChartInstance.destroy();
+    const assigneeCtx = document.getElementById('assigneeChart').getContext('2d');
+    window.assigneeChartInstance = new Chart(assigneeCtx, {
+      type: 'bar',
+      data: {
+        labels: Object.keys(assignees),
+        datasets: [{
+          label: 'Issues',
+          data: Object.values(assignees),
+          backgroundColor: '#8b4513',
+        }],
+      },
+      options: {
+        plugins: { legend: { display: false } },
+        indexAxis: 'y',
+        scales: { x: { beginAtZero: true, precision: 0 } },
+      },
+    });
+  }, 0);
+
+  return `
+    ${summaryHtml}
+    ${chartHtml}
+    ${actionableHtml}
+    ${gridHtml}
   `;
 }
 

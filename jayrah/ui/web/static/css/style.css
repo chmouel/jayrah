@@ -376,16 +376,38 @@ body {
   padding: 0;
 }
 
-.stats-list li {
+.stats-issue-list-item {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
+  flex-direction: column;
+  align-items: flex-start;
   padding: 0.5rem 0;
   border-bottom: 1px solid var(--border-color);
+  gap: 0.1rem;
 }
 
-.stats-list li:last-child {
+.stats-issue-list-item:last-child {
   border-bottom: none;
+}
+
+.stats-issue-list-item .issue-key {
+  font-family: "Monaco", "Menlo", monospace;
+  font-weight: 600;
+  color: var(--primary-color);
+  text-decoration: none;
+  margin-bottom: 0.1rem;
+}
+
+.stats-issue-list-item .issue-key:hover {
+  text-decoration: underline;
+}
+
+.stats-issue-list-item .issue-summary {
+  font-size: 0.95em;
+  color: var(--text-muted);
+  max-width: 320px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .stats-name {
