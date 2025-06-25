@@ -306,13 +306,27 @@ body {
 .view-list-only .issues-panel {
   display: flex;
   width: 100% !important;
-  margin-right: 0;
+  height: 100% !important;
+  margin-right: 0 !important;
+  margin-left: 0 !important;
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
 }
 
 .view-details-only .detail-panel {
   display: flex;
   width: 100% !important;
-  margin-left: 0;
+  height: 100% !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+}
+
+/* Main content adjustments for single-panel views */
+.view-list-only .main-content,
+.view-details-only .main-content {
+  gap: 0;
 }
 
 .container {
