@@ -64,4 +64,3 @@ disable = [
 
 [project.scripts]
 jayrah = "jayrah.cli:main"
-jayrahw = "jayrah.ui.web.server:main"

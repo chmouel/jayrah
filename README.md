@@ -1,6 +1,7 @@
 <img align="right" src="https://github.com/user-attachments/assets/e65d653a-2442-4034-aba0-b302a0094a59" alt="ChatGPT Image" width="128" height="128">
 
 # Jayrah
+
 A simple CLI and TUI for working with Jira from your terminal.
 
 ## Install
@@ -189,6 +190,19 @@ Follow these steps to set up Jayrah with VS Code:
 
 - In Copilot Chat, select the tools button (often a sparkle icon or similar) to
 see and use Jayrah's available actions.
+
+## Web UI Server
+
+Jayrah includes a web-based UI that can be started with:
+
+```bash
+jayrah web
+```
+
+This will start a web UI server on [http://localhost:8000](http://localhost:8000) by default. You can open this URL in your web browser to use the Jayrah web interface to browse and manage Jira issues in a quick and user-friendly way.
+
+**Security Note:**
+> The web server is intended for local development and use only. Do **not** expose it to the public internet, as it is not hardened for production or external access.
 
 ## License
 

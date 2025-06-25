@@ -34,4 +34,4 @@ coverage: sync
 
 web:
 	@echo "Starting Jayrah Web UI at http://127.0.0.1:8000 ..."
-	@jayrahw --host 127.0.0.1 --port 8000 --reloads-dirs ./jayrah/ui/web/
+	@jayrah web --host 127.0.0.1 --port 8000 --reloads-dirs ./jayrah/ui/web/

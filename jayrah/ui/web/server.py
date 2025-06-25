@@ -2,8 +2,6 @@ import os
 import pathlib
 from typing import Optional
 
-import click
-import uvicorn
 from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
@@ -618,38 +616,3 @@ def update_issue_custom_field(
         raise HTTPException(
             status_code=500, detail=f"Error updating custom field: {str(e)}"
         ) from e
-
-
-@click.command()
-@click.option("--host", default="127.0.0.1", help="Host address to bind.")
-@click.option("--port", default=8000, type=int, help="Port to bind.")
-@click.option("--reload", is_flag=True, default=False, help="Enable auto-reload.")
-@click.option("--workers", default=1, type=int, help="Number of worker processes.")
-@click.option("--log-level", default="info", help="Logging level.")
-@click.option(
-    "--reloads-dirs",
-    default=None,
-    type=str,
-    help="Comma-separated list of directories to watch for reloads.",
-)
-def cli(host, port, reload, workers, log_level, reloads_dirs=None):
-    initialize_app_state()
-    if reloads_dirs:
-        reloads_dirs = reloads_dirs.split(",")
-        reload = True
-    try:
-        uvicorn.run(
-            "jayrah.ui.web.server:app",
-            host=host,
-            port=port,
-            reload=reload,
-            workers=workers,
-            log_level=log_level,
-            reload_dirs=reloads_dirs,
-        )
-    except KeyboardInterrupt:
-        print("Server stopped by user.")
-
-
-def main():
-    cli.main(auto_envvar_prefix="JAYRAH_WEB", obj=None)
