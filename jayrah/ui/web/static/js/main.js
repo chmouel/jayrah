@@ -236,6 +236,11 @@ function initializeLayoutState() {
     layoutToggleBtn.innerHTML = LAYOUT_ICONS[currentLayoutState];
     layoutToggleBtn.title = LAYOUT_TITLES[currentLayoutState];
   }
+  
+  // Ensure panels are properly sized for the initial layout
+  setTimeout(() => {
+    resetPanelSizes();
+  }, 100);
 }
 
 // Toggle view state
@@ -288,6 +293,9 @@ function toggleLayoutState() {
     layoutToggleBtn.innerHTML = LAYOUT_ICONS[currentLayoutState];
     layoutToggleBtn.title = LAYOUT_TITLES[currentLayoutState];
   }
+
+  // Reset panel sizes when switching layouts
+  resetPanelSizes();
 
   // Save state to cookies
   saveUIState();
@@ -607,7 +615,7 @@ function showHelpOverlay() {
                         <li style="margin-bottom: 0.25rem;">Navigation wraps around (j at bottom goes to top, k at top goes to bottom)</li>
                         <li style="margin-bottom: 0.25rem;">Page Up/Down jump ~10 issues; Home/End go to first/last issue</li>
                         <li style="margin-bottom: 0.25rem;">Use Shift+Page Up/Down for fast detail panel scrolling</li>
-                        <li style="margin-bottom: 0;">All shortcuts work except when typing in search box</li>
+                        <li style="margin-bottom: 0.25rem;">All shortcuts work except when typing in search box</li>
                     </ul>
                 </div>
             `;
@@ -839,11 +847,23 @@ async function fetchIssues(q = "") {
 
 async function refreshIssues() {
   try {
+    // Call the refresh API endpoint to clear cache and get fresh data
+    const refreshRes = await fetch("/api/refresh", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
+
+    if (!refreshRes.ok) {
+      throw new Error(`Refresh failed: HTTP ${refreshRes.status}`);
+    }
+
     // Get current search query if any
     const searchInput = document.getElementById("search");
     const query = searchInput ? searchInput.value.trim() : "";
 
-    // Fetch issues with current search query
+    // Fetch issues with current search query (will get fresh data after cache clear)
     allIssues = await fetchIssues(query);
 
     // Re-render the table
@@ -994,7 +1014,10 @@ function formatIssueDetail(data) {
                     <div class="detail-section">
                         <h3>🏷️ Labels 
                             <button class="edit-label-btn" onclick="editLabels('${key}', [])">
-                                ✏️ Add Labels
+                                <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="color:#666;">
+                                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                                    <path d="m18.5 2.5 a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                                </svg>
                             </button>
                         </h3>
                         <div class="detail-labels">
@@ -1251,6 +1274,12 @@ function showDetail(key, detail) {
       editSelectedIssueTransition(),
     );
   }
+}
+
+function closeDetail() {
+  const panel = document.getElementById("detail-panel");
+  panel.classList.add("empty");
+  panel.innerHTML = "";
 }
 
 // Search functionality with debouncing
@@ -1619,6 +1648,7 @@ async function init() {
   // Initialize state management
   initializeViewState();
   initializeLayoutState();
+  initializeResizer();
   setupAutoSave();
 
   await loadConfig(); // Load Jira base URL
@@ -2102,4 +2132,171 @@ function applyTransition(issueKey, transitionId) {
       refreshIssues();
     })
     .catch(() => showNotification("Failed to apply transition", "error"));
+}
+
+// Resizer functionality
+function initializeResizer() {
+  const resizer = document.getElementById("resizer");
+  const issuesPanel = document.querySelector(".issues-panel");
+  const detailPanel = document.querySelector(".detail-panel");
+  const mainContent = document.querySelector(".main-content");
+
+  if (!resizer || !issuesPanel || !detailPanel || !mainContent) return;
+
+  let isResizing = false;
+  let startX = 0;
+  let startY = 0;
+  let startLeftWidth = 0;
+  let startTopHeight = 0;
+
+  // Store panel size preferences in localStorage
+  const PANEL_WIDTH_KEY = "jayrah-issues-panel-width";
+  const PANEL_HEIGHT_KEY = "jayrah-issues-panel-height";
+
+  // Load saved size preferences
+  const savedWidth = localStorage.getItem(PANEL_WIDTH_KEY);
+  const savedHeight = localStorage.getItem(PANEL_HEIGHT_KEY);
+
+  if (savedWidth) {
+    const width = parseFloat(savedWidth);
+    if (width >= 20 && width <= 80) {
+      // Ensure reasonable bounds
+      issuesPanel.style.width = `${width}%`;
+    }
+  }
+
+  if (savedHeight) {
+    const height = parseFloat(savedHeight);
+    if (height >= 20 && height <= 80) {
+      // Ensure reasonable bounds
+      issuesPanel.style.height = `${height}%`;
+    }
+  }
+
+  resizer.addEventListener("mousedown", initResize);
+
+  function initResize(e) {
+    e.preventDefault();
+    isResizing = true;
+    startX = e.clientX;
+    startY = e.clientY;
+    startLeftWidth = issuesPanel.offsetWidth;
+    startTopHeight = issuesPanel.offsetHeight;
+
+    resizer.classList.add("resizing");
+    document.body.style.userSelect = "none";
+
+    // Set cursor based on layout
+    const isVertical = document
+      .getElementById("view-container")
+      .classList.contains("layout-vertical");
+    document.body.style.cursor = isVertical ? "row-resize" : "col-resize";
+
+    document.addEventListener("mousemove", doResize);
+    document.addEventListener("mouseup", stopResize);
+  }
+
+  function doResize(e) {
+    if (!isResizing) return;
+
+    const isVertical = document
+      .getElementById("view-container")
+      .classList.contains("layout-vertical");
+
+    if (isVertical) {
+      // Vertical layout - resize height
+      const containerHeight = mainContent.offsetHeight;
+      const resizerHeight = resizer.offsetHeight;
+      const deltaY = e.clientY - startY;
+      const newTopHeight = startTopHeight + deltaY;
+
+      // Calculate percentages
+      const minHeight = containerHeight * 0.2; // 20% minimum
+      const maxHeight = containerHeight * 0.8; // 80% maximum
+
+      if (newTopHeight >= minHeight && newTopHeight <= maxHeight) {
+        const topPercentage = (newTopHeight / containerHeight) * 100;
+        issuesPanel.style.height = `${topPercentage}%`;
+        
+        // Ensure detail panel takes remaining space
+        const remainingPercentage = 100 - topPercentage;
+        detailPanel.style.height = `${remainingPercentage}%`;
+
+        // Save the preference
+        localStorage.setItem(PANEL_HEIGHT_KEY, topPercentage.toString());
+      }
+    } else {
+      // Horizontal layout - resize width
+      const containerWidth = mainContent.offsetWidth;
+      const resizerWidth = resizer.offsetWidth;
+      const deltaX = e.clientX - startX;
+      const newLeftWidth = startLeftWidth + deltaX;
+
+      // Calculate percentages
+      const minWidth = containerWidth * 0.2; // 20% minimum
+      const maxWidth = containerWidth * 0.8; // 80% maximum
+
+      if (newLeftWidth >= minWidth && newLeftWidth <= maxWidth) {
+        const leftPercentage = (newLeftWidth / containerWidth) * 100;
+        issuesPanel.style.width = `${leftPercentage}%`;
+
+        // Save the preference
+        localStorage.setItem(PANEL_WIDTH_KEY, leftPercentage.toString());
+      }
+    }
+  }
+
+  function stopResize() {
+    if (!isResizing) return;
+
+    isResizing = false;
+    resizer.classList.remove("resizing");
+    document.body.style.cursor = "";
+    document.body.style.userSelect = "";
+
+    document.removeEventListener("mousemove", doResize);
+    document.removeEventListener("mouseup", stopResize);
+  }
+
+  // Handle double-click to reset to 50/50
+  resizer.addEventListener("dblclick", () => {
+    const isVertical = document
+      .getElementById("view-container")
+      .classList.contains("layout-vertical");
+    if (isVertical) {
+      issuesPanel.style.height = "50%";
+      detailPanel.style.height = "50%";
+      localStorage.setItem(PANEL_HEIGHT_KEY, "50");
+    } else {
+      issuesPanel.style.width = "50%";
+      localStorage.setItem(PANEL_WIDTH_KEY, "50");
+    }
+  });
+}
+
+// Reset panel sizes when switching layouts
+function resetPanelSizes() {
+  const issuesPanel = document.querySelector(".issues-panel");
+  const detailPanel = document.querySelector(".detail-panel");
+  if (!issuesPanel || !detailPanel) return;
+
+  const isVertical = document
+    .getElementById("view-container")
+    .classList.contains("layout-vertical");
+
+  if (isVertical) {
+    // In vertical layout, remove any width styles and set default heights
+    issuesPanel.style.width = "";
+    issuesPanel.style.height = "50%";
+    detailPanel.style.width = "";
+    detailPanel.style.height = "50%";
+  } else {
+    // In horizontal layout, remove any height styles and set default width
+    issuesPanel.style.height = "";
+    issuesPanel.style.width = "50%";
+    detailPanel.style.height = "";
+    detailPanel.style.width = "";  // detail panel uses flex: 1
+  }
+  
+  console.log("Panel sizes reset for layout:", isVertical ? "vertical" : "horizontal");
 }

@@ -43,6 +43,7 @@ This starts the web server with:
   - `/api/issues` - List issues with optional search
   - `/api/issue/{key}` - Get issue details with custom fields config
   - `/api/config` - Get configuration including custom fields
+- Always use make web which does auto reload and hot reload
 
 ### Testing Changes
 
