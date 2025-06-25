@@ -223,6 +223,59 @@ def refresh_issues(state: WebAppState = Depends(get_app_state)):
         ) from e
 
 
+@app.get("/api/labels")
+def get_all_labels(state: WebAppState = Depends(get_app_state)):
+    """Get all available labels for completion"""
+    try:
+        # Get all labels from Jira
+        all_labels = state.jayrah_obj.jira.get_labels()
+
+        # Apply label excludes filter if configured
+        if label_excludes := state.config.get("label_excludes"):
+            import re
+
+            labels_excludes_re = re.compile(label_excludes.strip())
+            all_labels = [
+                label
+                for label in all_labels
+                if label and not labels_excludes_re.match(label)
+            ]
+
+        return {"labels": all_labels}
+    except Exception as e:
+        print(f"Error getting labels: {e}")
+        return {"labels": []}
+
+
+@app.put("/api/issue/{key}/labels")
+def update_issue_labels(
+    key: str, labels_data: dict, state: WebAppState = Depends(get_app_state)
+):
+    """Update issue labels"""
+    try:
+        new_labels = labels_data.get("labels", [])
+
+        # Update the issue with new labels
+        state.jayrah_obj.jira.update_issue(key, {"labels": new_labels})
+
+        # Update the local cache with new label data
+        for issue in state.issues:
+            if issue["key"] == key:
+                issue["fields"]["labels"] = new_labels
+                break
+
+        return {
+            "success": True,
+            "message": f"Labels updated for {key}",
+            "labels": new_labels,
+        }
+    except Exception as e:
+        print(f"Error updating labels: {e}")
+        raise HTTPException(
+            status_code=500, detail=f"Error updating labels: {str(e)}"
+        ) from e
+
+
 @click.command()
 @click.option("--host", default="127.0.0.1", help="Host address to bind.")
 @click.option("--port", default=8000, type=int, help="Port to bind.")

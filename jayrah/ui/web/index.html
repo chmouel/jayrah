@@ -6,6 +6,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Jayrah - Jira Web UI</title>
     <script src="https://cdn.jsdelivr.net/npm/marked@9.1.6/marked.min.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
     <style>
         :root {
             --primary-color: #0052cc;
@@ -829,6 +831,56 @@
             .view-both .detail-panel {
                 max-height: 40vh;
             }
+
+            /* Label modal adjustments for mobile */
+            .label-edit-content {
+                width: 98vw;
+                max-width: none;
+                min-width: 280px;
+                max-height: 95vh;
+                padding: 1rem;
+                margin: 0.25rem;
+                border-radius: var(--radius);
+            }
+
+            .label-edit-header h3 {
+                font-size: 1.1rem;
+            }
+
+            .label-select-container label {
+                font-size: 0.9rem;
+            }
+
+            .btn {
+                padding: 0.75rem 1rem;
+                font-size: 1rem;
+                min-height: 44px;
+                /* Touch-friendly size */
+            }
+        }
+
+        /* Tablet and larger screens - make label modal more spacious */
+        @media (min-width: 769px) {
+            .label-edit-content {
+                width: 85vw;
+                max-width: 900px;
+                min-width: 600px;
+                min-height: 1000px;
+                padding: 2rem;
+            }
+
+            .label-edit-header h3 {
+                font-size: 1.25rem;
+            }
+        }
+
+        /* Large screens - optimize modal size */
+        @media (min-width: 1200px) {
+            .label-edit-content {
+                width: 70vw;
+                max-width: 1000px;
+                min-width: 700px;
+            }
         }
 
         /* Animations */
@@ -866,6 +918,178 @@
 
         .help-overlay strong:first-child {
             margin-top: 0;
+        }
+
+        /* Label editing modal styles */
+        .label-edit-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            animation: fadeIn 0.2s ease;
+        }
+
+        .label-edit-content {
+            background: white;
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            padding: 1.5rem;
+            width: 95vw;
+            max-width: 800px;
+            min-width: 320px;
+            max-height: 90vh;
+            overflow-y: auto;
+            margin: 0.5rem;
+        }
+
+        .label-edit-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .label-edit-header h3 {
+            margin: 0;
+            color: var(--text-color);
+        }
+
+        .label-edit-close {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: var(--text-muted);
+            padding: 0.25rem;
+            border-radius: var(--radius);
+        }
+
+        .label-edit-close:hover {
+            background: var(--secondary-color);
+            color: var(--text-color);
+        }
+
+        .label-select-container {
+            margin-bottom: 1rem;
+        }
+
+        .label-select-container label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+            color: var(--text-color);
+        }
+
+        .label-actions {
+            display: flex;
+            gap: 0.5rem;
+            justify-content: flex-end;
+            margin-top: 1rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .btn {
+            padding: 0.5rem 1rem;
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius);
+            cursor: pointer;
+            font-size: 0.875rem;
+            font-weight: 500;
+            transition: all 0.2s ease;
+        }
+
+        .btn-primary {
+            background: var(--primary-color);
+            color: white;
+            border-color: var(--primary-color);
+        }
+
+        .btn-primary:hover {
+            background: var(--primary-hover);
+            border-color: var(--primary-hover);
+        }
+
+        .btn-secondary {
+            background: var(--secondary-color);
+            color: var(--text-color);
+        }
+
+        .btn-secondary:hover {
+            background: var(--border-color);
+        }
+
+        .edit-label-btn {
+            background: none;
+            border: none;
+            color: var(--primary-color);
+            cursor: pointer;
+            font-size: 0.75rem;
+            margin-left: 0.5rem;
+            padding: 0.25rem;
+            border-radius: var(--radius);
+            opacity: 0.7;
+            transition: opacity 0.2s ease;
+        }
+
+        .edit-label-btn:hover {
+            opacity: 1;
+            background: var(--secondary-color);
+        }
+
+        /* Tom Select customization to match theme */
+        .ts-control {
+            border: 1px solid var(--border-color) !important;
+            border-radius: var(--radius) !important;
+            background: white !important;
+            min-height: 44px !important;
+            padding: 0.5rem !important;
+            font-size: 1rem !important;
+        }
+
+        .ts-control.focus {
+            border-color: var(--primary-color) !important;
+            box-shadow: 0 0 0 2px rgba(0, 82, 204, 0.1) !important;
+        }
+
+        .ts-dropdown {
+            border: 1px solid var(--border-color) !important;
+            border-radius: var(--radius) !important;
+            background: white !important;
+            box-shadow: var(--shadow) !important;
+            max-height: 400px !important;
+        }
+
+        .ts-option {
+            color: var(--text-color) !important;
+            padding: 0.75rem !important;
+            font-size: 1rem !important;
+            min-height: 44px !important;
+            display: flex !important;
+            align-items: center !important;
+        }
+
+        .ts-option.active {
+            background: var(--primary-color) !important;
+            color: white !important;
+        }
+
+        .ts-option:hover {
+            background: var(--secondary-color) !important;
+            color: var(--text-color) !important;
+        }
+
+        .ts-control .item {
+            font-size: 1rem !important;
+            padding: 0.25rem 0.5rem !important;
         }
     </style>
 </head>
@@ -1300,6 +1524,42 @@
             }
         }
 
+        function editSelectedIssueLabels() {
+            if (!selectedRow) {
+                // If no row selected, try to select the first one
+                const tbody = document.getElementById('issues-tbody');
+                const firstRow = tbody.querySelector('tr:not(.loading):not(.no-issues)');
+                if (firstRow) {
+                    const keyCell = firstRow.querySelector('td:nth-child(2) a');
+                    if (keyCell) {
+                        const issueKey = keyCell.textContent.trim();
+                        selectRow(firstRow, issueKey);
+                        // Wait for detail to load, then open label editor
+                        setTimeout(() => {
+                            editSelectedIssueLabels();
+                        }, 500);
+                        return;
+                    }
+                }
+            }
+
+            if (selectedRow) {
+                const keyCell = selectedRow.querySelector('td:nth-child(2) a');
+                if (keyCell) {
+                    const issueKey = keyCell.textContent.trim();
+
+                    // Get current labels from the detail panel if it exists
+                    const detailPanel = document.getElementById('detail-panel');
+                    const labelTags = detailPanel.querySelectorAll('.label-tag');
+                    const currentLabels = Array.from(labelTags).map(tag => tag.textContent.trim());
+
+                    editLabels(issueKey, currentLabels);
+                }
+            } else {
+                showNotification('No issue selected. Use j/k to navigate or click an issue.', 'error');
+            }
+        }
+
         function showHelpOverlay() {
             // Remove existing overlay if it exists
             const existingOverlay = document.getElementById('help-overlay');
@@ -1382,6 +1642,8 @@
                         <span style="color: #586069;">Open selected issue in new Jira tab</span>
                         <kbd style="background: #f6f8fa; border: 1px solid #d1d5da; border-radius: 3px; padding: 0.2rem 0.4rem; font-size: 0.8rem; font-weight: bold; color: #24292e;">y</kbd>
                         <span style="color: #586069;">Yank (copy) issue URL to clipboard</span>
+                        <kbd style="background: #f6f8fa; border: 1px solid #d1d5da; border-radius: 3px; padding: 0.2rem 0.4rem; font-size: 0.8rem; font-weight: bold; color: #24292e;">L</kbd>
+                        <span style="color: #586069;">Edit labels for selected issue</span>
                     </div>
                 </div>
                 
@@ -1730,9 +1992,26 @@
             if (labels.length > 0) {
                 html += `
                     <div class="detail-section">
-                        <h3>🏷️ Labels</h3>
+                        <h3>🏷️ Labels 
+                            <button class="edit-label-btn" onclick="editLabels('${key}', ${JSON.stringify(labels).replace(/"/g, '&quot;')})">
+                                ✏️ Edit
+                            </button>
+                        </h3>
                         <div class="detail-labels">
                             ${labels.map(label => `<span class="label-tag">${label}</span>`).join('')}
+                        </div>
+                    </div>
+                `;
+            } else {
+                html += `
+                    <div class="detail-section">
+                        <h3>🏷️ Labels 
+                            <button class="edit-label-btn" onclick="editLabels('${key}', [])">
+                                ✏️ Add Labels
+                            </button>
+                        </h3>
+                        <div class="detail-labels">
+                            <span style="color: var(--text-muted); font-style: italic;">No labels</span>
                         </div>
                     </div>
                 `;
@@ -2013,7 +2292,7 @@
                 } else {
                     closeDetail();
                 }
-            } else if (e.key.toLowerCase() === 't') {
+            } else if (e.key === 't') {
                 e.preventDefault();
                 toggleViewState();
             } else if (e.key.toLowerCase() === 'v') {
@@ -2022,7 +2301,7 @@
             } else if (e.key.toLowerCase() === 'b') {
                 e.preventDefault();
                 showBoardSelector();
-            } else if (e.key.toLowerCase() === 'r') {
+            } else if (e.key === 'r') {
                 e.preventDefault();
                 refreshIssues();
             } else if (e.key === '/') {
@@ -2046,6 +2325,9 @@
             } else if (e.key === 'y' || e.key === 'Y') {
                 e.preventDefault();
                 yankIssueUrl();
+            } else if (e.key === 'L') {
+                e.preventDefault();
+                editSelectedIssueLabels();
             } else if (e.key === '?') {
                 e.preventDefault();
                 showHelpOverlay();
@@ -2573,6 +2855,160 @@
                     top: Math.max(0, currentScroll - scrollAmount),
                     behavior: 'smooth'
                 });
+            }
+        }
+
+        // Label editing functions
+        let labelEditModal = null;
+        let labelSelect = null;
+        let currentEditingIssue = null;
+
+        async function editLabels(issueKey, currentLabels) {
+            currentEditingIssue = issueKey;
+
+            try {
+                // Fetch all available labels
+                const response = await fetch('/api/labels');
+                const data = await response.json();
+                const allLabels = data.labels || [];
+
+                // Show the modal
+                showLabelEditModal(issueKey, currentLabels, allLabels);
+            } catch (error) {
+                console.error('Error fetching labels:', error);
+                showNotification('Failed to load labels', 'error');
+            }
+        }
+
+        function showLabelEditModal(issueKey, currentLabels, allLabels) {
+            // Remove existing modal if it exists
+            if (labelEditModal) {
+                labelEditModal.remove();
+            }
+
+            // Create modal
+            labelEditModal = document.createElement('div');
+            labelEditModal.className = 'label-edit-modal';
+            labelEditModal.innerHTML = `
+                <div class="label-edit-content">
+                    <div class="label-edit-header">
+                        <h3>Edit Labels - ${issueKey}</h3>
+                        <button class="label-edit-close" onclick="closeLabelEditModal()">×</button>
+                    </div>
+                    <div class="label-select-container">
+                        <label for="label-select">Select Labels (type to search, enter to create new):</label>
+                        <select id="label-select" multiple placeholder="Type to search or add labels...">
+                        </select>
+                    </div>
+                    <div class="label-actions">
+                        <button class="btn btn-secondary" onclick="closeLabelEditModal()">Cancel</button>
+                        <button class="btn btn-primary" onclick="saveLabels()">Save Labels</button>
+                    </div>
+                </div>
+            `;
+
+            document.body.appendChild(labelEditModal);
+
+            // Initialize Tom Select
+            const selectElement = document.getElementById('label-select');
+            labelSelect = new TomSelect(selectElement, {
+                create: true,
+                createOnBlur: true,
+                highlight: true,
+                persist: false,
+                maxItems: null,
+                valueField: 'value',
+                labelField: 'text',
+                searchField: ['text'],
+                options: allLabels.map(label => ({ value: label, text: label })),
+                items: currentLabels,
+                plugins: ['remove_button'],
+                render: {
+                    option: function (data, escape) {
+                        return '<div>' + escape(data.text) + '</div>';
+                    },
+                    item: function (data, escape) {
+                        return '<div>' + escape(data.text) + '</div>';
+                    }
+                },
+                onItemAdd: function () {
+                    this.close();
+                },
+                create: function (input) {
+                    return {
+                        value: input,
+                        text: input
+                    };
+                }
+            });
+
+            // Focus on the select
+            setTimeout(() => {
+                labelSelect.focus();
+            }, 100);
+
+            // Close modal on escape
+            const escapeHandler = (e) => {
+                if (e.key === 'Escape') {
+                    closeLabelEditModal();
+                    document.removeEventListener('keydown', escapeHandler);
+                }
+            };
+            document.addEventListener('keydown', escapeHandler);
+
+            // Close modal when clicking outside
+            labelEditModal.addEventListener('click', (e) => {
+                if (e.target === labelEditModal) {
+                    closeLabelEditModal();
+                }
+            });
+        }
+
+        function closeLabelEditModal() {
+            if (labelEditModal) {
+                labelEditModal.remove();
+                labelEditModal = null;
+            }
+            if (labelSelect) {
+                labelSelect.destroy();
+                labelSelect = null;
+            }
+            currentEditingIssue = null;
+        }
+
+        async function saveLabels() {
+            if (!labelSelect || !currentEditingIssue) {
+                return;
+            }
+
+            const newLabels = labelSelect.getValue();
+
+            try {
+                const response = await fetch(`/api/issue/${currentEditingIssue}/labels`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ labels: newLabels })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                const result = await response.json();
+                showNotification(`Labels updated for ${currentEditingIssue}`, 'success');
+
+                // Refresh the issue detail to show updated labels
+                const issueDetail = await fetchIssueDetail(currentEditingIssue);
+                showDetail(currentEditingIssue, issueDetail);
+
+                // Close the modal
+                closeLabelEditModal();
+
+            } catch (error) {
+                console.error('Error saving labels:', error);
+                showNotification('Failed to save labels', 'error');
             }
         }
     </script>
