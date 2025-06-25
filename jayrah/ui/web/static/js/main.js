@@ -600,6 +600,8 @@ function showHelpOverlay() {
                     <div style="display: grid; grid-template-columns: auto 1fr; gap: 0.5rem 1rem; margin-bottom: 1rem;">
                         <kbd style="background: #f6f8fa; border: 1px solid #d1d5da; border-radius: 3px; padding: 0.2rem 0.4rem; font-size: 0.8rem; font-weight: bold; color: #24292e;">?</kbd>
                         <span style="color: #586069;">Show this help overlay</span>
+                        <kbd style="background: #f6f8fa; border: 1px solid #d1d5da; border-radius: 3px; padding: 0.2rem 0.4rem; font-size: 0.8rem; font-weight: bold; color: #24292e;">s</kbd>
+                        <span style="color: #586069;">Show board statistics</span>
                         <kbd style="background: #f6f8fa; border: 1px solid #d1d5da; border-radius: 3px; padding: 0.2rem 0.4rem; font-size: 0.8rem; font-weight: bold; color: #24292e;">Esc</kbd>
                         <span style="color: #586069;">Close detail panel or help overlay</span>
                     </div>
@@ -1355,12 +1357,15 @@ document.addEventListener("keydown", (e) => {
   }
 
   if (e.key === "Escape") {
-    // Close help overlay first, then board modal, then search, then detail panel
+    // Close help overlay first, then stats modal, then board modal, then search, then detail panel
     const helpOverlay = document.getElementById("help-overlay");
+    const statsModal = document.getElementById("stats-modal");
     const boardModal = document.getElementById("board-modal");
     const searchContainer = document.querySelector(".search-container");
     if (helpOverlay && helpOverlay.style.display !== "none") {
       hideHelpOverlay();
+    } else if (statsModal && statsModal.style.display !== "none") {
+      hideStatsModal();
     } else if (boardModal) {
       hideBoardSelector();
     } else if (
@@ -1409,6 +1414,9 @@ document.addEventListener("keydown", (e) => {
   } else if (e.key === "?") {
     e.preventDefault();
     showHelpOverlay();
+  } else if (e.key.toLowerCase() === "s") {
+    e.preventDefault();
+    showStatsModal();
   } else if (e.key === "Home") {
     e.preventDefault();
     navigateToFirstIssue();
@@ -1471,6 +1479,25 @@ document
 document
   .getElementById("help-button")
   .addEventListener("click", showHelpOverlay);
+
+// Stats button event listener
+document
+  .getElementById("stats")
+  .addEventListener("click", showStatsModal);
+
+// Stats modal close button event listener
+document
+  .getElementById("stats-modal-close")
+  .addEventListener("click", hideStatsModal);
+
+// Close stats modal when clicking outside
+document
+  .getElementById("stats-modal")
+  .addEventListener("click", (e) => {
+    if (e.target.id === "stats-modal") {
+      hideStatsModal();
+    }
+  });
 
 // Board management functions
 async function loadBoards() {
@@ -2307,4 +2334,126 @@ function resetPanelSizes() {
   }
 
   console.log("Panel sizes reset for layout:", isVertical ? "vertical" : "horizontal");
+}
+
+// Statistics functionality
+async function fetchStats() {
+  try {
+    const response = await fetch("/api/stats");
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    return await response.json();
+  } catch (error) {
+    console.error("Error fetching stats:", error);
+    return null;
+  }
+}
+
+function showStatsModal() {
+  const modal = document.getElementById("stats-modal");
+  const modalBody = document.getElementById("stats-modal-body");
+
+  // Show modal
+  modal.style.display = "flex";
+
+  // Load statistics
+  modalBody.innerHTML = '<div class="loading">Loading statistics...</div>';
+
+  fetchStats().then(stats => {
+    if (!stats) {
+      modalBody.innerHTML = '<div class="error">Failed to load statistics.</div>';
+      return;
+    }
+
+    modalBody.innerHTML = renderStatsContent(stats);
+  });
+}
+
+function hideStatsModal() {
+  const modal = document.getElementById("stats-modal");
+  modal.style.display = "none";
+}
+
+function renderStatsContent(stats) {
+  const {
+    total_issues,
+    issue_types,
+    statuses,
+    assignees,
+    priorities,
+    components,
+    labels,
+    created_this_week,
+    updated_this_week,
+    resolution_stats
+  } = stats;
+
+  // Helper function to render a stats section
+  function renderStatsSection(title, emoji, data, maxItems = 10) {
+    if (!data || Object.keys(data).length === 0) {
+      return `
+        <div class="stats-section">
+          <h3>${emoji} ${title}</h3>
+          <p style="color: var(--text-muted); text-align: center; padding: 1rem;">No data available</p>
+        </div>
+      `;
+    }
+
+    const items = Object.entries(data)
+      .slice(0, maxItems)
+      .map(([name, count]) => `
+        <li>
+          <span class="stats-name">${name}</span>
+          <span class="stats-count">${count}</span>
+        </li>
+      `)
+      .join('');
+
+    const hasMore = Object.keys(data).length > maxItems;
+    const moreText = hasMore ? `<li style="text-align: center; color: var(--text-muted); font-style: italic;">... and ${Object.keys(data).length - maxItems} more</li>` : '';
+
+    return `
+      <div class="stats-section">
+        <h3>${emoji} ${title}</h3>
+        <ul class="stats-list">
+          ${items}
+          ${moreText}
+        </ul>
+      </div>
+    `;
+  }
+
+  return `
+    <div class="stats-summary">
+      <h3>📊 Board Overview</h3>
+      <div class="stats-highlight">
+        <div class="highlight-item">
+          <div class="highlight-number">${total_issues}</div>
+          <div class="highlight-label">Total Issues</div>
+        </div>
+        <div class="highlight-item">
+          <div class="highlight-number">${created_this_week}</div>
+          <div class="highlight-label">Created This Week</div>
+        </div>
+        <div class="highlight-item">
+          <div class="highlight-number">${updated_this_week}</div>
+          <div class="highlight-label">Updated This Week</div>
+        </div>
+        <div class="highlight-item">
+          <div class="highlight-number">${Object.keys(statuses).length}</div>
+          <div class="highlight-label">Unique Statuses</div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="stats-grid">
+      ${renderStatsSection('Issue Types', '🎯', issue_types)}
+      ${renderStatsSection('Statuses', '📈', statuses)}
+      ${renderStatsSection('Assignees', '👥', assignees, 8)}
+      ${renderStatsSection('Priorities', '🔥', priorities)}
+      ${renderStatsSection('Components', '🧩', components, 8)}
+      ${renderStatsSection('Resolution Status', '✅', resolution_stats)}
+    </div>
+  `;
 }

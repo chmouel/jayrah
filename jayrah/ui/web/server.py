@@ -11,8 +11,7 @@ from fastapi.staticfiles import StaticFiles
 
 from jayrah import config as jayrah_config
 from jayrah.config import defaults
-from jayrah.ui.shared_helpers import (filter_issues_by_text,
-                                      get_row_data_for_issue)
+from jayrah.ui.shared_helpers import filter_issues_by_text, get_row_data_for_issue
 from jayrah.ui.tui.base import JayrahAppMixin
 
 app = FastAPI()
@@ -320,6 +319,132 @@ def apply_issue_transition(
         raise HTTPException(
             status_code=500, detail=f"Error applying transition: {str(e)}"
         ) from e
+
+
+@app.get("/api/stats")
+def get_stats(state: WebAppState = Depends(get_app_state)):
+    """Get detailed statistics about the current board's issues"""
+    if not state.issues:
+        return {
+            "total_issues": 0,
+            "issue_types": {},
+            "statuses": {},
+            "assignees": {},
+            "priorities": {},
+            "components": {},
+            "labels": {},
+            "created_this_week": 0,
+            "updated_this_week": 0,
+            "resolution_stats": {},
+        }
+
+    from collections import defaultdict
+    from datetime import datetime, timedelta
+
+    # Initialize counters
+    issue_types = defaultdict(int)
+    statuses = defaultdict(int)
+    assignees = defaultdict(int)
+    priorities = defaultdict(int)
+    components = defaultdict(int)
+    labels = defaultdict(int)
+    resolutions = defaultdict(int)
+
+    # Date calculations for recent activity
+    week_ago = datetime.now() - timedelta(days=7)
+    created_this_week = 0
+    updated_this_week = 0
+
+    for issue in state.issues:
+        # Issue types
+        issue_type = issue.get("issuetype", {}).get("name", "Unknown")
+        issue_types[issue_type] += 1
+
+        # Statuses
+        status = issue.get("status", {}).get("name", "Unknown")
+        statuses[status] += 1
+
+        # Assignees
+        assignee = issue.get("assignee")
+        if assignee:
+            assignee_name = assignee.get("displayName", assignee.get("name", "Unknown"))
+        else:
+            assignee_name = "Unassigned"
+        assignees[assignee_name] += 1
+
+        # Priorities
+        priority = issue.get("priority")
+        if priority:
+            priority_name = priority.get("name", "Unknown")
+            priorities[priority_name] += 1
+
+        # Components
+        components_list = issue.get("components", [])
+        if components_list:
+            for component in components_list:
+                comp_name = component.get("name", "Unknown")
+                components[comp_name] += 1
+        else:
+            components["No Component"] += 1
+
+        # Labels
+        labels_list = issue.get("labels", [])
+        if labels_list:
+            for label in labels_list:
+                labels[label] += 1
+        else:
+            labels["No Labels"] += 1
+
+        # Resolution
+        resolution = issue.get("resolution")
+        if resolution:
+            resolution_name = resolution.get("name", "Unresolved")
+        else:
+            resolution_name = "Unresolved"
+        resolutions[resolution_name] += 1
+
+        # Recent activity
+        try:
+            created_str = issue.get("created", "")
+            if created_str:
+                # Parse ISO format datetime
+                created_date = datetime.fromisoformat(
+                    created_str.replace("Z", "+00:00")
+                )
+                if created_date.replace(tzinfo=None) > week_ago:
+                    created_this_week += 1
+
+            updated_str = issue.get("updated", "")
+            if updated_str:
+                updated_date = datetime.fromisoformat(
+                    updated_str.replace("Z", "+00:00")
+                )
+                if updated_date.replace(tzinfo=None) > week_ago:
+                    updated_this_week += 1
+        except Exception:
+            pass  # Skip date parsing errors
+
+    # Convert to regular dict and sort by count (descending)
+    return {
+        "total_issues": len(state.issues),
+        "issue_types": dict(
+            sorted(issue_types.items(), key=lambda x: x[1], reverse=True)
+        ),
+        "statuses": dict(sorted(statuses.items(), key=lambda x: x[1], reverse=True)),
+        "assignees": dict(sorted(assignees.items(), key=lambda x: x[1], reverse=True)),
+        "priorities": dict(
+            sorted(priorities.items(), key=lambda x: x[1], reverse=True)
+        ),
+        "components": dict(
+            sorted(components.items(), key=lambda x: x[1], reverse=True)
+        ),
+        "labels": dict(sorted(labels.items(), key=lambda x: x[1], reverse=True)),
+        "created_this_week": created_this_week,
+        "updated_this_week": updated_this_week,
+        "resolution_stats": dict(
+            sorted(resolutions.items(), key=lambda x: x[1], reverse=True)
+        ),
+    }
 
 
 @click.command()
