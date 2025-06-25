@@ -311,27 +311,26 @@ class JiraHTTP:
             log("Fetching cache statistics...")
 
         try:
-            # Connect to the SQLite database
-            conn = self.request_handler.cache.get_connection()
-            cursor = conn.cursor()
+            # Open a dedicated connection so we don't interfere with the
+            # persistent one used by the cache.
+            with sqlite3.connect(self.request_handler.cache.db_path) as conn:
+                cursor = conn.cursor()
 
-            # Get total number of entries
-            cursor.execute("SELECT COUNT(*) FROM cache")
-            total_entries = cursor.fetchone()[0]
+                # Get total number of entries
+                cursor.execute("SELECT COUNT(*) FROM cache")
+                total_entries = cursor.fetchone()[0]
 
-            # Get total size in bytes (sum of the BLOB sizes)
-            cursor.execute("SELECT SUM(length(data)) FROM cache")
-            total_size = cursor.fetchone()[0] or 0
+                # Get total size in bytes (sum of the BLOB sizes)
+                cursor.execute("SELECT SUM(length(data)) FROM cache")
+                total_size = cursor.fetchone()[0] or 0
 
-            # Get oldest cache entry
-            cursor.execute("SELECT MIN(timestamp) FROM cache")
-            oldest_timestamp = cursor.fetchone()[0]
+                # Get oldest cache entry
+                cursor.execute("SELECT MIN(timestamp) FROM cache")
+                oldest_timestamp = cursor.fetchone()[0]
 
-            # Get newest cache entry
-            cursor.execute("SELECT MAX(timestamp) FROM cache")
-            newest_timestamp = cursor.fetchone()[0]
-
-            conn.close()
+                # Get newest cache entry
+                cursor.execute("SELECT MAX(timestamp) FROM cache")
+                newest_timestamp = cursor.fetchone()[0]
 
             # Calculate additional stats
             size_mb = round(total_size / (1024 * 1024), 2) if total_size else 0
