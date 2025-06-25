@@ -182,6 +182,50 @@
             color: #654321;
         }
 
+        .refresh-button {
+            background: rgba(139, 69, 19, 0.1);
+            border: 1px solid rgba(139, 69, 19, 0.2);
+            color: #8b4513;
+            padding: 0.5rem;
+            border-radius: var(--radius);
+            cursor: pointer;
+            font-size: 1.2rem;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 2.5rem;
+            height: 2.5rem;
+        }
+
+        .refresh-button:hover {
+            background: rgba(139, 69, 19, 0.2);
+            transform: scale(1.05);
+        }
+
+        .refresh-button:active {
+            transform: scale(0.95);
+        }
+
+        .refresh-button.loading {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .refresh-button.loading svg {
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            from {
+                transform: rotate(0deg);
+            }
+
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
         .stats {
             background: rgba(139, 69, 19, 0.1);
             padding: 0.5rem 1rem;
@@ -853,6 +897,13 @@
                             stroke-linecap="round" />
                     </svg>
                 </button>
+                <button class="refresh-button" id="refresh-button" title="Refresh issues and clear cache (Press R)">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                        <path d="M3.5 2v3h3m-3-3a7 7 0 1 1-1.1 2.5M13.5 14v-3h-3m3 3a7 7 0 1 0 1.1-2.5"
+                            stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round"
+                            stroke-linejoin="round" />
+                    </svg>
+                </button>
                 <button class="layout-toggle" id="layout-toggle" title="Toggle layout (Press V)">
                     <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
                         <rect x="1" y="3" width="6" height="10" rx="1" stroke="currentColor" stroke-width="1"
@@ -1343,6 +1394,8 @@
                         <span style="color: #586069;">Toggle layout (horizontal/vertical)</span>
                         <kbd style="background: #f6f8fa; border: 1px solid #d1d5da; border-radius: 3px; padding: 0.2rem 0.4rem; font-size: 0.8rem; font-weight: bold; color: #24292e;">b</kbd>
                         <span style="color: #586069;">Switch board</span>
+                        <kbd style="background: #f6f8fa; border: 1px solid #d1d5da; border-radius: 3px; padding: 0.2rem 0.4rem; font-size: 0.8rem; font-weight: bold; color: #24292e;">r</kbd>
+                        <span style="color: #586069;">Refresh issues and clear cache</span>
                         <kbd style="background: #f6f8fa; border: 1px solid #d1d5da; border-radius: 3px; padding: 0.2rem 0.4rem; font-size: 0.8rem; font-weight: bold; color: #24292e;">/</kbd>
                         <span style="color: #586069;">Toggle search bar</span>
                     </div>
@@ -1431,6 +1484,8 @@
                 bgColor = 'var(--success-color)';
             } else if (type === 'error') {
                 bgColor = '#dc3545'; // Red for errors
+            } else if (type === 'info') {
+                bgColor = 'var(--primary-color)'; // Blue for info
             }
 
             notification.style.cssText = `
@@ -1967,6 +2022,9 @@
             } else if (e.key.toLowerCase() === 'b') {
                 e.preventDefault();
                 showBoardSelector();
+            } else if (e.key.toLowerCase() === 'r') {
+                e.preventDefault();
+                refreshIssues();
             } else if (e.key === '/') {
                 e.preventDefault();
                 toggleSearchBar();
@@ -2032,6 +2090,9 @@
 
         // Search toggle event listener
         document.getElementById('search-toggle').addEventListener('click', toggleSearchBar);
+
+        // Refresh button event listener
+        document.getElementById('refresh-button').addEventListener('click', refreshIssues);
 
         // Board selector event listener
         document.getElementById('board-selector').addEventListener('click', showBoardSelector);
@@ -2201,6 +2262,181 @@
             } catch (error) {
                 console.error('Error switching board:', error);
                 showNotification(`❌ Failed to switch to ${boardName}`, 'error');
+            }
+        }
+
+        // Initial load
+        async function init() {
+            initializeViewState();
+            initializeLayoutState();
+            await loadConfig(); // Load Jira base URL
+            await loadBoards(); // Load available boards
+
+            // Try to detect current board from first board in config or use default
+            if (availableBoards.length > 0) {
+                currentBoard = availableBoards[0].name;
+                updateBoardSelectorText();
+            }
+
+            allIssues = await fetchIssues();
+            renderTable(allIssues);
+        }
+
+        init();
+
+        // Additional navigation functions for Page Up/Down, Home/End
+        function navigateToFirstIssue() {
+            const tbody = document.getElementById('issues-tbody');
+            const firstRow = tbody.querySelector('tr:not(.loading):not(.no-issues)');
+            if (firstRow) {
+                const keyCell = firstRow.querySelector('td:nth-child(2) a');
+                if (keyCell) {
+                    const issueKey = keyCell.textContent.trim();
+                    selectRow(firstRow, issueKey);
+                    firstRow.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                }
+            }
+        }
+
+        function navigateToLastIssue() {
+            const tbody = document.getElementById('issues-tbody');
+            const rows = Array.from(tbody.querySelectorAll('tr')).filter(row =>
+                !row.querySelector('.loading') && !row.querySelector('.no-issues')
+            );
+            const lastRow = rows[rows.length - 1];
+            if (lastRow) {
+                const keyCell = lastRow.querySelector('td:nth-child(2) a');
+                if (keyCell) {
+                    const issueKey = keyCell.textContent.trim();
+                    selectRow(lastRow, issueKey);
+                    lastRow.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                }
+            }
+        }
+
+        function navigatePageUp() {
+            const tbody = document.getElementById('issues-tbody');
+            const rows = Array.from(tbody.querySelectorAll('tr')).filter(row =>
+                !row.querySelector('.loading') && !row.querySelector('.no-issues')
+            );
+
+            if (rows.length === 0) return;
+
+            let currentIndex = -1;
+            if (selectedRow) {
+                currentIndex = rows.findIndex(row => row === selectedRow);
+            }
+
+            // If no selection, start from the end when going up
+            if (currentIndex === -1) {
+                currentIndex = rows.length;
+            }
+
+            // Move up by ~10 rows (or to beginning if less than 10)
+            const pageSize = Math.min(10, rows.length);
+            let newIndex = Math.max(0, currentIndex - pageSize);
+
+            const newRow = rows[newIndex];
+            if (newRow) {
+                const keyCell = newRow.querySelector('td:nth-child(2) a');
+                if (keyCell) {
+                    const issueKey = keyCell.textContent.trim();
+                    selectRow(newRow, issueKey);
+                    newRow.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                }
+            }
+        }
+
+        function navigatePageDown() {
+            const tbody = document.getElementById('issues-tbody');
+            const rows = Array.from(tbody.querySelectorAll('tr')).filter(row =>
+                !row.querySelector('.loading') && !row.querySelector('.no-issues')
+            );
+
+            if (rows.length === 0) return;
+
+            let currentIndex = -1;
+            if (selectedRow) {
+                currentIndex = rows.findIndex(row => row === selectedRow);
+            }
+
+            // If no selection, start from the beginning when going down
+            if (currentIndex === -1) {
+                currentIndex = -1;
+            }
+
+            // Move down by ~10 rows (or to end if less than 10)
+            const pageSize = Math.min(10, rows.length);
+            let newIndex = Math.min(rows.length - 1, currentIndex + pageSize);
+
+            const newRow = rows[newIndex];
+            if (newRow) {
+                const keyCell = newRow.querySelector('td:nth-child(2) a');
+                if (keyCell) {
+                    const issueKey = keyCell.textContent.trim();
+                    selectRow(newRow, issueKey);
+                    newRow.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                }
+            }
+        }
+
+        function scrollDetailPanelPage(direction) {
+            const detailContent = document.querySelector('.detail-content');
+            if (!detailContent) return;
+
+            const containerHeight = detailContent.clientHeight;
+            const scrollAmount = containerHeight * 0.8; // Scroll 80% of visible area
+            const currentScroll = detailContent.scrollTop;
+
+            if (direction === 'down') {
+                detailContent.scrollTo({
+                    top: currentScroll + scrollAmount,
+                    behavior: 'smooth'
+                });
+            } else {
+                detailContent.scrollTo({
+                    top: Math.max(0, currentScroll - scrollAmount),
+                    behavior: 'smooth'
+                });
+            }
+        }
+
+        async function refreshIssues() {
+            const refreshButton = document.getElementById('refresh-button');
+
+            try {
+                // Show loading state
+                refreshButton.classList.add('loading');
+                refreshButton.disabled = true;
+                showNotification('🔄 Refreshing issues and clearing cache...', 'info');
+
+                // Call the refresh API endpoint
+                const res = await fetch('/api/refresh', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (!res.ok) {
+                    throw new Error(`HTTP ${res.status}`);
+                }
+
+                const result = await res.json();
+
+                // Reload the issues in the UI
+                allIssues = await fetchIssues();
+                renderTable(allIssues);
+                closeDetail(); // Close any open detail panel
+
+                showNotification(`✅ Refreshed ${result.issue_count} issues`, 'success');
+            } catch (error) {
+                console.error('Error refreshing issues:', error);
+                showNotification('❌ Failed to refresh issues', 'error');
+            } finally {
+                // Remove loading state
+                refreshButton.classList.remove('loading');
+                refreshButton.disabled = false;
             }
         }
 

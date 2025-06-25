@@ -187,6 +187,42 @@ def switch_board(board_name: str, state: WebAppState = Depends(get_app_state)):
         ) from e
 
 
+@app.post("/api/refresh")
+def refresh_issues(state: WebAppState = Depends(get_app_state)):
+    """Refresh issues by clearing cache and reloading from Jira"""
+    try:
+        # Clear the Jira cache
+        state.jayrah_obj.jira.cache.clear()
+
+        # Use the default board's JQL if available, otherwise get recent issues
+        if state.config.get("boards") and len(state.config["boards"]) > 0:
+            jql = state.config["boards"][0].get(
+                "jql", "updated >= -30d ORDER BY updated DESC"
+            )
+        else:
+            jql = "updated >= -30d ORDER BY updated DESC"  # Default: issues updated in last 30 days
+
+        # Fetch fresh issues from Jira (use_cache=False to bypass cache)
+        result = state.jayrah_obj.jira.search_issues(jql=jql, max_results=100)
+        new_issues = result.get("issues", []) if result else []
+
+        # Update the state with new issues
+        state.issues = new_issues
+
+        print(f"Refreshed {len(new_issues)} issues from Jira using JQL: {jql}")
+
+        return {
+            "success": True,
+            "issue_count": len(new_issues),
+            "jql": jql,
+        }
+    except Exception as e:
+        print(f"Error refreshing issues: {e}")
+        raise HTTPException(
+            status_code=500, detail=f"Error refreshing issues: {str(e)}"
+        ) from e
+
+
 @click.command()
 @click.option("--host", default="127.0.0.1", help="Host address to bind.")
 @click.option("--port", default=8000, type=int, help="Port to bind.")
