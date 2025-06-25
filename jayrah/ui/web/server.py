@@ -276,6 +276,56 @@ def update_issue_labels(
         ) from e
 
 
+@app.get("/api/issue/{key}/transitions")
+def get_issue_transitions(key: str, state: WebAppState = Depends(get_app_state)):
+    """Get available transitions for an issue"""
+    try:
+        transitions_data = state.jayrah_obj.jira.get_transitions(key)
+        return transitions_data
+    except Exception as e:
+        print(f"Error getting transitions for {key}: {e}")
+        raise HTTPException(
+            status_code=500, detail=f"Error getting transitions: {str(e)}"
+        ) from e
+
+
+@app.post("/api/issue/{key}/transitions")
+def apply_issue_transition(
+    key: str, transition_data: dict, state: WebAppState = Depends(get_app_state)
+):
+    """Apply a transition to an issue"""
+    try:
+        transition_id = transition_data.get("transition_id")
+        if not transition_id:
+            raise HTTPException(status_code=400, detail="transition_id is required")
+
+        # Apply the transition
+        result = state.jayrah_obj.jira.transition_issue(key, transition_id)
+
+        # Update the local cache - refresh the specific issue
+        try:
+            # Fetch fresh issue data to get updated status
+            updated_issue_data = state.jayrah_obj.jira.get_issue(key)
+            # Update in local cache
+            for i, issue in enumerate(state.issues):
+                if issue["key"] == key:
+                    state.issues[i] = updated_issue_data
+                    break
+        except Exception as cache_error:
+            print(f"Warning: Could not update local cache: {cache_error}")
+
+        return {
+            "success": True,
+            "message": f"Transition applied to {key}",
+            "result": result,
+        }
+    except Exception as e:
+        print(f"Error applying transition to {key}: {e}")
+        raise HTTPException(
+            status_code=500, detail=f"Error applying transition: {str(e)}"
+        ) from e
+
+
 @click.command()
 @click.option("--host", default="127.0.0.1", help="Host address to bind.")
 @click.option("--port", default=8000, type=int, help="Port to bind.")
