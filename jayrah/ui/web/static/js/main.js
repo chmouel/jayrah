@@ -913,18 +913,23 @@ function formatIssueDetail(data) {
 
   let html = `
                 <div class="detail-section">
-                    <h3>📋 Issue Information</h3>
-                    <div class="detail-field">
-                        <div class="detail-label">Key:</div>
-                        <div class="detail-value"><strong><a href="#" class="issue-key" onclick="openIssueInTab('${key}'); return false;">${key}</a></strong></div>
-                    </div>
+                    <h3><div class="detail-label">Ticket <a href="#" class="issue-key" onclick="openIssueInTab('${key}'); return false;">${key}</a></div></h3>
                     <div class="detail-field">
                         <div class="detail-label">Type:</div>
                         <div class="detail-value">${issueType}</div>
                     </div>
                     <div class="detail-field">
                         <div class="detail-label">Status:</div>
-                        <div class="detail-value"><span class="status-badge ${getStatusClass(status)}">${status}</span></div>
+
+                        <div class="detail-value">
+                            <span class="status-badge ${getStatusClass(status)}">${status}</span>
+                            <button class="transition-edit-btn" title="Edit transitions" style="background:none;border:none;cursor:pointer;padding:0.25rem;margin-left:0.5rem;vertical-align:middle;border-radius:4px;" onmouseenter="this.style.backgroundColor='#f0f0f0'" onmouseleave="this.style.backgroundColor='transparent'">
+                                <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="color:#666;">
+                                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                                    <path d="m18.5 2.5 a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                                </svg>
+                            </button>
+                        </div>
                     </div>
                     <div class="detail-field">
                         <div class="detail-label">Priority:</div>
@@ -1235,15 +1240,6 @@ function showDetail(key, detail) {
 
   panel.innerHTML = `
                 <div class="detail-content">
-                    <div style="margin-bottom:1em;">
-                        <strong>Status:</strong> 
-                        <button class="transition-edit-btn" title="Edit transitions" style="background:none;border:none;cursor:pointer;padding:0.25rem;margin-left:0.5rem;vertical-align:middle;border-radius:4px;" onmouseenter="this.style.backgroundColor='#f0f0f0'" onmouseleave="this.style.backgroundColor='transparent'">
-                            <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="color:#666;">
-                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-                                <path d="m18.5 2.5 a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-                            </svg>
-                        </button>
-                    </div>
                     ${formatIssueDetail(detail)}
                 </div>
             `;
