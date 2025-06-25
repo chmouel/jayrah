@@ -1697,9 +1697,10 @@ class CustomFieldEditScreen(BaseModalScreen):
             if cf.get("field") == field_id:
                 self.custom_field_cfg = cf
                 break
-        self.current_value = (
-            current_value[0] if isinstance(current_value, list) else current_value
-        )
+        if isinstance(current_value, list):
+            self.current_value = current_value[0] if current_value else ""
+        else:
+            self.current_value = current_value if current_value is not None else ""
         self.type = (
             self.custom_field_cfg.get("type", "string")
             if self.custom_field_cfg
