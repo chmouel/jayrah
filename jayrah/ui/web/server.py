@@ -350,12 +350,13 @@ def get_stats(state: WebAppState = Depends(get_app_state)):
             "top_components": [],
         }
 
-    from collections import defaultdict, Counter
+    from collections import Counter, defaultdict
     from datetime import datetime, timedelta
 
     # Initialize counters
     issue_types = defaultdict(int)
     statuses = defaultdict(int)
+
     assignees = defaultdict(int)
     priorities = defaultdict(int)
     components = defaultdict(int)
@@ -503,13 +504,17 @@ def get_stats(state: WebAppState = Depends(get_app_state)):
             )
 
         # Blocked: status or label
-        if status.lower() == "blocked" or "blocked" in [l.lower() for l in labels_list]:
+        if status.lower() == "blocked" or "blocked" in [
+            label.lower() for label in labels_list
+        ]:
             blocked_issues.append(
                 {"key": issue.get("key"), "summary": fields.get("summary", "")}
             )
 
     # Top labels/components
-    top_labels = [l for l, _ in Counter(labels).most_common(5) if l != "No Labels"]
+    top_labels = [
+        label for label, _ in Counter(labels).most_common(5) if label != "No Labels"
+    ]
     top_components = [
         c for c, _ in Counter(components).most_common(5) if c != "No Component"
     ]
@@ -568,8 +573,10 @@ def update_issue_custom_field(
                     value = 0
                 value_str = str(value)
                 value = float(value_str) if "." in value_str else int(value_str)
-            except (ValueError, TypeError):
-                raise HTTPException(status_code=400, detail="Invalid number format")
+            except (ValueError, TypeError) as exc:
+                raise HTTPException(
+                    status_code=400, detail="Invalid number format"
+                ) from exc
         elif field_type == "url":
             import re
 

@@ -85,7 +85,7 @@ def build_issue(issue, config, comments_count):
 
     type_emoji = defaults.ISSUE_TYPE_EMOJIS.get(issue_type, ("❓", "??"))[0]
     status_emoji = defaults.STATUS_EMOJI.get(issue_status, "❓")
-    priority_emoji = defaults.PRIORITY_EMOJI.get(issue_priority, "⚪")
+    defaults.PRIORITY_EMOJI.get(issue_priority, "⚪")
 
     plain_title = f"{type_emoji} {issue['key']}: {fields['summary']}"
     output = []
