@@ -124,7 +124,7 @@ def read_config(ret: dict, config_file: pathlib.Path) -> dict:
         return ret
 
     with config_file.open() as file:
-        config = yaml.safe_load(file)
+        config = yaml.safe_load(file) or {}
         if config.get("general"):
             general = config["general"]
 

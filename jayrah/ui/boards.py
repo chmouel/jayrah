@@ -8,7 +8,6 @@ from .. import utils
 from ..api import jira_client as jirahttp
 from ..config import defaults
 from . import issues
-from .tui import run_textual_browser
 
 
 def show(config):
@@ -87,6 +86,7 @@ class Boards:
             )
 
         try:
+            from .tui import run_textual_browser
             selected_key = run_textual_browser(
                 issues, self.config, self.command, self.jql, self.order_by
             )
