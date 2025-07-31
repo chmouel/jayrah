@@ -20,7 +20,7 @@ from jayrah.ui.web.server import initialize_app_state
     help="Comma-separated list of directories to watch for reloads.",
 )
 def web(host, port, reload, workers, log_level, reloads_dirs=None):
-    """Web CLI for Jayrah."""
+    """Web interface for Jayrah."""
     initialize_app_state()
     if reloads_dirs:
         reloads_dirs = reloads_dirs.split(",")

@@ -240,4 +240,4 @@ def build_issue(issue, config, comments_count):
             else:
                 markdown_description += "\n\n[No comment content available]"
 
-    return "\n".join(output), markdown_description
+    return wrap_markdown("\n".join(output)), wrap_markdown(markdown_description)

@@ -2,11 +2,13 @@
 Tests for the CLI commands.
 """
 
+from unittest.mock import MagicMock
+
 import pytest
 from click.testing import CliRunner
+
 from jayrah import commands
 from jayrah.ui import boards
-from unittest.mock import MagicMock
 
 
 @pytest.fixture
