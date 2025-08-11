@@ -1,0 +1,66 @@
+# Configuration Management
+
+## Configuration Structure
+
+Configuration is managed through [jayrah/config/](mdc:jayrah/config/) with defaults in [jayrah/config/defaults.py](mdc:jayrah/config/defaults.py).
+
+### Configuration Loading
+
+- Use `config.make_config()` to load and merge configuration
+- Support YAML configuration files
+- Environment variables as defaults
+- Command-line flag overrides
+
+### Required Configuration Keys
+
+```yaml
+jira_server: "https://your-jira-id.atlassian.net"
+jira_user: "you@example.com"
+jira_password: "your-api-token"
+jira_project: "PROJECT-KEY"
+api_version: "2"  # or "3" for Jira Cloud
+auth_method: "basic"  # or "bearer"
+```
+
+### Configuration Access Patterns
+
+```python
+# Access configuration values
+base_url = jayrah_obj.config.get("jira_server")
+user = jayrah_obj.config.get("jira_user")
+password = jayrah_obj.config.get("jira_password")
+
+# Use defaults for optional values
+cache_ttl = jayrah_obj.config.get("cache_ttl", 3600)
+verbose = jayrah_obj.config.get("verbose", False)
+```
+
+### Environment Variables
+
+- `JIRA_SERVER` - Jira server URL
+- `JIRA_USER` - Jira username
+- `JIRA_PASSWORD` - Jira password/API token
+- `JIRA_COMPONENT` - Jira component
+
+### Security
+
+- Support pass integration with `pass::` prefix
+- Never log sensitive configuration values
+- Use environment variables for secrets in production
+
+### Custom Fields
+
+- Support custom field configuration for dynamic commands
+- Store custom field definitions in configuration
+- Use field types: "string", "number", "url", "text"
+
+### Configuration Validation
+
+- Validate required fields on startup
+- Provide helpful error messages for missing configuration
+- Support configuration file creation with defaults
+description:
+globs:
+alwaysApply: false
+
+---

@@ -1,0 +1,56 @@
+# CLI Command Patterns
+
+## Click Command Structure
+
+All CLI commands should follow the established patterns in [jayrah/commands/common.py](mdc:jayrah/commands/common.py).
+
+### Base CLI Group
+
+- Use `@ccli.group()` for command groups
+- Use `@cli.command()` for individual commands
+- Always use `@click.pass_obj` to pass the jayrah object to commands
+
+### Common Options Pattern
+
+Follow the pattern from [jayrah/commands/common.py](mdc:jayrah/commands/common.py):
+
+```python
+@click.option("--no-cache", "-n", is_flag=True, help="Disable caching of API responses")
+@click.option("--verbose", "-v", is_flag=True, help="Enable verbose output")
+@click.option("--insecure", is_flag=True, help="Disable SSL verification for requests")
+```
+
+### Configuration Access
+
+- Access configuration via `jayrah_obj.config`
+- Use `jayrah_obj.jira` for Jira API interactions
+- Handle exceptions with proper error messages using `click.secho()`
+
+### Error Handling
+
+- Use `click.secho()` with color coding:
+  - `fg="red"` for errors
+  - `fg="green"` for success
+  - `fg="yellow"` for warnings
+- Always provide meaningful error messages
+- Use `sys.exit(1)` for fatal errors
+
+### Custom Commands
+
+For dynamic commands like in [jayrah/commands/mcli.py](mdc:jayrah/commands/mcli.py):
+
+- Extend `click.MultiCommand` for dynamic command generation
+- Implement `list_commands()` and `get_command()` methods
+- Use configuration data to generate commands dynamically
+
+### Argument and Option Patterns
+
+- Use `@click.argument()` for required positional arguments
+- Use `@click.option()` for optional parameters
+- Provide helpful descriptions for all options
+- Use consistent naming conventions (kebab-case for option names)
+description:
+globs:
+alwaysApply: false
+
+---
