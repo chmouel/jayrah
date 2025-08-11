@@ -12,11 +12,9 @@ def mock_context():
     context = MagicMock(spec=ServerContext)
     context.wconfig = {
         "jira_server": "https://test.atlassian.net",
-        "boards": [{"name": "test-board", "jql": "project = TEST"}],
         "verbose": False,
     }
-    context.boards_obj = MagicMock()
-    context.boards_obj.jira = MagicMock()
+    context.jira = MagicMock()
     return context
 
 
@@ -144,7 +142,7 @@ def test_search_custom_fields_logic():
 
 def test_search_tool_basic_functionality(mock_context):
     """Test that the search tool is properly registered and callable."""
-    mock_context.boards_obj.jira.search_issues.return_value = {"issues": [], "total": 0}
+    mock_context.jira.search_issues.return_value = {"issues": [], "total": 0}
 
     server = create_server(mock_context)
 

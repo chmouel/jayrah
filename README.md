@@ -147,17 +147,183 @@ This runs in stdio mode by default for VS Code.
 
 ### Available actions
 
-The server exposes these Jira operations:
+The MCP server exposes these tools and resources:
 
-- Browse issues (with pagination support)
-  - `limit` - Control how many issues to display (default: 10)
-  - `page` - Select which page of results to view (starts at 1)
-  - `page_size` - Number of issues per page (default: 100)
-- Create/view issues
-- Change issue status
-- Get possible status changes
-- Open issues in browser
-- List your boards
+- Resources: projects are exposed via `jira://project/<KEY>` URIs.
+- `search`: Comprehensive issue search with JQL or fields
+  - Inputs: `jql`, `text`, `project`, `status`, `assignee`, `reporter`, `priority`, `issue_type`, `components[]`, `labels[]`, `created_after`, `created_before`, `updated_after`, `updated_before`, `fix_version`, `affects_version`, `epic`, `sprint`, `custom_fields{}`, `order_by`, `order_direction`, `limit`, `page`, `page_size`.
+- `create-issue`: Create a new issue
+  - Inputs: `project?`, `issuetype`, `summary`, `description?`, `priority?`, `assignee?`, `labels[]?`, `components[]?`.
+- `view-issue`: View details of an issue
+  - Inputs: `ticket`, `comments?`.
+- `update-issue`: Update issue fields
+  - Inputs: `ticket`, `fields{}`.
+- `transition-issue` and `get-transitions`: Move issue status or list transitions
+  - Inputs: `ticket`, `transition_id` (for `transition-issue`).
+- `add-comment`: Add a comment to an issue
+  - Inputs: `ticket`, `comment`.
+- `edit-comment`: Edit an existing comment
+  - Inputs: `ticket`, `comment_id`, `comment`.
+- `delete-comment`: Delete a comment
+  - Inputs: `ticket`, `comment_id`.
+- `open-issue`: Get the browser URL for an issue
+  - Inputs: `ticket`.
+- `assign-issue`: Assign an issue to a user (accountId/name supported)
+  - Inputs: `ticket`, `assignee`.
+- `add-labels` / `remove-labels`: Manage labels on an issue
+  - Inputs: `ticket`, `labels[]`.
+- `link-issues`: Create an issue link (default type: Relates)
+  - Inputs: `inward`, `outward`, `link_type?`, `comment?`.
+- `get-comments`: List comments with pagination
+  - Inputs: `ticket`, `limit?`, `page?`, `page_size?`.
+- `log-work`: Add a worklog entry
+  - Inputs: `ticket`, `time_spent`, `comment?`, `started?`.
+- `get-changelog`: Retrieve change history with pagination
+  - Inputs: `ticket`, `limit?`, `page?`, `page_size?`.
+- Metadata helpers: `list-issue-types`, `list-priorities`, `list-users`, `list-labels`, `list-components`.
+
+### Examples
+
+Typical MCP tool payloads (exact invocation depends on your MCP client):
+
+- Search:
+
+```json
+{
+  "name": "search",
+  "arguments": {
+    "project": "PROJ",
+    "text": "login bug",
+    "status": "In Progress",
+    "limit": 5,
+    "page": 1
+  }
+}
+```
+
+- Create issue:
+
+```json
+{
+  "name": "create-issue",
+  "arguments": {
+    "project": "PROJ",
+    "issuetype": "Bug",
+    "summary": "Fix login timeout",
+    "description": "Steps to reproduce...",
+    "priority": "High",
+    "labels": ["auth", "backend"],
+    "components": ["Identity"]
+  }
+}
+```
+
+- Assign issue:
+
+```json
+{
+  "name": "assign-issue",
+  "arguments": {
+    "ticket": "PROJ-123",
+    "assignee": "user@example.com"
+  }
+}
+```
+
+- Add/remove labels:
+
+```json
+{
+  "name": "add-labels",
+  "arguments": {
+    "ticket": "PROJ-123",
+    "labels": ["triaged", "regression"]
+  }
+}
+```
+
+```json
+{
+  "name": "remove-labels",
+  "arguments": {
+    "ticket": "PROJ-123",
+    "labels": ["wip"]
+  }
+}
+```
+
+- Link issues:
+
+```json
+{
+  "name": "link-issues",
+  "arguments": {
+    "inward": "PROJ-100",
+    "outward": "PROJ-200",
+    "link_type": "Relates",
+    "comment": "Establishing relationship"
+  }
+}
+```
+
+- Log work:
+
+```json
+{
+  "name": "log-work",
+  "arguments": {
+    "ticket": "PROJ-123",
+    "time_spent": "1h 30m",
+    "comment": "Investigation and fix"
+  }
+}
+```
+
+- Get comments and changelog:
+
+```json
+{
+  "name": "get-comments",
+  "arguments": {
+    "ticket": "PROJ-123",
+    "limit": 10,
+    "page": 1
+  }
+}
+```
+
+- Edit or delete a comment (use `get-comments` to find the `comment_id`):
+
+```json
+{
+  "name": "edit-comment",
+  "arguments": {
+    "ticket": "PROJ-123",
+    "comment_id": "10001",
+    "comment": "This is the updated comment text."
+  }
+}
+```
+
+```json
+{
+  "name": "delete-comment",
+  "arguments": {
+    "ticket": "PROJ-123",
+    "comment_id": "10002"
+  }
+}
+```
+
+```json
+{
+  "name": "get-changelog",
+  "arguments": {
+    "ticket": "PROJ-123",
+    "limit": 20
+  }
+}
+```
 
 ### VS Code setup
 

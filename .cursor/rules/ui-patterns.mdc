@@ -1,0 +1,62 @@
+# UI Development Patterns
+
+## Textual TUI Framework
+
+The terminal UI uses Textual framework. See [jayrah/ui/tui/](mdc:jayrah/ui/tui/) for implementation details.
+
+### App Structure
+
+- Main app: [jayrah/ui/tui/app.py](mdc:jayrah/ui/tui/app.py)
+- Views: [jayrah/ui/tui/views.py](mdc:jayrah/ui/tui/views.py)
+- Actions: [jayrah/ui/tui/actions.py](mdc:jayrah/ui/tui/actions.py)
+- Base classes: [jayrah/ui/tui/base.py](mdc:jayrah/ui/tui/base.py)
+
+### Widget Patterns
+
+- Extend `Widget` or `Container` classes
+- Use `@on()` decorators for event handling
+- Implement `compose()` method for widget layout
+- Use CSS classes for styling
+
+### Event Handling
+
+```python
+@on(Button.Pressed)
+def handle_button_press(self, event: Button.Pressed) -> None:
+    # Handle button press events
+    pass
+
+@on(Input.Submitted)
+def handle_input_submit(self, event: Input.Submitted) -> None:
+    # Handle input submission
+    pass
+```
+
+### Navigation
+
+- Use `app.push_screen()` to navigate to new screens
+- Use `app.pop_screen()` to return to previous screens
+- Implement proper screen transitions
+
+### Data Binding
+
+- Use reactive attributes for dynamic data
+- Update UI when data changes
+- Handle loading states appropriately
+
+### Web UI
+
+- Web interface: [jayrah/ui/web/](mdc:jayrah/ui/web/)
+- FastAPI server: [jayrah/ui/web/server.py](mdc:jayrah/ui/web/server.py)
+- Static assets: [jayrah/ui/web/static/](mdc:jayrah/ui/web/static/)
+
+### Shared Helpers
+
+- Common UI utilities: [jayrah/ui/shared_helpers.py](mdc:jayrah/ui/shared_helpers.py)
+- Board management: [jayrah/ui/boards.py](mdc:jayrah/ui/boards.py)
+- Issue display: [jayrah/ui/issues.py](mdc:jayrah/ui/issues.py)
+description:
+globs:
+alwaysApply: false
+
+---
