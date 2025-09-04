@@ -6,8 +6,12 @@ A simple CLI and TUI for working with Jira from your terminal.
 
 ## Screenshot
 
+### TUI Interface
+
 <img width="1862" height="1237" alt="Screenshot 2025-09-04 at 16 07 39" src="https://github.com/user-attachments/assets/4a8b8152-2c08-45d5-ad3c-0366fb3441d7" />
 
+### Web Interface
+<img width="1861" height="1237" alt="Screenshot 2025-09-04 at 16 12 26" src="https://github.com/user-attachments/assets/85a1935d-8182-4be0-b723-41982981e94d" />
 
 ## Install
 
