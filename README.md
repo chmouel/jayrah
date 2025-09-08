@@ -11,6 +11,7 @@ A simple CLI and TUI for working with Jira from your terminal.
 <img width="1862" height="1237" alt="Screenshot 2025-09-04 at 16 07 39" src="https://github.com/user-attachments/assets/4a8b8152-2c08-45d5-ad3c-0366fb3441d7" />
 
 ### Web Interface
+
 <img width="1861" height="1237" alt="Screenshot 2025-09-04 at 16 12 26" src="https://github.com/user-attachments/assets/85a1935d-8182-4be0-b723-41982981e94d" />
 
 ## Install
@@ -212,6 +213,42 @@ This will start a web UI server on [http://localhost:8000](http://localhost:8000
 
 **Security Note:**
 > The web server is intended for local development and use only. Do **not** expose it to the public internet, as it is not hardened for production or external access.
+
+## Jayrah CLI
+
+jayrah also provides a command-line interface (CLI) for performing various Jira operations directly from the terminal. Here are some of the available commands:
+
+### jayrah cli open
+
+open an issue in your web browser using the jira host from your config:
+
+```shell
+  jayrah cli open ISSUE-123
+```
+
+### jayrah cli view
+
+view an issue details in the terminal:
+
+```shell
+  jayrah cli view ISSUE-123
+```
+
+## jayrah cli custom
+
+Update a custom field as specified in your config:
+
+```shell
+  jayrah cli custom git-pr ISSUE-123 "https://git.com/your/repo/pull/123" 
+```
+
+### jayrah cli browse
+
+show issues of a board ouptputting a CSV format that can be used with tools like `fzf`:
+
+```shell
+  jayrah cli browse ${board} | sed '1d' | fzf --delimiter , --with-nth '{1} {5..} [{2}|{3}|{4}]' --accept-nth 1
+```
 
 ## License
 
