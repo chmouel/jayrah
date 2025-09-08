@@ -34,7 +34,7 @@ def view(jayrah_obj, ticket_number, as_json):
 @cli.command("open")
 @click.argument("ticket_number")
 @click.pass_obj
-def open(jayrah_obj, ticket_number):
+def bopen(jayrah_obj, ticket_number):
     """Open a specific ticket in the default web browser."""
     import webbrowser
 
@@ -48,6 +48,59 @@ def open(jayrah_obj, ticket_number):
         click.secho(f"Opened {url} in your browser.", fg="green")
     except Exception as e:
         click.secho(f"Error opening ticket {ticket_number}: {e}", fg="red")
+
+
+@cli.command("board")
+@click.argument("board_name")
+@click.pass_obj
+def board(jayrah_obj, board_name):
+    """List all issues for a specific board in CSV format."""
+    import csv
+    import sys
+
+    try:
+        boards = jayrah_obj.config.get("boards", [])
+        target_board = None
+        for b in boards:
+            if b.get("name") == board_name:
+                target_board = b
+                break
+
+        if not target_board:
+            click.secho(f"Board '{board_name}' not found in configuration.", fg="red")
+            sys.exit(1)
+
+        jql = target_board.get("jql")
+        order_by = target_board.get("order_by")
+
+        if not jql:
+            click.secho(f"Board '{board_name}' has no JQL query defined.", fg="red")
+            sys.exit(1)
+
+        if order_by:
+            jql = f"{jql} ORDER BY {order_by}"
+
+        issues = jayrah_obj.issues_client.list_issues(jql)
+
+        writer = csv.writer(sys.stdout)
+        writer.writerow(["key", "issuetype", "status", "assignee", "summary"])
+
+        for issue in issues:
+            fields = issue.get("fields", {})
+            assignee_field = fields.get("assignee")
+            assignee = (
+                assignee_field.get("displayName") if assignee_field else "UNASSIGNED"
+            )
+            status_field = fields.get("status", {})
+            status = status_field.get("name") if status_field else "No Status"
+            summary = fields.get("summary")
+            issuetype = fields.get("issuetype", {}).get("name", "No Type")
+            key = issue.get("key")
+            writer.writerow([key, issuetype, status, assignee, summary])
+
+    except Exception as e:
+        click.secho(f"Error fetching issues for board {board_name}: {e}", fg="red")
+        sys.exit(1)
 
 
 class CustomCommands(click.MultiCommand):
