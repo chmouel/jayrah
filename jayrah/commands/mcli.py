@@ -31,10 +31,10 @@ def view(jayrah_obj, ticket_number, as_json):
         click.secho(f"Error fetching ticket {ticket_number}: {e}", fg="red")
 
 
-@cli.command("browse")
+@cli.command("open")
 @click.argument("ticket_number")
 @click.pass_obj
-def browse(jayrah_obj, ticket_number):
+def open(jayrah_obj, ticket_number):
     """Open a specific ticket in the default web browser."""
     import webbrowser
 
