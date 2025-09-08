@@ -50,6 +50,105 @@ def bopen(jayrah_obj, ticket_number):
         click.secho(f"Error opening ticket {ticket_number}: {e}", fg="red")
 
 
+@cli.command("status")
+@click.argument("ticket_number")
+@click.argument("status_or_transition_id", required=False)
+@click.pass_obj
+def status(jayrah_obj, ticket_number, status_or_transition_id):
+    """Set status or list available transitions for a ticket."""
+    try:
+        # Get available transitions for the issue
+        transitions_data = jayrah_obj.jira.get_transitions(ticket_number)
+        transitions = transitions_data.get("transitions", [])
+
+        if not transitions:
+            click.secho(f"No transitions available for {ticket_number}", fg="yellow")
+            return
+
+        # If no status/transition provided, list available transitions in CSV format
+        if not status_or_transition_id:
+            import csv
+            import sys
+
+            # Get current issue status
+            issue = jayrah_obj.jira.get_issue(ticket_number, fields=["status"])
+            current_status = issue.get("fields", {}).get("status", {}).get("name", "")
+
+            writer = csv.writer(sys.stdout)
+            writer.writerow(["transition_id", "name", "to_status", "current"])
+
+            for transition in transitions:
+                transition_id = transition["id"]
+                name = transition["name"]
+                to_status = transition["to"]["name"]
+                is_current = "selected" if to_status == current_status else ""
+                writer.writerow([transition_id, name, to_status, is_current])
+            return
+
+        # Try to find transition by ID first (if it's numeric)
+        target_transition_id = None
+        if status_or_transition_id.isdigit():
+            for transition in transitions:
+                if transition["id"] == status_or_transition_id:
+                    target_transition_id = status_or_transition_id
+                    break
+
+        # If not found by ID, try to find by status name
+        if not target_transition_id:
+            status_name = status_or_transition_id.lower()
+            for transition in transitions:
+                to_status = transition["to"]["name"].lower()
+                transition_name = transition["name"].lower()
+                if status_name in to_status or status_name in transition_name:
+                    target_transition_id = transition["id"]
+                    break
+
+        if not target_transition_id:
+            import csv
+            import sys
+
+            click.secho(
+                f"No transition found for '{status_or_transition_id}' on {ticket_number}",
+                fg="red",
+            )
+
+            # Get current issue status for error case too
+            issue = jayrah_obj.jira.get_issue(ticket_number, fields=["status"])
+            current_status = issue.get("fields", {}).get("status", {}).get("name", "")
+
+            writer = csv.writer(sys.stdout)
+            writer.writerow(["transition_id", "name", "to_status", "current"])
+
+            for transition in transitions:
+                transition_id = transition["id"]
+                name = transition["name"]
+                to_status = transition["to"]["name"]
+                is_current = "selected" if to_status == current_status else ""
+                writer.writerow([transition_id, name, to_status, is_current])
+            return
+
+        # Apply the transition
+        jayrah_obj.jira.transition_issue(ticket_number, target_transition_id)
+
+        # Get the transition name for confirmation
+        transition_name = next(
+            (t["name"] for t in transitions if t["id"] == target_transition_id),
+            "Unknown",
+        )
+        to_status = next(
+            (t["to"]["name"] for t in transitions if t["id"] == target_transition_id),
+            "Unknown",
+        )
+
+        click.secho(
+            f"✅ Issue {ticket_number} transitioned to '{to_status}' via '{transition_name}'",
+            fg="green",
+        )
+
+    except Exception as e:
+        click.secho(f"Error managing status for {ticket_number}: {e}", fg="red")
+
+
 @cli.command("browse")
 @click.argument("board_name")
 @click.pass_obj
