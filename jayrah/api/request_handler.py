@@ -23,12 +23,14 @@ class JiraRequestHandler:
         cache_instance: cache.JiraCache,
         verbose: bool = False,
         insecure: bool = False,
+        quiet: bool = False,
     ):
         self.base_url = base_url
         self.headers = headers
         self.cache = cache_instance
         self.verbose = verbose
         self.insecure = insecure
+        self.quiet = quiet
 
         if self.insecure:
             self._setup_insecure_ssl()
@@ -168,7 +170,7 @@ class JiraRequestHandler:
         label: Optional[str],
     ) -> Dict[str, Any]:
         """Send the actual HTTP request."""
-        if not self.verbose and label:
+        if (not self.verbose and not self.quiet) and label:
             with click.progressbar(
                 length=1,
                 file=sys.stderr,

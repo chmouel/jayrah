@@ -41,6 +41,7 @@ from ..ui import boards
     default=config.defaults.CONFIG_FILE,
     help="Config file to use",
 )
+@click.option("--quiet", is_flag=True, help="Suppress non-error output")
 @click.pass_context
 def cli(
     ctx,
@@ -53,6 +54,7 @@ def cli(
     jira_server,
     cache_ttl,
     config_file,
+    quiet,
 ):
     """Jira Helper Tool"""
 
@@ -64,6 +66,7 @@ def cli(
         "cache_ttl": cache_ttl,
         "no_cache": no_cache,
         "verbose": verbose,
+        "quiet": quiet,
         "insecure": insecure,
         "jayrah_path": os.path.abspath(sys.argv[0]),
         "ctx": ctx,

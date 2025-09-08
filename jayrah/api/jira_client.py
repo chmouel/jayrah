@@ -60,6 +60,7 @@ class JiraHTTP:
             cache_instance=cache_instance,
             verbose=self.verbose,
             insecure=config.get("insecure", False),
+            quiet=config.get("quiet", False),
         )
 
         if self.verbose:
