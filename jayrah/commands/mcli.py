@@ -50,10 +50,10 @@ def bopen(jayrah_obj, ticket_number):
         click.secho(f"Error opening ticket {ticket_number}: {e}", fg="red")
 
 
-@cli.command("board")
+@cli.command("browse")
 @click.argument("board_name")
 @click.pass_obj
-def board(jayrah_obj, board_name):
+def browse(jayrah_obj, board_name):
     """List all issues for a specific board in CSV format."""
     import csv
     import sys
