@@ -2,6 +2,7 @@
 
 import json
 import ssl
+import sys
 import urllib.error
 import urllib.request
 from typing import Any, Dict, Optional
@@ -170,6 +171,7 @@ class JiraRequestHandler:
         if not self.verbose and label:
             with click.progressbar(
                 length=1,
+                file=sys.stderr,
                 label=label,
                 show_eta=False,
                 show_percent=False,

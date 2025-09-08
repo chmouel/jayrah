@@ -15,6 +15,7 @@ def cli():
 @cli.command("view")
 @click.argument("ticket_number")
 @click.option("--json", "as_json", is_flag=True, help="Output as JSON")
+@click.pass_obj
 def view(jayrah_obj, ticket_number, as_json):
     """View a specific ticket."""
     try:
