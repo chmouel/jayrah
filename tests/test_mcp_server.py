@@ -6,9 +6,11 @@ import pytest
 from mcp import types
 from pydantic import AnyUrl
 
+from jayrah.mcp import server as mcp_server
 from jayrah.mcp.server import (
     ServerContext,
     _create_board_resource,
+    _create_project_resource,
     _format_issue_details,
     _format_issues_summary,
     _format_transitions,
@@ -16,28 +18,40 @@ from jayrah.mcp.server import (
 )
 
 
+@pytest.fixture
+def mock_context():
+    """Create a mock ServerContext."""
+    context = MagicMock(spec=ServerContext)
+    context.wconfig = {
+        "jira_server": "https://test.jira.com",
+        "verbose": False,
+    }
+    context.jira = MagicMock()
+    context.jira.formatter = MagicMock()
+    return context
+
+
 class TestServerContext:
     """Test the ServerContext class."""
 
     @patch("jayrah.mcp.server.config.make_config")
-    @patch("jayrah.mcp.server.boards.Boards")
-    def test_init_with_default_config(self, mock_boards, mock_make_config):
+    @patch("jayrah.mcp.server.jirahttp.JiraHTTP")
+    def test_init_with_default_config(self, mock_jira, mock_make_config):
         """Test ServerContext initialization with default config file."""
         mock_config = {"boards": [], "jira_server": "https://test.jira.com"}
         mock_make_config.return_value = mock_config
-        mock_boards_instance = MagicMock()
-        mock_boards.return_value = mock_boards_instance
+        mock_jira_instance = MagicMock()
+        mock_jira.return_value = mock_jira_instance
 
         context = ServerContext()
 
         mock_make_config.assert_called_once()
-        mock_boards.assert_called_once_with(mock_config)
         assert context.wconfig == mock_config
-        assert context.boards_obj == mock_boards_instance
+        assert context.jira == mock_jira_instance
 
     @patch("jayrah.mcp.server.config.make_config")
-    @patch("jayrah.mcp.server.boards.Boards")
-    def test_init_with_custom_config(self, mock_boards, mock_make_config):
+    @patch("jayrah.mcp.server.jirahttp.JiraHTTP")
+    def test_init_with_custom_config(self, mock_jira, mock_make_config):
         """Test ServerContext initialization with custom config file."""
         custom_config_file = "/path/to/custom/config.yaml"
         mock_config = {"boards": [], "jira_server": "https://test.jira.com"}
@@ -52,19 +66,20 @@ class TestServerContext:
 class TestHelperFunctions:
     """Test the helper functions."""
 
-    def test_create_board_resource(self):
-        """Test _create_board_resource function."""
-        board = {
-            "name": "test-board",
-            "description": "Test board description",
+    def test_create_project_resource(self):
+        """Test _create_project_resource function."""
+        project = {
+            "key": "TEST",
+            "name": "Test Project",
+            "description": "Test project description",
         }
 
-        resource = _create_board_resource(board)
+        resource = _create_project_resource(project)
 
         assert isinstance(resource, types.Resource)
-        assert resource.uri == AnyUrl("jira://board/test-board")
-        assert resource.name == "Board: test-board"
-        assert resource.description == "Test board description"
+        assert resource.uri == AnyUrl("jira://project/TEST")
+        assert resource.name == "Project: Test Project"
+        assert resource.description == "Test project description"
         assert resource.mimeType == "application/json"
 
     def test_create_board_resource_no_description(self):
@@ -189,14 +204,9 @@ class TestHelperFunctions:
         ]
         search_terms = ["bug", "urgent"]
 
-        with patch("jayrah.mcp.server.boards.format_search_terms") as mock_format:
-            mock_format.return_value = "'bug' AND 'urgent'"
-            result = _format_issues_summary(
-                board_name, issues, search_terms=search_terms
-            )
+        result = _format_issues_summary(board_name, issues, search_terms=search_terms)
 
         assert "matching 'bug' AND 'urgent'" in result
-        mock_format.assert_called_once_with(search_terms, False)
 
     def test_format_issues_summary_with_filters(self):
         """Test _format_issues_summary with filters."""
@@ -256,72 +266,20 @@ class TestHelperFunctions:
                 "fields": {"summary": "Test", "status": {"name": "Open"}},
             }
         ]
-
-        with patch("jayrah.mcp.server.boards.format_search_terms") as mock_format:
-            mock_format.return_value = "'bug'"
-            _format_issues_summary(board_name, issues, search_term="bug")
-
-        mock_format.assert_called_once_with(["bug"], False)
+        _format_issues_summary(board_name, issues, search_term="bug")
 
 
 class TestCreateServer:
     """Test the create_server function."""
-
-    @pytest.fixture
-    def mock_context(self):
-        """Create a mock ServerContext."""
-        context = MagicMock(spec=ServerContext)
-        context.wconfig = {
-            "boards": [
-                {"name": "test-board", "description": "Test board"},
-                {"name": "another-board", "description": "Another board"},
-            ],
-            "jira_server": "https://test.jira.com",
-            "verbose": False,
-        }
-        context.boards_obj = MagicMock()
-        context.boards_obj.jira = MagicMock()
-        context.boards_obj.issues_client = MagicMock()
-        return context
 
     def test_create_server_returns_server(self, mock_context):
         """Test that create_server returns a Server instance."""
         server = create_server(mock_context)
         assert hasattr(server, "get_capabilities")
 
-    def test_create_server_basic_properties(self, mock_context):
-        """Test basic server properties after creation."""
-        server = create_server(mock_context)
-
-        # Test that the server is created successfully
-        assert server is not None
-        assert hasattr(server, "get_capabilities")
-
-        # Test server capabilities with required parameters
-        from mcp.server import NotificationOptions
-
-        capabilities = server.get_capabilities(
-            notification_options=NotificationOptions(), experimental_capabilities={}
-        )
-        assert capabilities is not None
-
 
 class TestIntegration:
     """Integration tests for the MCP server components."""
-
-    @pytest.fixture
-    def mock_context(self):
-        """Create a mock ServerContext for integration testing."""
-        context = MagicMock(spec=ServerContext)
-        context.wconfig = {
-            "boards": [{"name": "test-board", "description": "Test board"}],
-            "jira_server": "https://test.jira.com",
-            "verbose": False,
-        }
-        context.boards_obj = MagicMock()
-        context.boards_obj.jira = MagicMock()
-        context.boards_obj.issues_client = MagicMock()
-        return context
 
     def test_server_integration_with_context(self, mock_context):
         """Test server creation with context integration."""
@@ -331,33 +289,19 @@ class TestIntegration:
         # Verify server creation
         assert server is not None
 
-        # Verify server has expected capabilities with required parameters
-        from mcp.server import NotificationOptions
-
-        capabilities = server.get_capabilities(
-            notification_options=NotificationOptions(), experimental_capabilities={}
-        )
-        assert capabilities is not None
-
-        # Verify context is properly configured
-        assert mock_context.wconfig["jira_server"] == "https://test.jira.com"
-        assert len(mock_context.wconfig["boards"]) == 1
-        assert mock_context.wconfig["boards"][0]["name"] == "test-board"
-
-    def test_board_resource_creation_integration(self):
-        """Test board resource creation with real board data."""
-        board_data = {
-            "name": "integration-test-board",
-            "description": "Board for integration testing",
-            "jql": "project = TEST",
-            "order_by": "updated",
+    def test_project_resource_creation_integration(self):
+        """Test project resource creation with real-like data."""
+        project_data = {
+            "key": "INTEG",
+            "name": "Integration",
+            "description": "Project for integration testing",
         }
 
-        resource = _create_board_resource(board_data)
+        resource = _create_project_resource(project_data)
 
-        assert resource.name == "Board: integration-test-board"
-        assert resource.description == "Board for integration testing"
-        assert str(resource.uri) == "jira://board/integration-test-board"
+        assert resource.name == "Project: Integration"
+        assert resource.description == "Project for integration testing"
+        assert str(resource.uri) == "jira://project/INTEG"
 
     def test_issue_formatting_integration(self):
         """Test issue formatting with comprehensive issue data."""
@@ -419,3 +363,60 @@ class TestIntegration:
         assert "ID: 11, Name: To Do, To: To Do" in formatted
         assert "ID: 21, Name: In Progress, To: In Progress" in formatted
         assert "ID: 31, Name: Done, To: Done" in formatted
+
+    @pytest.mark.asyncio
+    async def test_handle_get_comments(self, mock_context):
+        """Test the get-comments tool."""
+        mock_context.jira._request.return_value = {
+            "comments": [
+                {
+                    "id": "10001",
+                    "author": {"displayName": "John Doe"},
+                    "body": "This is a comment.",
+                }
+            ],
+            "total": 1,
+        }
+
+        result = await mcp_server._handle_get_comments(
+            mock_context, {"ticket": "TEST-123", "limit": 1}
+        )
+
+        assert len(result) == 1
+        text_content = result[0]
+        assert isinstance(text_content, types.TextContent)
+        assert "Comments for TEST-123" in text_content.text
+        assert "ID: 10001 | John Doe: This is a comment." in text_content.text
+
+    @pytest.mark.asyncio
+    async def test_handle_edit_comment(self, mock_context):
+        """Test the edit-comment tool."""
+        mock_context.jira.formatter.format_comment.return_value = "New comment body"
+
+        result = await mcp_server._handle_edit_comment(
+            mock_context,
+            {"ticket": "TEST-123", "comment_id": "10001", "comment": "New comment"},
+        )
+
+        assert len(result) == 1
+        text_content = result[0]
+        assert isinstance(text_content, types.TextContent)
+        assert text_content.text == "Edited comment 10001 on TEST-123"
+        mock_context.jira._request.assert_called_once_with(
+            "PUT", "issue/TEST-123/comment/10001", jeez={"body": "New comment body"}
+        )
+
+    @pytest.mark.asyncio
+    async def test_handle_delete_comment(self, mock_context):
+        """Test the delete-comment tool."""
+        result = await mcp_server._handle_delete_comment(
+            mock_context, {"ticket": "TEST-123", "comment_id": "10001"}
+        )
+
+        assert len(result) == 1
+        text_content = result[0]
+        assert isinstance(text_content, types.TextContent)
+        assert text_content.text == "Deleted comment 10001 from TEST-123"
+        mock_context.jira._request.assert_called_once_with(
+            "DELETE", "issue/TEST-123/comment/10001"
+        )

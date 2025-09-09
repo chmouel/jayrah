@@ -1,0 +1,79 @@
+# Development Workflow
+
+## Project Setup
+
+- Use `uv` for dependency management (see [uv.lock](mdc:uv.lock))
+- Python 3.12+ required (see [pyproject.toml](mdc:pyproject.toml))
+- Install with `uv run jayrah` for development
+
+## Dependencies
+
+Key dependencies defined in [pyproject.toml](mdc:pyproject.toml):
+
+- **Click**: CLI framework
+- **Textual**: TUI framework
+- **FastAPI**: Web server
+- **Rich**: Terminal formatting
+- **PyYAML**: Configuration parsing
+- **MCP**: Model Context Protocol
+
+## Development Commands
+
+```bash
+# Run the application
+uv run jayrah
+
+# Run tests
+uv run pytest
+
+# Run with coverage
+uv run pytest --cov=jayrah
+
+# Lint code
+uv run pylint jayrah/
+
+# Format imports
+uv run isort jayrah/
+```
+
+## Adding New Commands
+
+1. Create command file in [jayrah/commands/](mdc:jayrah/commands/)
+2. Import in [jayrah/commands/**init**.py](mdc:jayrah/commands/__init__.py)
+3. Follow CLI patterns from [jayrah/commands/common.py](mdc:jayrah/commands/common.py)
+4. Add tests in [tests/](mdc:tests/)
+5. Update documentation
+
+## Adding New UI Components
+
+1. Create widget in [jayrah/ui/tui/](mdc:jayrah/ui/tui/)
+2. Follow Textual patterns
+3. Add to appropriate view in [jayrah/ui/tui/views.py](mdc:jayrah/ui/tui/views.py)
+4. Handle events in [jayrah/ui/tui/actions.py](mdc:jayrah/ui/tui/actions.py)
+
+## Configuration Changes
+
+1. Update defaults in [jayrah/config/defaults.py](mdc:jayrah/config/defaults.py)
+2. Update configuration loading in [jayrah/config/**init**.py](mdc:jayrah/config/__init__.py)
+3. Update sample config in [misc/config.sample.yaml](mdc:misc/config.sample.yaml)
+4. Update documentation
+
+## Testing Strategy
+
+- Unit tests for individual functions
+- Integration tests for CLI commands
+- Mock external dependencies
+- Test error conditions
+- Maintain high coverage
+
+## Documentation
+
+- Update [README.md](mdc:README.md) for user-facing changes
+- Update [AGENTS.md](mdc:AGENTS.md) for agent integration
+- Add docstrings for new functions
+- Update help text for CLI commands
+description:
+globs:
+alwaysApply: false
+
+---

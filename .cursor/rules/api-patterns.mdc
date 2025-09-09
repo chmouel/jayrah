@@ -1,0 +1,53 @@
+# API Interaction Patterns
+
+## Jira Client Usage
+
+All Jira API interactions should go through the client in [jayrah/api/jira_client.py](mdc:jayrah/api/jira_client.py).
+
+### Authentication
+
+- Support both Basic and Bearer token authentication
+- Configuration keys: `jira_user`, `jira_password`, `auth_method`
+- Handle API version differences (v2 vs v3)
+
+### Common API Patterns
+
+```python
+# Get issue with all fields
+issue = jayrah_obj.jira.get_issue(ticket_number, fields=["*all"])
+
+# Update issue
+jayrah_obj.jira.update_issue(issue_key, {field_id: value})
+
+# Search issues
+issues = jayrah_obj.jira.search_issues(jql, fields=["summary", "status"])
+```
+
+### Error Handling
+
+- Always wrap API calls in try-except blocks
+- Provide specific error messages for different failure types
+- Use the client's built-in error handling when available
+
+### Field Access
+
+- Use `issue.raw` for raw API response data
+- Use `issue.fields` for structured field access
+- Handle missing fields gracefully with `.get()` method
+
+### Configuration Integration
+
+- Access Jira server URL via `jayrah_obj.config.get("jira_server")`
+- Use environment variables as defaults for sensitive data
+- Support pass integration for secure credential storage
+
+### Caching
+
+- Respect the `no_cache` configuration option
+- Use appropriate cache TTL settings
+- Clear cache when needed for fresh data
+description:
+globs:
+alwaysApply: false
+
+---

@@ -1,0 +1,86 @@
+# Code Style and Formatting
+
+## Python Style Guide
+
+Follow PEP 8 with project-specific modifications defined in [pyproject.toml](mdc:pyproject.toml).
+
+### Pylint Configuration
+
+Pylint is configured with specific disabled rules in [pyproject.toml](mdc:pyproject.toml):
+
+- Disabled: `R0902`, `R0903`, `R0917`, `C0415`, `W0613`, `W0621`
+- Line length: Allow longer lines for CLI help text
+- Import organization: Use `isort` for import sorting
+
+### Import Organization
+
+```python
+# Standard library imports
+import os
+import sys
+from pathlib import Path
+
+# Third-party imports
+import click
+import yaml
+
+# Local imports
+from jayrah import config, utils
+from jayrah.api import jira_client
+```
+
+### Function and Class Documentation
+
+- Use docstrings for all public functions and classes
+- Follow Google-style docstring format
+- Include type hints for function parameters and return values
+
+### Error Handling
+
+```python
+try:
+    # API call or file operation
+    result = some_operation()
+except SpecificException as e:
+    # Handle specific exceptions
+    click.secho(f"Specific error: {e}", fg="red")
+    sys.exit(1)
+except Exception as e:
+    # Handle general exceptions
+    click.secho(f"Unexpected error: {e}", fg="red")
+    if verbose:
+        raise
+    sys.exit(1)
+```
+
+### Variable Naming
+
+- Use snake_case for variables and functions
+- Use UPPER_CASE for constants
+- Use descriptive names that indicate purpose
+- Avoid single-letter variables except in loops
+
+### String Formatting
+
+- Prefer f-strings for string formatting
+- Use `.format()` for complex formatting patterns
+- Avoid `%` formatting
+
+### Type Hints
+
+- Use type hints for function parameters and return values
+- Import types from `typing` module when needed
+- Use `Optional[T]` for nullable types
+- Use `List[T]`, `Dict[K, V]` for collections
+
+### Logging
+
+- Use `utils.log()` for logging
+- Respect verbose mode configuration
+- Don't log sensitive information
+- Use appropriate log levels
+description:
+globs:
+alwaysApply: false
+
+---
