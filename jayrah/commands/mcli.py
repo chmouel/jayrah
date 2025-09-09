@@ -150,6 +150,185 @@ def status(jayrah_obj, ticket_number, status_or_transition_id):
         click.secho(f"Error managing status for {ticket_number}: {e}", fg="red")
 
 
+@cli.command("show")
+@click.argument("ticket_number")
+@click.option(
+    "--output",
+    "-o",
+    type=click.Choice(["json", "friendly"]),
+    default="friendly",
+    help="Output format: friendly (default) or json",
+)
+@click.pass_obj
+def show(jayrah_obj, ticket_number, output):
+    """Show current status and details of a ticket."""
+    try:
+        # Get issue with relevant fields for status display
+        base_fields = [
+            "key",
+            "summary",
+            "status",
+            "priority",
+            "issuetype",
+            "assignee",
+            "reporter",
+            "created",
+            "updated",
+            "labels",
+            "components",
+            "fixVersions",
+            "description",
+        ]
+
+        # Add custom fields from config
+        custom_fields = jayrah_obj.config.get("custom_fields", [])
+        for cf in custom_fields:
+            field_id = cf.get("field")
+            if field_id and field_id not in base_fields:
+                base_fields.append(field_id)
+
+        issue = jayrah_obj.jira.get_issue(ticket_number, fields=base_fields)
+
+        if output == "json":
+            import json
+
+            click.echo(json.dumps(issue, indent=2))
+        else:
+            # Friendly output similar to TUI display
+            fields = issue.get("fields", {})
+
+            # Get basic info
+            key = issue.get("key", "Unknown")
+            summary = fields.get("summary", "No summary")
+            status = fields.get("status", {}).get("name", "Unknown")
+            priority = fields.get("priority", {}).get("name", "Unknown")
+            issue_type = fields.get("issuetype", {}).get("name", "Unknown")
+
+            # Import defaults for priority colors
+            from jayrah.config import defaults
+
+            click.echo(f"Ticket: {key}")
+            click.echo(f"Summary: {summary}")
+            click.echo(f"Status: {status}")
+
+            # Color priority
+            color_code = defaults.PRIORITY_COLORS.get(priority, "")
+            reset_code = "\033[0m" if color_code else ""
+            click.echo(f"Priority: {color_code}{priority}{reset_code}")
+            click.echo(f"Type: {issue_type}")
+
+            # Add assignee if available
+            if fields.get("assignee"):
+                assignee = fields["assignee"]
+                assignee_name = assignee.get("displayName", "Unknown")
+                click.echo(f"Assignee: {assignee_name}")
+            else:
+                click.echo("Assignee: Unassigned")
+
+            # Add reporter
+            if fields.get("reporter"):
+                reporter = fields["reporter"]
+                reporter_name = reporter.get("displayName", "Unknown")
+                click.echo(f"Reporter: {reporter_name}")
+
+            # Add labels if available
+            if fields.get("labels"):
+                click.echo(f"Labels: {', '.join(fields['labels'])}")
+
+            # Add components if available
+            if fields.get("components"):
+                components = [c["name"] for c in fields["components"]]
+                click.echo(f"Components: {', '.join(components)}")
+
+            # Add fix versions if available
+            if fields.get("fixVersions"):
+                fix_versions = [v["name"] for v in fields["fixVersions"]]
+                click.echo(f"Fix Version: {', '.join(fix_versions)}")
+
+            # Add dates
+            from datetime import datetime
+
+            date_format = "%Y-%m-%dT%H:%M:%S.%f%z"
+            try:
+                created_date = datetime.strptime(fields.get("created", ""), date_format)
+                click.echo(f"Created: {created_date.strftime('%Y-%m-%d %H:%M:%S')}")
+            except (ValueError, TypeError):
+                pass
+
+            try:
+                updated_date = datetime.strptime(fields.get("updated", ""), date_format)
+                click.echo(f"Updated: {updated_date.strftime('%Y-%m-%d %H:%M:%S')}")
+            except (ValueError, TypeError):
+                pass
+
+            click.echo("")  # Blank line before description
+            # Show custom fields if present and not empty
+            custom_fields = jayrah_obj.config.get("custom_fields", [])
+            for cf in custom_fields:
+                field_id = cf.get("field")
+                field_name = cf.get("name", field_id)
+                field_type = cf.get("type", "string")
+                if field_id and fields.get(field_id):
+                    value = fields[field_id]
+                    # If value is a list, join, else str
+                    if isinstance(value, list):
+                        value = ", ".join(str(v) for v in value if v)
+                    if value:
+                        if field_type == "text":
+                            click.echo(f"{field_name}:")
+                            # Format text fields with the same style as description
+                            formatted_value = "\n".join(
+                                ["│ " + line for line in str(value).splitlines()]
+                            )
+                            click.echo(formatted_value)
+                        elif field_type == "url":
+                            click.echo(f"{field_name}: {value}")
+                        else:
+                            click.echo(f"{field_name}: {value}")
+
+            # Add description
+            click.echo("")  # Blank line before description
+            t = "Description:"
+            click.echo(t)
+            if fields.get("description"):
+                # Handle different description formats (similar to issue_view.py)
+                description_text = fields["description"]
+
+                # Handle v3 API format with "raw" key
+                if isinstance(description_text, dict) and "raw" in description_text:
+                    description_text = description_text["raw"]
+                # Handle ADF format
+                elif (
+                    isinstance(description_text, dict)
+                    and "type" in description_text
+                    and "content" in description_text
+                ):
+                    from jayrah.utils import adf
+
+                    description_text = adf.extract_text_from_adf(description_text)
+
+                if description_text and isinstance(description_text, str):
+                    # Convert Jira markup to markdown and display
+                    import jira2markdown
+
+                    markdown_description = jira2markdown.convert(description_text)
+                    markdown_description = issue_view.wrap_markdown(
+                        markdown_description
+                    )
+                    # add two spaces to the begin of each lines
+                    markdown_description = "\n".join(
+                        ["│ " + line for line in markdown_description.splitlines()]
+                    )
+                    click.echo(markdown_description)
+                else:
+                    click.echo("No detailed description provided")
+            else:
+                click.echo("No description provided")
+
+    except Exception as e:
+        click.secho(f"Error fetching ticket {ticket_number}: {e}", fg="red")
+
+
 @cli.command("browse")
 @click.argument("board_name")
 @click.pass_obj
