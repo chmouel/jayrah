@@ -463,7 +463,10 @@ def get_stats(state: WebAppState = Depends(get_app_state)):
                     not resolution or resolution_name == "Unresolved"
                 ):
                     overdue_issues.append(
-                        {"key": issue.get("key"), "summary": fields.get("summary", "")}
+                        {
+                            "key": issue.get("key"),
+                            "summary": fields.get("summary", ""),
+                        }
                     )
 
             # Stuck: not updated in >7 days
@@ -475,7 +478,10 @@ def get_stats(state: WebAppState = Depends(get_app_state)):
                     not resolution or resolution_name == "Unresolved"
                 ):
                     stuck_issues.append(
-                        {"key": issue.get("key"), "summary": fields.get("summary", "")}
+                        {
+                            "key": issue.get("key"),
+                            "summary": fields.get("summary", ""),
+                        }
                     )
 
             # Closed trend: closed in week
@@ -498,7 +504,10 @@ def get_stats(state: WebAppState = Depends(get_app_state)):
             "blocker",
         ):
             high_priority_issues.append(
-                {"key": issue.get("key"), "summary": fields.get("summary", "")}
+                {
+                    "key": issue.get("key"),
+                    "summary": fields.get("summary", ""),
+                }
             )
 
         # Blocked: status or label
@@ -506,7 +515,10 @@ def get_stats(state: WebAppState = Depends(get_app_state)):
             label.lower() for label in labels_list
         ]:
             blocked_issues.append(
-                {"key": issue.get("key"), "summary": fields.get("summary", "")}
+                {
+                    "key": issue.get("key"),
+                    "summary": fields.get("summary", ""),
+                }
             )
 
     # Top labels/components
