@@ -234,12 +234,39 @@ view an issue details in the terminal:
   jayrah cli view ISSUE-123
 ```
 
-## jayrah cli custom
+### jayrah cli custom
 
 Update a custom field as specified in your config:
 
 ```shell
-  jayrah cli custom git-pr ISSUE-123 "https://git.com/your/repo/pull/123" 
+  jayrah cli custom git-pr ISSUE-123 "https://git.com/your/repo/pull/123"
+```
+
+### jayrah cli gencontext
+
+Generate comprehensive context files from board tickets for LLM consumption. This command exports all tickets from a specified board including descriptions, comments, and metadata in a format optimized for importing into NotebookLM, Gemini, or other LLM contexts.
+
+```shell
+  jayrah cli gencontext my-board
+```
+
+**Options:**
+- `--output`, `-o`: Output file path (default: stdout)
+- `--include-comments`, `-c`: Include all comments from tickets
+- `--include-metadata`, `-m`: Include custom fields and metadata
+- `--format`: Output format - `markdown` (default) or `plain`
+
+**Examples:**
+
+```shell
+# Export all tickets from a board to stdout
+jayrah cli gencontext my-board
+
+# Export with comments and metadata to a file
+jayrah cli gencontext my-board --include-comments --include-metadata --output context.md
+
+# Export in plain text format
+jayrah cli gencontext my-board --format plain
 ```
 
 ### jayrah cli browse
