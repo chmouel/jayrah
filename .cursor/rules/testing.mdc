@@ -1,0 +1,71 @@
+# Testing Patterns
+
+## Test Structure
+
+Tests are organized in [tests/](mdc:tests/) directory with pytest as the testing framework.
+
+### Test Configuration
+
+- Pytest configuration in [pyproject.toml](mdc:pyproject.toml)
+- Async test support with `pytest-asyncio`
+- Coverage reporting with `pytest-cov`
+- Common fixtures in [tests/conftest.py](mdc:tests/conftest.py)
+
+### Test File Naming
+
+- Test files should be named `test_*.py`
+- Match the module structure: `test_commands.py` for `jayrah/commands/`
+- Use descriptive test names that indicate what is being tested
+
+### Test Patterns
+
+```python
+import pytest
+from jayrah.commands import browse
+
+def test_browse_command():
+    # Test browse command functionality
+    pass
+
+@pytest.mark.asyncio
+async def test_async_function():
+    # Test async functions
+    pass
+
+def test_with_fixtures(fixture_name):
+    # Use fixtures for common test data
+    pass
+```
+
+### Mocking
+
+- Mock external API calls
+- Use `unittest.mock` or `pytest-mock`
+- Mock configuration and file system operations
+- Test error conditions with mocked exceptions
+
+### Test Categories
+
+- **Unit Tests**: Test individual functions and classes
+- **Integration Tests**: Test command-line interface
+- **API Tests**: Test Jira API interactions
+- **UI Tests**: Test TUI and web interface components
+
+### Coverage
+
+- Aim for high test coverage
+- Focus on critical paths and error conditions
+- Test both success and failure scenarios
+- Include edge cases and boundary conditions
+
+### Test Data
+
+- Use fixtures for common test data
+- Create realistic test scenarios
+- Mock Jira API responses
+- Test with different configuration scenarios
+description:
+globs:
+alwaysApply: false
+
+---
