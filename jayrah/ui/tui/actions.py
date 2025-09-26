@@ -20,6 +20,7 @@ from .views import (
 )
 
 
+# pylint: disable=too-many-public-methods
 class IssueBrowserActions:
     """
     Mixin class containing all action handlers for the issue browser.
@@ -264,6 +265,18 @@ class IssueBrowserActions:
 
         except Exception as exc:
             cast(Any, self).notify(f"Error copying URL: {exc}", severity="error")
+
+    def action_confirm_selection(self) -> None:  # noqa: D401
+        """Confirm the currently highlighted issue when auto choose is enabled."""
+        if not getattr(self, "auto_choose", False):
+            self.action_open_issue()
+            return
+
+        if not cast(Any, self).selected_issue:
+            cast(Any, self).notify("No issue selected", severity="warning")
+            return
+
+        cast(Any, self).exit(cast(Any, self).selected_issue)
 
     def action_quit(self) -> None:  # noqa: D401
         """Quit the application."""

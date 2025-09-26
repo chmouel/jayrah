@@ -83,6 +83,7 @@ class IssueBrowserApp(App, JayrahAppMixin, IssueBrowserActions):
         Binding("q", "quit", "Quit"),
         Binding("f1", "command_palette", "Palette", show=False),
         Binding("?", "help", "Help"),
+        Binding("enter", "confirm_selection", "Choose", show=False, priority=True),
     ]
 
     ### ─────────────────────────  Lifecycle  ──────────────────────────
@@ -93,6 +94,7 @@ class IssueBrowserApp(App, JayrahAppMixin, IssueBrowserActions):
         command: str | None = None,
         jql: str | None = None,
         order_by: str | None = None,
+        auto_choose: bool = False,
     ):
         # Initialize mixins first
         JayrahAppMixin.__init__(self, config)
@@ -103,6 +105,7 @@ class IssueBrowserApp(App, JayrahAppMixin, IssueBrowserActions):
         self.selected_issue: str | None = None
         self.jql = jql
         self.order_by: str | None = order_by
+        self.auto_choose = auto_choose
 
         if not self.config.get("no_cache"):
             self.jayrah_obj.jira.cache.preload_cache()
@@ -146,6 +149,22 @@ class IssueBrowserApp(App, JayrahAppMixin, IssueBrowserActions):
 
     def on_mount(self) -> None:  # noqa: D401 – Textual lifecycle method
         self.title = "Jayrah – Your friendly Jira browser"
+        if self.auto_choose and self.issues:
+            table = self.query_one("#issues-table", DataTable)
+            table.focus()
+            try:
+                table.cursor_coordinate = (0, 0)
+            except Exception:  # pragma: no cover -- defensive, shouldn't happen
+                table.action_cursor_home()
+
+            first_issue = self.issues[0]
+            issue_key = (
+                first_issue.get("key") if isinstance(first_issue, dict) else None
+            )
+            if issue_key:
+                self.selected_issue = issue_key
+                detail_panel = self.query_one(IssueDetailPanel)
+                detail_panel.update_issue(issue_key, self.config)
 
     ### ─────────────────────────  Events  ──────────────────────────
     @on(DataTable.RowHighlighted)
@@ -240,9 +259,16 @@ class IssueBrowserApp(App, JayrahAppMixin, IssueBrowserActions):
 
 ### ─────────────────────────  Public helper  ──────────────────────────
 def run_textual_browser(
-    issues: list, config: dict, command: str, jql: str, order_by: str
+    issues: list,
+    config: dict,
+    command: str,
+    jql: str,
+    order_by: str,
+    auto_choose: bool = False,
 ):
     """Launch the **IssueBrowserApp** and return the ticket selected by the user."""
-    app = IssueBrowserApp(issues, config, command, jql, order_by)
-    app.run()
-    return app.selected_issue
+    app = IssueBrowserApp(
+        issues, config, command, jql, order_by, auto_choose=auto_choose
+    )
+    result = app.run()
+    return result if result else app.selected_issue

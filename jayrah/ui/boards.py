@@ -76,7 +76,7 @@ class Boards:
 
         self.issues_client = issues.Issues(self.config, self.jira)
 
-    def fuzzy_search(self, issues):
+    def fuzzy_search(self, issues, auto_choose: bool = False):
         """Use interactive UI to select an issue."""
         if self.verbose:
             utils.log(
@@ -88,7 +88,12 @@ class Boards:
 
         try:
             selected_key = run_textual_browser(
-                issues, self.config, self.command, self.jql, self.order_by
+                issues,
+                self.config,
+                self.command,
+                self.jql,
+                self.order_by,
+                auto_choose=auto_choose,
             )
         except Exception as e:
             click.secho(f"Error occurred with Textual UI: {e}", fg="red")

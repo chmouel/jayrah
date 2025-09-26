@@ -2,6 +2,7 @@
 
 import click
 
+from .. import utils
 from ..ui import boards
 from .common import cli
 from .completions import BoardType
@@ -23,8 +24,13 @@ from .completions import BoardType
 @click.option(
     "--list-boards", "-l", "list_boards", is_flag=True, help="List available boards"
 )
+@click.option(
+    "--choose",
+    is_flag=True,
+    help="Automatically select the first matching issue and print its URL",
+)
 @click.pass_obj
-def browse(jayrah_obj, board, search_terms, use_or, filters, list_boards):
+def browse(jayrah_obj, board, search_terms, use_or, filters, list_boards, choose):
     """
     Browse boards
 
@@ -56,4 +62,20 @@ def browse(jayrah_obj, board, search_terms, use_or, filters, list_boards):
 
     jayrah_obj.jql = jql
     jayrah_obj.order_by = order_by
-    jayrah_obj.fuzzy_search(issues)
+
+    selected_key = jayrah_obj.fuzzy_search(issues, auto_choose=choose)
+
+    if choose:
+        if not selected_key:
+            click.secho("No issue selected", fg="yellow", err=True)
+            return
+
+        server = jayrah_obj.config.get("jira_server")
+        if not server:
+            raise click.ClickException("jira_server not configured")
+
+        url = utils.make_full_url(selected_key, server)
+        if jayrah_obj.config.get("quiet"):
+            click.echo(url)
+        else:
+            click.echo(f"{selected_key} {url}")

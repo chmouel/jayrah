@@ -22,23 +22,28 @@ def mock_boards(monkeypatch):
     """Mock the boards module to avoid real API calls"""
 
     class MockBoards:
-        def __init__(self, *args, **kwargs):
-            self.config = {"verbose": False}
+        def __init__(self, config, *args, **kwargs):
+            self.config = config
             self.command = None
-            self.verbose = False
+            self.verbose = config.get("verbose", False)
             self.list_issues_called = False
             self.list_issues_jql = None
             self.fuzzy_search_called = False
+            self.auto_choose = False
             self.issues_client = MagicMock()
 
-        def list_issues(self, jql, order_by=None):
-            self.list_issues_called = True
-            self.list_issues_jql = jql
-            return []
+            def _list_issues(jql, order_by=None):
+                self.list_issues_called = True
+                self.list_issues_jql = jql
+                return mock_build_search_jql.issues_return_value
 
-        def fuzzy_search(self, issues):
+            self.issues_client.list_issues.side_effect = _list_issues
+            mock_build_search_jql.last_instance = self
+
+        def fuzzy_search(self, issues, auto_choose=False):
             self.fuzzy_search_called = True
-            return None
+            self.auto_choose = auto_choose
+            return mock_build_search_jql.fuzzy_search_result
 
         def suggest_git_branch(self, search_terms=None, use_or=False, filters=None):
             self.search_terms = search_terms
@@ -68,6 +73,9 @@ def mock_boards(monkeypatch):
         )
 
     mock_build_search_jql.called = False
+    mock_build_search_jql.last_instance = None
+    mock_build_search_jql.issues_return_value = []
+    mock_build_search_jql.fuzzy_search_result = None
 
     monkeypatch.setattr(boards, "Boards", MockBoards)
     monkeypatch.setattr(boards, "check", mock_check)
@@ -124,3 +132,20 @@ def test_browse_command_with_filters(runner, mock_boards):
         "search-term",
     )  # Click nargs=-1 creates a tuple
     assert mock_boards.filters == ("status=Open",)
+
+
+def test_browse_command_choose_option(runner, mock_boards, monkeypatch):
+    """Test the --choose flag automatically selects and prints issue URL"""
+    monkeypatch.setenv("JIRA_SERVER", "https://jira.example.com")
+    mock_boards.issues_return_value = [{"key": "TEST-123"}]
+    mock_boards.fuzzy_search_result = "TEST-123"
+
+    result = runner.invoke(commands.cli, ["browse", "myboard", "--choose"])
+
+    assert result.exit_code == 0
+    assert mock_boards.last_instance is not None
+    expected_server = mock_boards.last_instance.config.get("jira_server")
+    assert expected_server
+    assert f"TEST-123 {expected_server}/browse/TEST-123" in result.output
+    assert mock_boards.last_instance.fuzzy_search_called
+    assert mock_boards.last_instance.auto_choose
