@@ -83,7 +83,6 @@ class IssueBrowserApp(App, JayrahAppMixin, IssueBrowserActions):
         Binding("q", "quit", "Quit"),
         Binding("f1", "command_palette", "Palette", show=False),
         Binding("?", "help", "Help"),
-        Binding("enter", "confirm_selection", "Choose", show=False, priority=True),
     ]
 
     ### ─────────────────────────  Lifecycle  ──────────────────────────
@@ -149,6 +148,11 @@ class IssueBrowserApp(App, JayrahAppMixin, IssueBrowserActions):
 
     def on_mount(self) -> None:  # noqa: D401 – Textual lifecycle method
         self.title = "Jayrah – Your friendly Jira browser"
+
+        # Only add the enter binding for auto_choose mode
+        if self.auto_choose:
+            self.bind("enter", "confirm_selection", description="Choose", show=False)
+
         if self.auto_choose and self.issues:
             table = self.query_one("#issues-table", DataTable)
             table.focus()
