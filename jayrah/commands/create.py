@@ -33,6 +33,13 @@ from .completions import ComponentType, IssueType, PriorityType
     help="Issue components",
     type=ComponentType(),
 )
+@click.option(
+    "--dry-run",
+    "-n",
+    "dry_run",
+    is_flag=True,
+    help="Preview the issue without creating it",
+)
 @click.option("--template", "-T", "template", help="Use a specific template")
 @click.pass_obj
 def create(
@@ -46,6 +53,7 @@ def create(
     labels,
     template,
     components,
+    dry_run,
 ):
     """Create an issue"""
     if body_file:
@@ -80,4 +88,4 @@ def create(
     )
 
     # Create the issue
-    interactive_create(jayrah_obj, defaults)
+    interactive_create(jayrah_obj, defaults, dry_run=dry_run)
