@@ -1,5 +1,7 @@
 """Manage command for Jayrah Jira CLI."""
 
+import os
+
 import click
 
 from jayrah.utils import issue_view
@@ -476,6 +478,8 @@ class CustomCommands(click.MultiCommand):
             import re
             import sys
 
+            issue_key = os.path.basename(issue_key)
+
             field_id = command.get("field")
             field_type = command.get("type", "string")
             field_name = command.get("name")
@@ -506,7 +510,7 @@ class CustomCommands(click.MultiCommand):
             try:
                 jayrah_obj.jira.update_issue(issue_key, {field_id: value})
                 click.secho(
-                    f"Custom field '{field_name}' ({field_id}) updated for {issue_key}",
+                    f"Custom field '{field_name}' ({field_id}) updated with {value} for {issue_key}",
                     fg="green",
                 )
             except Exception as e:

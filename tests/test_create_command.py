@@ -6,6 +6,8 @@ import pytest
 from click.testing import CliRunner
 
 from jayrah import commands
+from jayrah.create import defaults
+from jayrah.create.create import _build_issue_template, _parse_editor_submission
 
 
 @pytest.fixture
@@ -106,3 +108,57 @@ def test_interactive_create_dry_run_skips_api_call(monkeypatch):
     assert result is None
     assert called["confirm_prompts"] == 1
     assert called["create_issue"] is False
+
+
+def test_build_issue_template_injects_helper_comments():
+    """Ensure helper comments listing components and priorities are added for editing."""
+
+    values = {
+        "title": "Sample",
+        "issuetype": "Task",
+        "components": [],
+        "labels": [],
+        "assignee": "",
+        "priority": "",
+        "content": "Body text",
+    }
+    resources = {
+        "issuetypes": {"Task": "123"},
+        "priorities": ["High", "Medium"],
+        "labels": ["team"],
+        "components": ["Backend", "Frontend"],
+    }
+
+    template = _build_issue_template(values, resources)
+    description_section, _ = template.split(defaults.MARKER, maxsplit=1)
+
+    assert (
+        "<!-- jayrah-helper: Components: Backend, Frontend -->" in description_section
+    )
+    assert "<!-- jayrah-helper: Priorities: High, Medium -->" in description_section
+
+
+def test_parse_editor_submission_strips_helper_comments():
+    """Verify helper comments are removed from the returned issue content."""
+
+    values = {
+        "title": "Sample",
+        "issuetype": "Task",
+        "components": [],
+        "labels": [],
+        "assignee": "",
+        "priority": "",
+        "content": "Body text",
+    }
+    resources = {
+        "issuetypes": {"Task": "123"},
+        "priorities": ["Low"],
+        "labels": [],
+        "components": ["API"],
+    }
+
+    template = _build_issue_template(values, resources)
+    updated = _parse_editor_submission(template, values.copy())
+
+    assert updated["__raw_content__"].strip() == "Body text"
+    assert "jayrah-helper" not in updated["__raw_content__"]

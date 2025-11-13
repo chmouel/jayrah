@@ -12,6 +12,8 @@ priority: {priority}
 ---
 {content}
 
+{inline_helper_comments}
+
 {marker}
 
 ## Available Fields (just for reference to copy and paste easily)

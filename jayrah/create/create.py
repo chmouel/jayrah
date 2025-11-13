@@ -13,6 +13,9 @@ from . import defaults
 from . import template_loader as tpl
 
 
+HELPER_COMMENT_PREFIX = "<!-- jayrah-helper:"
+
+
 def create_edit_issue(
     jayrah_obj,
     title,
@@ -273,6 +276,19 @@ def _collect_issue_resources(jayrah_obj):
     }
 
 
+def _issue_helper_comments(resources):
+    """Return inline helper comments listing available components and priorities."""
+
+    available_components = ", ".join(resources.get("components", [])) or "None"
+    available_priorities = ", ".join(resources.get("priorities", [])) or "None"
+
+    lines = [
+        f"{HELPER_COMMENT_PREFIX} Components: {available_components} -->",
+        f"{HELPER_COMMENT_PREFIX} Priorities: {available_priorities} -->",
+    ]
+    return "\n".join(lines)
+
+
 def _build_issue_template(values, resources):
     """Render the issue template with the current values and reference data."""
 
@@ -295,6 +311,7 @@ def _build_issue_template(values, resources):
         labels=labels_value,
         assignee=values.get("assignee", ""),
         priority=values.get("priority", ""),
+        inline_helper_comments=_issue_helper_comments(resources),
         marker=defaults.MARKER,
         allcomponents="\n".join(allcomponents_f) if allcomponents_f else "- None",
         alllabels="\n".join(alllabels_f) if alllabels_f else "- None",
@@ -351,6 +368,7 @@ def _parse_editor_submission(edited_text, current_values):
         text = "\n".join(lines[end + 1 :])
 
     description = text.split(defaults.MARKER)[0].rstrip()
+    description = _strip_helper_comments(description)
     updated["__raw_content__"] = description
     return updated
 
@@ -394,6 +412,20 @@ def _validate_issue_values(values, resources):
         )
 
     return errors
+
+
+def _strip_helper_comments(description):
+    """Remove inline helper comments injected for editor guidance."""
+
+    lines = description.splitlines()
+    filtered = [
+        line for line in lines if not line.strip().startswith(HELPER_COMMENT_PREFIX)
+    ]
+
+    while filtered and filtered[-1].strip() == "":
+        filtered.pop()
+
+    return "\n".join(filtered).rstrip()
 
 
 def _default_issue_type(resources):
