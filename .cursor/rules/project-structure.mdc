@@ -1,0 +1,45 @@
+# Jayrah Project Structure Guide
+
+Jayrah is a Jira CLI tool with TUI and web interfaces. The main entry point is [jayrah/cli.py](mdc:jayrah/cli.py), which initializes the Click CLI framework.
+
+## Core Architecture
+
+### Entry Points
+
+- **Main CLI**: [jayrah/cli.py](mdc:jayrah/cli.py) - Entry point that sets up the CLI and handles global options
+- **Commands**: [jayrah/commands/**init**.py](mdc:jayrah/commands/__init__.py) - Imports all command modules
+- **Common CLI**: [jayrah/commands/common.py](mdc:jayrah/commands/common.py) - Base CLI group with shared options and configuration
+
+### Command Structure
+
+- **Browse**: [jayrah/commands/browse.py](mdc:jayrah/commands/browse.py) - Main issue browsing functionality
+- **Create**: [jayrah/commands/create.py](mdc:jayrah/commands/create.py) - Issue creation commands
+- **Cache**: [jayrah/commands/cache.py](mdc:jayrah/commands/cache.py) - Cache management
+- **MCLI**: [jayrah/commands/mcli.py](mdc:jayrah/commands/mcli.py) - Manage command for Jira tickets
+- **MCP**: [jayrah/commands/mcp.py](mdc:jayrah/commands/mcp.py) - Model Context Protocol server
+
+### Key Components
+
+- **API Layer**: [jayrah/api/](mdc:jayrah/api/) - Jira API client and authentication
+- **UI Layer**: [jayrah/ui/](mdc:jayrah/ui/) - Terminal and web user interfaces
+- **Utils**: [jayrah/utils/](mdc:jayrah/utils/) - Shared utilities and helpers
+- **Config**: [jayrah/config/](mdc:jayrah/config/) - Configuration management
+- **Create**: [jayrah/create/](mdc:jayrah/create/) - Issue creation templates and logic
+
+### Configuration
+
+- **Defaults**: [jayrah/config/defaults.py](mdc:jayrah/config/defaults.py) - Default configuration values
+- **Config Management**: [jayrah/config/**init**.py](mdc:jayrah/config/__init__.py) - Configuration loading and validation
+
+## Development Guidelines
+
+- Use Click for CLI commands with consistent option patterns
+- Follow the existing command structure in [jayrah/commands/](mdc:jayrah/commands/)
+- Configuration should be handled through [jayrah/config/](mdc:jayrah/config/)
+- API interactions should go through [jayrah/api/](mdc:jayrah/api/)
+- UI components should be in [jayrah/ui/](mdc:jayrah/ui/)
+description:
+globs:
+alwaysApply: false
+
+---
