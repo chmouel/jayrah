@@ -164,6 +164,7 @@ The server exposes these Jira operations:
   - `page` - Select which page of results to view (starts at 1)
   - `page_size` - Number of issues per page (default: 100)
 - Create/view issues
+- Add comments to issues
 - Change issue status
 - Get possible status changes
 - Open issues in browser

@@ -571,6 +571,25 @@ def create_server(context: ServerContext) -> Server:
                     },
                 },
             ),
+            # Add comment to Jira issue
+            types.Tool(
+                name="add-comment",
+                description="Add a comment to a Jira issue",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "ticket": {
+                            "type": "string",
+                            "description": "Issue key (e.g., PROJ-123)",
+                        },
+                        "comment": {
+                            "type": "string",
+                            "description": "Comment text",
+                        },
+                    },
+                    "required": ["ticket", "comment"],
+                },
+            ),
         ]
 
     @server.call_tool()
@@ -587,6 +606,7 @@ def create_server(context: ServerContext) -> Server:
             "open-issue": _handle_open_issue,
             "list-boards": _handle_list_boards,
             "search": _handle_search,
+            "add-comment": _handle_add_comment,
         }
 
         try:
@@ -910,6 +930,23 @@ def create_server(context: ServerContext) -> Server:
                     type="text", text=f"Error executing search: {str(e)}\nJQL: {jql}"
                 )
             ]
+
+    async def _handle_add_comment(arguments: Dict) -> Sequence[ContentType]:
+        """Handle the add-comment tool to add a comment to a Jira issue."""
+        ticket = arguments.get("ticket")
+        comment = arguments.get("comment")
+
+        if not ticket or not comment:
+            raise ValueError("Ticket key and comment text are required")
+
+        context.boards_obj.jira.add_comment(ticket, comment)
+
+        return [
+            types.TextContent(
+                type="text",
+                text=f"Successfully added comment to issue {ticket}",
+            )
+        ]
 
     return server
 
