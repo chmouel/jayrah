@@ -17,8 +17,9 @@ def cli():
 
 
 @cli.command("gencontext")
-@click.argument("board", type=BoardType())
+@click.argument("board", type=BoardType(), required=False)
 @click.option("--output", "-o", help="Output file path (default: stdout)")
+@click.option("--query", "-q", "jql_query", help="JQL query to use directly")
 @click.option(
     "--include-comments", "-c", is_flag=True, help="Include all comments from tickets"
 )
@@ -34,7 +35,13 @@ def cli():
 )
 @click.pass_obj
 def gencontext(
-    jayrah_obj, board, output, include_comments, include_metadata, output_format
+    jayrah_obj,
+    board,
+    output,
+    jql_query,
+    include_comments,
+    include_metadata,
+    output_format,
 ):
     """
     Generate comprehensive context file from board tickets for LLM consumption.
@@ -44,13 +51,26 @@ def gencontext(
     NotebookLM, Gemini, or other LLM contexts.
 
     Example: jayrah gencontext my-board --include-comments --include-metadata
+    Example: jayrah gencontext -q "project = FOO" --include-comments
     """
     from ..utils.context_generator import ContextGenerator
+    from ..config import defaults
 
     # Get board configuration
-    jql, order_by = boards.check(board, jayrah_obj.config)
-    if not jql or not order_by:
-        return
+    if jql_query:
+        jql = jql_query
+        order_by = defaults.ORDER_BY
+        if not board:
+            board = "Custom Query"
+    else:
+        if not board:
+            click.secho(
+                "You must specify a board or a JQL query via -q/--query", fg="red"
+            )
+            return
+        jql, order_by = boards.check(board, jayrah_obj.config)
+        if not jql or not order_by:
+            return
 
     # Initialize context generator
     generator = ContextGenerator(

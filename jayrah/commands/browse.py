@@ -4,6 +4,7 @@ import click
 
 from .. import utils
 from ..ui import boards
+from ..config import defaults
 from .common import cli
 from .completions import BoardType
 
@@ -11,6 +12,7 @@ from .completions import BoardType
 @cli.command("browse")
 @click.argument("board", required=False, type=BoardType())
 @click.argument("search_terms", nargs=-1)
+@click.option("--query", "-q", "jql_query", help="JQL query to use directly")
 @click.option(
     "--or", "-o", "use_or", is_flag=True, help="Use OR instead of AND for search terms"
 )
@@ -30,7 +32,9 @@ from .completions import BoardType
     help="Automatically select the first matching issue and print its URL",
 )
 @click.pass_obj
-def browse(jayrah_obj, board, search_terms, use_or, filters, list_boards, choose):
+def browse(
+    jayrah_obj, board, search_terms, use_or, filters, list_boards, choose, jql_query
+):
     """
     Browse boards
 
@@ -44,10 +48,18 @@ def browse(jayrah_obj, board, search_terms, use_or, filters, list_boards, choose
     if list_boards:
         boards.show(jayrah_obj.config)
         return
-    jayrah_obj.command = board
-    jql, order_by = boards.check(board, jayrah_obj.config)
-    if not jql or not order_by:
-        return
+
+    if jql_query:
+        jql = jql_query
+        order_by = defaults.ORDER_BY
+        if board:
+            search_terms = (board,) + search_terms
+        jayrah_obj.command = "Custom Query"
+    else:
+        jayrah_obj.command = board
+        jql, order_by = boards.check(board, jayrah_obj.config)
+        if not jql or not order_by:
+            return
 
     # Use the common function to build the search JQL
     jql = boards.build_search_jql(
