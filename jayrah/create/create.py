@@ -4,6 +4,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from pathlib import Path
 import re
+import yaml
 
 import click
 import jira2markdown
@@ -512,40 +513,35 @@ def _parse_editor_submission(edited_text, current_values):
     if edited_text.strip().startswith("---"):
         lines = edited_text.splitlines()
         try:
-            start = lines.index("---")
-            end = lines.index("---", start + 1)
-        except ValueError as exc:
+            # Find the indices of the first two --- delimiters
+            indices = [i for i, line in enumerate(lines) if line.strip() == "---"]
+            if len(indices) < 2:
+                raise click.ClickException(
+                    "Template front matter is malformed; unable to locate delimiters."
+                )
+
+            start, end = indices[0], indices[1]
+            yaml_section = "\n".join(lines[start + 1 : end])
+            text = "\n".join(lines[end + 1 :])
+
+            data = yaml.safe_load(yaml_section)
+            if isinstance(data, dict):
+                mapping = {
+                    "type": "issuetype",
+                    "epic-name": "epic_name",
+                }
+                for key, value in data.items():
+                    key_lower = str(key).lower()
+                    target_key = mapping.get(key_lower, key_lower)
+
+                    if target_key in {"components", "labels"}:
+                        updated[target_key] = _normalize_list(value)
+                    elif target_key:
+                        updated[target_key] = str(value) if value is not None else ""
+        except yaml.YAMLError as exc:
             raise click.ClickException(
-                "Template front matter is malformed; unable to locate delimiters."
+                f"Error parsing YAML front matter: {exc}"
             ) from exc
-
-        yaml_section = lines[start + 1 : end]
-        for raw_line in yaml_section:
-            line = raw_line.strip()
-            if not line or line.startswith("#"):
-                continue
-            key, _, value = line.partition(":")
-            key = key.strip().lower()
-            value = value.strip()
-
-            if key == "type":
-                updated["issuetype"] = value
-            elif key == "components":
-                updated["components"] = _normalize_list(value.split(","))
-            elif key == "labels":
-                updated["labels"] = _normalize_list(value.split(","))
-            elif key == "assignee":
-                updated["assignee"] = value
-            elif key == "priority":
-                updated["priority"] = value
-            elif key == "title":
-                updated["title"] = value
-            elif key == "epic-name":
-                updated["epic_name"] = value
-            elif key.startswith("customfield_"):
-                updated[key] = value
-
-        text = "\n".join(lines[end + 1 :])
 
     description = text.split(defaults.MARKER)[0].rstrip()
     description = _strip_helper_comments(description)
