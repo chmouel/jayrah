@@ -1,5 +1,6 @@
 """Issue creation utilities for Jayrah."""
 
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from pathlib import Path
 import re
@@ -400,20 +401,27 @@ def _get_epic_name_field_id(jayrah_obj):
 def _collect_issue_resources(jayrah_obj, issuetype=None):
     """Gather available issue metadata from Jira and config."""
 
-    issuetypes = jayrah_obj.jira.get_issue_types()
+    with ThreadPoolExecutor() as executor:
+        future_issuetypes = executor.submit(jayrah_obj.jira.get_issue_types)
+        future_priorities = executor.submit(
+            jayrah_obj.jira.get_project_priorities, issuetype=issuetype
+        )
+        future_labels = executor.submit(jayrah_obj.jira.get_labels)
+        future_components = executor.submit(jayrah_obj.jira.get_components)
 
-    priorities = jayrah_obj.jira.get_project_priorities(issuetype=issuetype)
+        issuetypes = future_issuetypes.result()
+        priorities = future_priorities.result()
+        raw_labels = future_labels.result()
+        components = future_components.result()
 
     labels_exclude = jayrah_obj.config.get("label_excludes", "")
     labels_exclude_re = re.compile(labels_exclude.strip()) if labels_exclude else None
 
     labels = [
         label
-        for label in jayrah_obj.jira.get_labels()
+        for label in raw_labels
         if label and (not labels_exclude_re or not labels_exclude_re.match(label))
     ]
-
-    components = jayrah_obj.jira.get_components()
 
     return {
         "issuetypes": issuetypes,
