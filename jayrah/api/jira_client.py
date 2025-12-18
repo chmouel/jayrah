@@ -460,6 +460,15 @@ class JiraHTTP:
 
         return sorted(list(filter(None, components)))
 
+    def get_createmeta(self, project_key: str, issuetype_name: str) -> Dict[str, Any]:
+        """Get creation metadata for a specific project and issue type."""
+        params = {
+            "projectKeys": project_key,
+            "issuetypeNames": issuetype_name,
+            "expand": "projects.issuetypes.fields",
+        }
+        return self._request("GET", "issue/createmeta", params=params)
+
     def get_cache_stats(self) -> Dict[str, Any]:
         """Get statistics about the SQLite cache usage."""
         if self.verbose:

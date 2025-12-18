@@ -411,6 +411,8 @@ def _get_epic_name_field_id(jayrah_obj):
 def _collect_issue_resources(jayrah_obj, issuetype=None):
     """Gather available issue metadata from Jira and config."""
 
+    project_key = jayrah_obj.config.get("jira_project")
+
     with ThreadPoolExecutor() as executor:
         future_issuetypes = executor.submit(jayrah_obj.jira.get_issue_types)
         future_priorities = executor.submit(
@@ -418,11 +420,41 @@ def _collect_issue_resources(jayrah_obj, issuetype=None):
         )
         future_labels = executor.submit(jayrah_obj.jira.get_labels)
         future_components = executor.submit(jayrah_obj.jira.get_components)
+        future_meta = (
+            executor.submit(jayrah_obj.jira.get_createmeta, project_key, issuetype)
+            if project_key and issuetype
+            else None
+        )
 
         issuetypes = future_issuetypes.result()
         priorities = future_priorities.result()
         raw_labels = future_labels.result()
         components = future_components.result()
+        meta = future_meta.result() if future_meta else {}
+
+    required_fields = {}
+    if meta and "projects" in meta:
+        for project in meta["projects"]:
+            if project["key"] == project_key:
+                for it in project.get("issuetypes", []):
+                    if it["name"] == issuetype:
+                        fields = it.get("fields", {})
+                        for field_key, field_info in fields.items():
+                            if field_info.get("required"):
+                                # Skip standard fields we already handle
+                                if field_key in {
+                                    "summary",
+                                    "issuetype",
+                                    "project",
+                                    "priority",
+                                    "components",
+                                    "description",
+                                    "assignee",
+                                    "labels",
+                                    "reporter",
+                                }:
+                                    continue
+                                required_fields[field_key] = field_info.get("name")
 
     labels_exclude = jayrah_obj.config.get("label_excludes", "")
     labels_exclude_re = re.compile(labels_exclude.strip()) if labels_exclude else None
@@ -438,6 +470,7 @@ def _collect_issue_resources(jayrah_obj, issuetype=None):
         "priorities": priorities,
         "labels": labels,
         "components": components,
+        "required_fields": required_fields,
     }
 
 
@@ -492,6 +525,14 @@ def _build_issue_template(values, resources):
     for key, value in values.items():
         if key.startswith("customfield_"):
             yaml_fields.append(f"{key}: {value}")
+
+    # Add required fields that are not yet in values
+    required_fields = resources.get("required_fields", {})
+    for field_id, field_name in required_fields.items():
+        if field_id not in values and field_id not in {
+            k.replace("-", "_") for k in values
+        }:
+            yaml_fields.append(f"{field_id}: <required> # {field_name}")
 
     template = "---\n" + "\n".join(yaml_fields) + "\n---\n"
     template += f"{content_value.strip() or defaults.DEFAULT_CONTENT}\n\n"
@@ -618,6 +659,11 @@ def _validate_issue_values(values, resources):
 
         if not has_epic_name:
             errors.append("Epic Name is required for Epic issues.")
+
+    # Check for missing required fields
+    for key, value in values.items():
+        if str(value).strip() == "<required>":
+            errors.append(f"Field '{key}' is required.")
 
     return errors
 
