@@ -2,6 +2,7 @@
 
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
+import difflib
 from pathlib import Path
 import re
 import yaml
@@ -581,19 +582,30 @@ def _validate_issue_values(values, resources):
 
     priority = values.get("priority", "").strip()
     if priority and priority not in priorities:
-        available_priorities = ", ".join(priorities) or "None"
-        errors.append(
-            f"Priority '{priority}' is not available. Available priorities: {available_priorities}"
-        )
+        matches = difflib.get_close_matches(priority, priorities)
+        if matches:
+            errors.append(
+                f"Priority '{priority}' is not available. Did you mean '{matches[0]}'?"
+            )
+        else:
+            available_priorities = ", ".join(priorities) or "None"
+            errors.append(
+                f"Priority '{priority}' is not available. Available priorities: {available_priorities}"
+            )
 
     selected_components = values.get("components", [])
-    invalid_components = [c for c in selected_components if c not in components]
-    if invalid_components:
-        invalid_list = ", ".join(invalid_components)
-        available_components = ", ".join(components) or "None"
-        errors.append(
-            f"Component(s) {invalid_list} are not available. Available components: {available_components}"
-        )
+    for comp in selected_components:
+        if comp not in components:
+            matches = difflib.get_close_matches(comp, components)
+            if matches:
+                errors.append(
+                    f"Component '{comp}' is not available. Did you mean '{matches[0]}'?"
+                )
+            else:
+                available_components = ", ".join(components) or "None"
+                errors.append(
+                    f"Component '{comp}' is not available. Available components: {available_components}"
+                )
 
     if issuetype.lower() == "epic":
         # Check if epic_name is present or any customfield that might be epic name
