@@ -387,12 +387,20 @@ def _get_epic_name_field_id(jayrah_obj):
     if config_field:
         return config_field
 
+    # Try to find it in the internal cache
+    cached_id = jayrah_obj.jira.cache.get("internal://epic_name_field_id")
+    if cached_id:
+        return cached_id
+
     # Try to find it in the fields list
     try:
         fields = jayrah_obj.jira.get_fields()
         for field in fields:
             if field.get("name") == "Epic Name":
-                return field.get("id")
+                field_id = field.get("id")
+                if field_id:
+                    jayrah_obj.jira.cache.set("internal://epic_name_field_id", field_id)
+                return field_id
     except Exception:
         pass
 
