@@ -93,6 +93,7 @@ class JiraRequestHandler:
         use_cache: bool = True,
     ) -> Dict[str, Any]:
         """Make HTTP request to Jira API."""
+        endpoint = endpoint.lstrip("/")
         url = f"{self.base_url}/{endpoint}"
 
         if self.verbose:

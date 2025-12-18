@@ -126,6 +126,10 @@ class JiraHTTP:
             "GET", "search", params=params, label=label, use_cache=use_cache
         )
 
+    def get_fields(self) -> Any:
+        """Get all available fields."""
+        return self._request("GET", "field", label="Fetching fields")
+
     def create_issue(
         self,
         issuetype: str,
@@ -135,6 +139,7 @@ class JiraHTTP:
         assignee: Optional[str] = None,
         labels: Optional[List[str]] = None,
         components: Optional[List[str]] = None,
+        extra_fields: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """Create a new issue."""
         payload = self._build_create_issue_payload(
@@ -145,6 +150,7 @@ class JiraHTTP:
             assignee,
             labels,
             components or [],
+            extra_fields=extra_fields,
         )
         return self._request("POST", "issue", jeez=payload)
 
@@ -157,6 +163,7 @@ class JiraHTTP:
         assignee: Optional[str],
         labels: Optional[List[str]],
         components: List[str],
+        extra_fields: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """Build the payload for creating an issue."""
         payload = {
@@ -185,6 +192,10 @@ class JiraHTTP:
 
         if labels:
             payload["fields"]["labels"] = labels
+
+        if extra_fields:
+            for key, value in extra_fields.items():
+                payload["fields"][key] = value
 
         return payload
 
@@ -246,21 +257,164 @@ class JiraHTTP:
 
     def get_issue_types(self) -> Dict[str, str]:
         """Get all available issue types for the project."""
-        endpoint = self.formatter.get_issue_types_endpoint(
-            self.config.get("jira_project")
-        )
-        issuetype = self._request("GET", endpoint, label="Fetching issue types")
-        ret = {}
-        if self.config.get("api_version") == "2":
-            for it in issuetype:
-                if isinstance(it, dict) and "name" in it and "id" in it:
-                    ret[it["name"]] = it["id"]
-        else:
-            for it in issuetype.get("projects", []):
-                if it["key"] == self.config.get("jira_project"):
-                    for issue_type in it.get("issuetypes", []):
-                        ret[issue_type["name"]] = issue_type["id"]
+        project_key = self.config.get("jira_project")
+        ret: Dict[str, str] = {}
+
+        if not project_key:
+            response = self._request(
+                "GET", "issuetype", label="Fetching issue types", use_cache=False
+            )
+            if isinstance(response, list):
+                for it in response:
+                    if isinstance(it, dict):
+                        name = it.get("name")
+                        iid = it.get("id")
+                        if name and iid:
+                            ret[str(name)] = str(iid)
+            return ret
+
+        # Try modern Jira DC endpoint first (Jira 8.14+)
+        try:
+            endpoint = f"issue/createmeta/{project_key}/issuetypes"
+            response = self._request(
+                "GET", endpoint, label="Fetching issue types (modern)", use_cache=False
+            )
+            if isinstance(response, dict) and "issueTypes" in response:
+                for it in response["issueTypes"]:
+                    if isinstance(it, dict):
+                        name = it.get("name")
+                        iid = it.get("id")
+                        if name and iid:
+                            ret[str(name)] = str(iid)
+                if ret:
+                    return ret
+        except Exception:
+            pass
+
+        # Try legacy/Cloud createmeta endpoint
+        endpoint = self.formatter.get_issue_types_endpoint(project_key)
+        try:
+            response = self._request(
+                "GET", endpoint, label="Fetching issue types", use_cache=False
+            )
+            if isinstance(response, list):
+                for it in response:
+                    if isinstance(it, dict):
+                        name = it.get("name")
+                        iid = it.get("id")
+                        if name and iid:
+                            ret[str(name)] = str(iid)
+            elif isinstance(response, dict):
+                projects = response.get("projects", [])
+                for project in projects:
+                    if isinstance(project, dict) and project.get("key") == project_key:
+                        for it in project.get("issuetypes", []):
+                            if isinstance(it, dict):
+                                name = it.get("name")
+                                iid = it.get("id")
+                                if name and iid:
+                                    ret[str(name)] = str(iid)
+        except Exception:
+            # Final fallback to global
+            response = self._request(
+                "GET",
+                "issuetype",
+                label="Fetching issue types (fallback)",
+                use_cache=False,
+            )
+            if isinstance(response, list):
+                for it in response:
+                    if isinstance(it, dict):
+                        name = it.get("name")
+                        iid = it.get("id")
+                        if name and iid:
+                            ret[str(name)] = str(iid)
+
         return ret
+
+    def get_project_priorities(self, issuetype: Optional[str] = None) -> List[str]:
+        """Get all available priorities for the project, optionally filtered by issue type."""
+        project_key = self.config.get("jira_project")
+        if not project_key:
+            return self._get_global_priorities()
+
+        priorities_set = set()
+
+        # Try modern Jira DC endpoint first if we have an issue type name
+        if issuetype:
+            try:
+                # Need to find the ID for the issue type name first
+                issue_types = self.get_issue_types()
+                it_id = issue_types.get(issuetype)
+                if it_id:
+                    endpoint = f"issue/createmeta/{project_key}/issuetypes/{it_id}"
+                    response = self._request(
+                        "GET", endpoint, label=f"Fetching {issuetype} metadata (modern)"
+                    )
+                    if isinstance(response, dict) and "values" in response:
+                        for field in response["values"]:
+                            if (
+                                isinstance(field, dict)
+                                and field.get("fieldId") == "priority"
+                            ):
+                                for v in field.get("allowedValues", []):
+                                    if isinstance(v, dict) and v.get("name"):
+                                        priorities_set.add(str(v.get("name")))
+                        if priorities_set:
+                            return sorted(list(priorities_set))
+            except Exception:
+                pass
+
+        # Try legacy/Cloud createmeta endpoint
+        params: Dict[str, Any] = {
+            "projectKeys": project_key,
+            "expand": "projects.issuetypes.fields",
+        }
+        if issuetype:
+            params["issuetypeNames"] = issuetype
+
+        try:
+            meta = self._request(
+                "GET",
+                "issue/createmeta",
+                params=params,
+                label="Fetching project metadata",
+            )
+
+            if isinstance(meta, dict):
+                projects = meta.get("projects", [])
+                for project in projects:
+                    if isinstance(project, dict) and project.get("key") == project_key:
+                        issuetypes = project.get("issuetypes", [])
+                        for it in issuetypes:
+                            if isinstance(it, dict):
+                                fields = it.get("fields", {})
+                                priority_field = fields.get("priority", {})
+                                allowed_values = priority_field.get("allowedValues", [])
+                                for v in allowed_values:
+                                    if isinstance(v, dict) and v.get("name"):
+                                        priorities_set.add(str(v.get("name")))
+
+            if priorities_set:
+                return sorted(list(priorities_set))
+        except Exception:
+            pass
+
+        return self._get_global_priorities()
+
+    def _get_global_priorities(self) -> List[str]:
+        """Get global priorities as a fallback."""
+        try:
+            priorities = self.get_priorities()
+            if isinstance(priorities, list):
+                return [
+                    str(p.get("name"))
+                    for p in priorities
+                    if isinstance(p, dict) and p.get("name")
+                ]
+        except Exception:
+            pass
+        return []
 
     def get_priorities(self) -> Dict[str, Any]:
         """Get all available priorities."""

@@ -16,6 +16,59 @@ from . import template_loader as tpl
 HELPER_COMMENT_PREFIX = "<!-- jayrah-helper:"
 
 
+def _suggest_epic_name(title):
+    """Suggest an epic name based on the title."""
+    # Format: lowercase, alphanumeric and dashes only
+    epic_name = re.sub(r"[^a-zA-Z0-9\s-]", "", title).lower()
+    epic_name = re.sub(r"[\s-]+", "-", epic_name).strip("-")
+    return epic_name
+
+
+def _choose_priority(priorities):
+    """Interactively choose a priority using gum if available."""
+    options = ["None"] + priorities
+
+    # Try using gum
+    import shutil
+    import subprocess
+    import sys
+
+    if shutil.which("gum"):
+        try:
+            # We must NOT capture_output=True because gum needs to draw its TUI
+            # to stderr/stdout. We only want to capture the final choice from stdout.
+            # We use a context manager or just run it and hope for the best with pipes.
+            result = subprocess.run(
+                ["gum", "choose"] + options,
+                stdout=subprocess.PIPE,
+                stderr=sys.stderr,  # UI usually goes to stderr
+                stdin=sys.stdin,  # Input from terminal
+                text=True,
+                check=False,
+            )
+            if result.returncode == 0:
+                choice = result.stdout.strip()
+                return "" if choice == "None" else choice
+            # If user aborted gum (e.g. Ctrl-C), we treat it as no change/None
+            return ""
+        except Exception:
+            pass
+
+    # Fallback to click.prompt
+
+    click.echo("\nAvailable Priorities:")
+    for i, p in enumerate(options):
+        click.echo(f"{i}) {p}")
+
+    choice_idx = click.prompt(
+        "Select a priority (number)",
+        type=click.IntRange(0, len(options) - 1),
+        default=0,
+    )
+    choice = options[choice_idx]
+    return "" if choice == "None" else choice
+
+
 def create_edit_issue(
     jayrah_obj,
     title,
@@ -30,7 +83,7 @@ def create_edit_issue(
 ):
     """Open the editor, validate metadata, and return the finalized issue payload."""
 
-    resources = _collect_issue_resources(jayrah_obj)
+    resources = _collect_issue_resources(jayrah_obj, issuetype=issuetype)
 
     values = {
         "title": title or "",
@@ -59,6 +112,10 @@ def create_edit_issue(
     if not values["content"]:
         values["content"] = base_content
 
+    # If it's an epic and we don't have an epic name, suggest one from title
+    if values["issuetype"].lower() == "epic" and not values.get("epic_name"):
+        values["epic_name"] = _suggest_epic_name(values["title"])
+
     while True:
         editor_payload = _build_issue_template(values, resources)
         edited_text = utils.edit_text_with_editor(editor_payload, extension=".md")
@@ -68,6 +125,21 @@ def create_edit_issue(
 
         try:
             values = _parse_editor_submission(edited_text, values)
+
+            # If priority is missing, ask the user to choose one
+            if not values.get("priority") and resources.get("priorities"):
+                if click.confirm(
+                    "Priority is missing. Would you like to select one?", default=True
+                ):
+                    values["priority"] = _choose_priority(resources["priorities"])
+
+            if values["issuetype"].lower() == "epic" and not values.get("epic_name"):
+                suggested = _suggest_epic_name(values["title"])
+                if click.confirm(
+                    f"Epic Name is missing. Use suggested name '{suggested}'?",
+                    default=True,
+                ):
+                    values["epic_name"] = suggested
         except click.ClickException:
             raise
         except Exception as exc:  # pragma: no cover - defensive, should not happen
@@ -92,7 +164,7 @@ def create_edit_issue(
         values["content"] = description
         break
 
-    return {
+    ret = {
         "content": values["content"],
         "components": values["components"],
         "title": values["title"],
@@ -101,9 +173,20 @@ def create_edit_issue(
         "priority": values["priority"],
         "assignee": values["assignee"],
     }
+    if "epic_name" in values:
+        ret["epic_name"] = values["epic_name"]
+
+    # Include any custom fields
+    for key, value in values.items():
+        if key.startswith("customfield_"):
+            ret[key] = value
+
+    return ret
 
 
-def preview_issue(issuetype, title, content, priority, assignee, labels, components):
+def preview_issue(
+    issuetype, title, content, priority, assignee, labels, components, extra_fields=None
+):
     """Show issue preview before creation."""
 
     def format_list(items):
@@ -117,6 +200,13 @@ def preview_issue(issuetype, title, content, priority, assignee, labels, compone
         ("Components", format_list(components)),
         ("Labels", format_list(labels)),
     ]
+
+    if extra_fields:
+        if "epic_name" in extra_fields:
+            fields.insert(2, ("Epic Name", extra_fields["epic_name"]))
+        for key, value in extra_fields.items():
+            if key.startswith("customfield_"):
+                fields.append((key, value))
 
     for label, value in fields:
         click.secho(f"{label:>10}: ", nl=False, fg="green")
@@ -137,6 +227,18 @@ def interactive_create(jayrah_obj, defaults, dry_run=False):
     current = defaults
 
     while True:
+        # Separate extra fields (epic_name and customfields) from base fields
+        base_keys = {
+            "issuetype",
+            "title",
+            "content",
+            "priority",
+            "assignee",
+            "labels",
+            "components",
+        }
+        extra_fields = {k: v for k, v in current.items() if k not in base_keys}
+
         preview_issue(
             issuetype=current["issuetype"],
             title=current["title"],
@@ -145,6 +247,7 @@ def interactive_create(jayrah_obj, defaults, dry_run=False):
             assignee=current["assignee"],
             labels=current["labels"],
             components=current["components"],
+            extra_fields=extra_fields,
         )
 
         if dry_run:
@@ -185,6 +288,7 @@ def interactive_create(jayrah_obj, defaults, dry_run=False):
             current["assignee"],
             current["labels"],
             current["components"],
+            extra_fields=extra_fields,
         )
 
         if issue_key:
@@ -212,7 +316,15 @@ def interactive_create(jayrah_obj, defaults, dry_run=False):
 
 
 def create_issue(
-    jayrah_obj, issuetype, summary, description, priority, assignee, labels, components
+    jayrah_obj,
+    issuetype,
+    summary,
+    description,
+    priority,
+    assignee,
+    labels,
+    components,
+    extra_fields=None,
 ):
     """Create the issue with the given parameters."""
     try:
@@ -226,6 +338,22 @@ def create_issue(
                 "Unsupported API version. Please use API v2 or v3."
             )
 
+        # Handle epic_name mapping
+        final_extra_fields = {}
+        if extra_fields:
+            for key, value in extra_fields.items():
+                if key == "epic_name":
+                    field_id = _get_epic_name_field_id(jayrah_obj)
+                    if field_id:
+                        final_extra_fields[field_id] = value
+                    else:
+                        click.secho(
+                            "Warning: Could not find 'Epic Name' field ID. Skipping epic name.",
+                            fg="yellow",
+                        )
+                else:
+                    final_extra_fields[key] = value
+
         result = jayrah_obj.jira.create_issue(
             issuetype=issuetype,
             summary=summary,
@@ -234,6 +362,7 @@ def create_issue(
             assignee=assignee,
             labels=labels,
             components=components,
+            extra_fields=final_extra_fields,
         )
 
         issue_key = result.get("key")
@@ -249,13 +378,31 @@ def create_issue(
     return ""
 
 
-def _collect_issue_resources(jayrah_obj):
+def _get_epic_name_field_id(jayrah_obj):
+    """Try to find the custom field ID for 'Epic Name'."""
+    # Check config first
+    config_field = jayrah_obj.config.get("epic_name_field")
+    if config_field:
+        return config_field
+
+    # Try to find it in the fields list
+    try:
+        fields = jayrah_obj.jira.get_fields()
+        for field in fields:
+            if field.get("name") == "Epic Name":
+                return field.get("id")
+    except Exception:
+        pass
+
+    return None
+
+
+def _collect_issue_resources(jayrah_obj, issuetype=None):
     """Gather available issue metadata from Jira and config."""
 
     issuetypes = jayrah_obj.jira.get_issue_types()
 
-    priorities_raw = jayrah_obj.jira.get_priorities()
-    priorities = [item["name"].strip() for item in priorities_raw if item.get("name")]
+    priorities = jayrah_obj.jira.get_project_priorities(issuetype=issuetype)
 
     labels_exclude = jayrah_obj.config.get("label_excludes", "")
     labels_exclude_re = re.compile(labels_exclude.strip()) if labels_exclude else None
@@ -303,21 +450,42 @@ def _build_issue_template(values, resources):
     alllabels_f = [f"- {name}" for name in resources["labels"]]
     allpriorities_f = [f"- {name}" for name in resources["priorities"]]
 
-    return defaults.ISSUE_TEMPLATE.format(
-        title=values.get("title", ""),
-        issuetype=issuetype_value,
-        content=content_value.strip() or defaults.DEFAULT_CONTENT,
-        components=components_value,
-        labels=labels_value,
-        assignee=values.get("assignee", ""),
-        priority=values.get("priority", ""),
-        inline_helper_comments=_issue_helper_comments(resources),
-        marker=defaults.MARKER,
-        allcomponents="\n".join(allcomponents_f) if allcomponents_f else "- None",
-        alllabels="\n".join(alllabels_f) if alllabels_f else "- None",
-        allpriorities="\n".join(allpriorities_f) if allpriorities_f else "- None",
-        allissuetypes="\n".join(allissuetypes_f) if allissuetypes_f else "- None",
+    # Build the YAML front matter
+    yaml_fields = [
+        f"title: {values.get('title', '')}",
+        f"type: {issuetype_value}",
+    ]
+
+    if issuetype_value.lower() == "epic":
+        yaml_fields.append(
+            f"epic-name: {values.get('epic_name', values.get('title', ''))}"
+        )
+
+    yaml_fields.extend(
+        [
+            f"components: {components_value}",
+            f"labels: {labels_value}",
+            f"assignee: {values.get('assignee', '')}",
+            f"priority: {values.get('priority', '')}",
+        ]
     )
+
+    # Add any other custom fields
+    for key, value in values.items():
+        if key.startswith("customfield_"):
+            yaml_fields.append(f"{key}: {value}")
+
+    template = "---\n" + "\n".join(yaml_fields) + "\n---\n"
+    template += f"{content_value.strip() or defaults.DEFAULT_CONTENT}\n\n"
+    template += f"{_issue_helper_comments(resources)}\n\n"
+    template += f"{defaults.MARKER}\n\n"
+    template += "## Available Fields (just for reference to copy and paste easily)\n\n"
+    template += "### Issue Types\n\n" + "\n".join(allissuetypes_f) + "\n\n"
+    template += "### Components\n\n" + "\n".join(allcomponents_f) + "\n\n"
+    template += "### Labels\n\n" + "\n".join(alllabels_f) + "\n\n"
+    template += "### Priorities\n\n" + "\n".join(allpriorities_f) + "\n"
+
+    return template
 
 
 def _parse_editor_submission(edited_text, current_values):
@@ -364,6 +532,10 @@ def _parse_editor_submission(edited_text, current_values):
                 updated["priority"] = value
             elif key == "title":
                 updated["title"] = value
+            elif key == "epic-name":
+                updated["epic_name"] = value
+            elif key.startswith("customfield_"):
+                updated[key] = value
 
         text = "\n".join(lines[end + 1 :])
 
@@ -410,6 +582,18 @@ def _validate_issue_values(values, resources):
         errors.append(
             f"Component(s) {invalid_list} are not available. Available components: {available_components}"
         )
+
+    if issuetype.lower() == "epic":
+        # Check if epic_name is present or any customfield that might be epic name
+        has_epic_name = values.get("epic_name")
+        if not has_epic_name:
+            for key in values:
+                if key.startswith("customfield_"):
+                    has_epic_name = True
+                    break
+
+        if not has_epic_name:
+            errors.append("Epic Name is required for Epic issues.")
 
     return errors
 
@@ -476,7 +660,7 @@ def _resolve_initial_content(
 def save_issue_draft(jayrah_obj, values):
     """Persist the current issue payload to a timestamped markdown file."""
 
-    resources = _collect_issue_resources(jayrah_obj)
+    resources = _collect_issue_resources(jayrah_obj, issuetype=values.get("issuetype"))
     template_text = _build_issue_template(values, resources)
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")

@@ -207,8 +207,11 @@ def test_get_components(sample_config, mock_urlopen, mock_jira_client):
 @patch("urllib.request.urlopen")
 def test_http_error_handling(mock_urlopen, sample_config):
     """Test handling of HTTP errors."""
+    # Create a mock Message object for headers
+    mock_headers = MagicMock()
+
     mock_urlopen.side_effect = urllib.error.HTTPError(
-        "https://test-jira.example.com", 401, "Unauthorized", {}, None
+        "https://test-jira.example.com", 401, "Unauthorized", mock_headers, None
     )
 
     client = JiraHTTP(sample_config)
@@ -230,3 +233,60 @@ def test_url_error_handling(mock_urlopen, sample_config):
         client._request("GET", "issue/TEST-123")
 
     assert "URL error" in str(excinfo.value)
+
+
+def test_get_project_priorities_v2(sample_config):
+    """Test getting project-specific priorities for API v2."""
+    client = JiraHTTP(sample_config, api_version="2")
+
+    with patch.object(client, "_request") as mock_request:
+        # Mock createmeta response
+        mock_request.side_effect = [
+            # First call for createmeta
+            {
+                "projects": [
+                    {
+                        "key": "TEST",
+                        "issuetypes": [
+                            {
+                                "fields": {
+                                    "priority": {
+                                        "allowedValues": [
+                                            {"name": "High"},
+                                            {"name": "Medium"},
+                                            {"name": "Low"},
+                                        ]
+                                    }
+                                }
+                            }
+                        ],
+                    }
+                ]
+            }
+        ]
+
+        priorities = client.get_project_priorities()
+        assert sorted(priorities) == sorted(["High", "Medium", "Low"])
+
+        # Verify createmeta was called with correct expansion
+        mock_request.assert_any_call(
+            "GET",
+            "issue/createmeta",
+            params={"projectKeys": "TEST", "expand": "projects.issuetypes.fields"},
+            label="Fetching project metadata",
+        )
+
+
+def test_get_project_priorities_fallback(sample_config):
+    """Test fallback to global priorities when createmeta fails."""
+    client = JiraHTTP(sample_config)
+
+    with patch.object(client, "_request") as mock_request:
+        # Mock createmeta to fail or return nothing, and global priorities to succeed
+        mock_request.side_effect = [
+            {},  # createmeta returns empty
+            [{"name": "Global High"}, {"name": "Global Low"}],  # global priorities
+        ]
+
+        priorities = client.get_project_priorities()
+        assert priorities == ["Global High", "Global Low"]

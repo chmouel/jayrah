@@ -41,6 +41,8 @@ class V2Formatter(FormatterBase):
 
     def get_issue_types_endpoint(self, projectkey) -> str:
         """API v2 endpoint for issue types."""
+        if projectkey:
+            return f"issue/createmeta?projectKeys={projectkey}"
         return "issuetype"
 
 
