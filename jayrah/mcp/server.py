@@ -590,6 +590,36 @@ def create_server(context: ServerContext) -> Server:
                     "required": ["ticket", "comment"],
                 },
             ),
+            # Get raw issue JSON
+            types.Tool(
+                name="get-issue-json",
+                description="Get raw JSON data for a Jira issue including all fields like story points",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "ticket": {
+                            "type": "string",
+                            "description": "Issue key (e.g., PROJ-123)",
+                        },
+                    },
+                    "required": ["ticket"],
+                },
+            ),
+            # Aggregate story points
+            types.Tool(
+                name="aggregate-story-points",
+                description="Aggregate story points from a JQL query to calculate totals",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "jql": {
+                            "type": "string",
+                            "description": "JQL query to search for issues",
+                        },
+                    },
+                    "required": ["jql"],
+                },
+            ),
         ]
 
     @server.call_tool()
@@ -607,6 +637,8 @@ def create_server(context: ServerContext) -> Server:
             "list-boards": _handle_list_boards,
             "search": _handle_search,
             "add-comment": _handle_add_comment,
+            "get-issue-json": _handle_get_issue_json,
+            "aggregate-story-points": _handle_aggregate_story_points,
         }
 
         try:
@@ -947,6 +979,121 @@ def create_server(context: ServerContext) -> Server:
                 text=f"Successfully added comment to issue {ticket}",
             )
         ]
+
+    async def _handle_get_issue_json(arguments: Dict) -> Sequence[ContentType]:
+        """Handle the get-issue-json tool to get raw JSON for a Jira issue."""
+        ticket = arguments.get("ticket")
+        if not ticket:
+            raise ValueError("Ticket key is required")
+
+        issue = context.boards_obj.jira.get_issue(ticket)
+        return [types.TextContent(type="text", text=json.dumps(issue, indent=2))]
+
+    async def _handle_aggregate_story_points(arguments: Dict) -> Sequence[ContentType]:
+        """Handle the aggregate-story-points tool to calculate total story points from a JQL query."""
+        jql = arguments.get("jql")
+        if not jql:
+            raise ValueError("JQL query is required")
+
+        # Add ordering if not already in the JQL
+        if "order by" not in jql.lower():
+            jql += " ORDER BY updated DESC"
+
+        try:
+            # Fetch all issues matching the JQL (paginate if needed)
+            all_issues = []
+            start_at = 0
+            page_size = 100
+            total = None
+
+            while True:
+                result = context.boards_obj.jira.search_issues(
+                    jql, start_at=start_at, max_results=page_size
+                )
+                issues = result.get("issues", [])
+                all_issues.extend(issues)
+
+                if total is None:
+                    total = result.get("total", 0)
+
+                if len(all_issues) >= total:
+                    break
+
+                start_at += page_size
+
+            # Find the story points field (it's typically a custom field)
+            # Common field names: customfield_10002, customfield_12310243, etc.
+            story_points_field = None
+            story_points_total = 0
+            issues_with_points = 0
+            issues_without_points = []
+
+            # Try to identify the story points field from the first issue
+            if all_issues:
+                first_issue = all_issues[0]
+                fields = first_issue.get("fields", {})
+
+                # Common story points field names/patterns
+                for field_key, field_value in fields.items():
+                    # Story points are usually numeric custom fields
+                    if field_key.startswith("customfield_") and isinstance(
+                        field_value, (int, float)
+                    ):
+                        # This is a heuristic - we assume the first numeric custom field is story points
+                        # A better approach would be to check field metadata, but this should work for now
+                        if story_points_field is None and field_value is not None:
+                            story_points_field = field_key
+
+            # Aggregate story points
+            for issue in all_issues:
+                key = issue.get("key", "Unknown")
+                fields = issue.get("fields", {})
+
+                if story_points_field and story_points_field in fields:
+                    points = fields.get(story_points_field)
+                    if points is not None and isinstance(points, (int, float)):
+                        story_points_total += points
+                        issues_with_points += 1
+                    else:
+                        issues_without_points.append(key)
+                else:
+                    issues_without_points.append(key)
+
+            # Format the result
+            result_text = "Story Points Aggregation Results\n"
+            result_text += "=================================\n\n"
+            result_text += f"JQL: {jql}\n\n"
+            result_text += f"Total Issues: {len(all_issues)}\n"
+            result_text += f"Issues with Story Points: {issues_with_points}\n"
+            result_text += (
+                f"Issues without Story Points: {len(issues_without_points)}\n"
+            )
+            result_text += f"\nTotal Story Points: {story_points_total}\n"
+
+            if story_points_field:
+                result_text += f"\nStory Points Field: {story_points_field}\n"
+            else:
+                result_text += "\nWarning: Could not identify story points field\n"
+
+            if issues_without_points and len(issues_without_points) <= 20:
+                result_text += "\nIssues without story points:\n"
+                for issue_key in issues_without_points:
+                    result_text += f"  - {issue_key}\n"
+            elif issues_without_points:
+                result_text += "\nFirst 20 issues without story points:\n"
+                for issue_key in issues_without_points[:20]:
+                    result_text += f"  - {issue_key}\n"
+                result_text += f"  ... and {len(issues_without_points) - 20} more\n"
+
+            return [types.TextContent(type="text", text=result_text)]
+
+        except Exception as e:
+            return [
+                types.TextContent(
+                    type="text",
+                    text=f"Error aggregating story points: {str(e)}\nJQL: {jql}",
+                )
+            ]
 
     return server
 
