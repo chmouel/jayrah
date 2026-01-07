@@ -64,8 +64,10 @@ class WebAppState(JayrahAppMixin):
 
         while True:
             result = self.jayrah_obj.jira.search_issues(
-                jql=jql, start_at=start_at, max_results=max_results_per_page,
-                use_cache=False
+                jql=jql,
+                start_at=start_at,
+                max_results=max_results_per_page,
+                use_cache=False,
             )
 
             if not result:
