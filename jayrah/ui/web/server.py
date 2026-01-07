@@ -49,12 +49,44 @@ class WebAppState(JayrahAppMixin):
             else:
                 jql = "updated >= -30d ORDER BY updated DESC"  # Default: issues updated in last 30 days
 
-            result = self.jayrah_obj.jira.search_issues(jql=jql, max_results=100)
-            self.issues = result.get("issues", []) if result else []
+            # Fetch all issues with pagination
+            self.issues = self._fetch_all_issues(jql)
             print(f"Loaded {len(self.issues)} issues from Jira using JQL: {jql}")
         except Exception as e:
             print(f"Error loading issues: {e}")
             self.issues = []
+
+    def _fetch_all_issues(self, jql: str, max_results_per_page: int = 100):
+        """Fetch all issues by paginating through results."""
+        all_issues = []
+        start_at = 0
+        total = None
+
+        while True:
+            result = self.jayrah_obj.jira.search_issues(
+                jql=jql, start_at=start_at, max_results=max_results_per_page,
+                use_cache=False
+            )
+
+            if not result:
+                break
+
+            issues = result.get("issues", [])
+            all_issues.extend(issues)
+
+            # Get total on first request
+            if total is None:
+                total = result.get("total", 0)
+                print(f"Fetching {total} total issues...")
+
+            # Check if we've fetched all issues
+            start_at += len(issues)
+            if start_at >= total or len(issues) == 0:
+                break
+
+            print(f"  Fetched {start_at}/{total} issues...")
+
+        return all_issues
 
 
 def get_app_state() -> WebAppState:
@@ -156,9 +188,8 @@ def switch_board(board_name: str, state: WebAppState = Depends(get_app_state)):
                 detail=f"Invalid board or missing JQL: {board_name}",
             )
 
-        # Search for issues with the new board's JQL
-        result = state.jayrah_obj.jira.search_issues(jql=jql, max_results=100)
-        new_issues = result.get("issues", []) if result else []
+        # Search for issues with the new board's JQL (fetch all with pagination)
+        new_issues = state._fetch_all_issues(jql)
 
         # Update the state with new issues
         state.issues = new_issues
@@ -195,9 +226,8 @@ def refresh_issues(state: WebAppState = Depends(get_app_state)):
         else:
             jql = "updated >= -30d ORDER BY updated DESC"  # Default: issues updated in last 30 days
 
-        # Fetch fresh issues from Jira (use_cache=False to bypass cache)
-        result = state.jayrah_obj.jira.search_issues(jql=jql, max_results=100)
-        new_issues = result.get("issues", []) if result else []
+        # Fetch fresh issues from Jira (fetch all with pagination)
+        new_issues = state._fetch_all_issues(jql)
 
         # Update the state with new issues
         state.issues = new_issues

@@ -22,6 +22,10 @@ def get_row_data_for_issue(issue: dict) -> tuple:
     updated = utils.show_time(fields.get("updated", ""))
     status = fields["status"]["name"]
     priority = fields.get("priority", {}).get("name", "Unknown")
+
+    # Extract component names for component filtering
+    components = [c.get("name") for c in fields.get("components", [])]
+
     return (
         issue_type,
         key,
@@ -32,6 +36,7 @@ def get_row_data_for_issue(issue: dict) -> tuple:
         reporter,
         created,
         updated,
+        components,
     )
 
 

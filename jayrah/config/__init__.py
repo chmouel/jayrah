@@ -147,8 +147,13 @@ def read_config(ret: dict, config_file: pathlib.Path) -> dict:
             # Add support for custom_fields in general
             if general.get("custom_fields"):
                 ret["custom_fields"] = general["custom_fields"]
+            # Add support for component_repos in general
+            if general.get("component_repos"):
+                ret["component_repos"] = general["component_repos"]
         if config.get("custom_fields"):
             ret["custom_fields"] = config["custom_fields"]
+        if config.get("component_repos"):
+            ret["component_repos"] = config["component_repos"]
         if config.get("boards"):
             ret["boards"] = config["boards"]
         if config.get("create"):
@@ -177,6 +182,7 @@ def write_config(config, config_file: pathlib.Path):
         "create",
         "insecure",
         "custom_fields",
+        "component_repos",
     ]:
         if config.get(key):
             yaml_config["general"][key] = config[key]

@@ -4,6 +4,11 @@ let jiraBaseUrl = null;
 let availableBoards = [];
 let currentBoard = null;
 
+// Component filter state
+let componentFilter = 'all';      // Current selected component ('all' or component name)
+let availableComponents = [];     // Unique components from current issues
+let unfilteredIssues = [];        // All issues before component filtering
+
 // Layout state management
 const LAYOUT_STATES = {
   HORIZONTAL: "layout-horizontal",
@@ -868,9 +873,11 @@ async function refreshIssues() {
 
     // Fetch issues with current search query (will get fresh data after cache clear)
     allIssues = await fetchIssues(query);
+    unfilteredIssues = allIssues; // Update unfiltered copy
+    availableComponents = extractComponentsFromIssues(allIssues); // Re-extract components
 
-    // Re-render the table
-    renderTable(allIssues);
+    // Re-apply component filter if active
+    applyComponentFilter();
 
     // Close detail panel to refresh the view
     closeDetail();
@@ -1341,7 +1348,8 @@ document.getElementById("search").addEventListener("input", (e) => {
   clearTimeout(searchTimeout);
   searchTimeout = setTimeout(async () => {
     const issues = await fetchIssues(e.target.value);
-    renderTable(issues);
+    unfilteredIssues = issues; // Update unfiltered copy
+    applyComponentFilter(); // Apply component filter to search results
     closeDetail(); // Close detail panel when searching
 
     // Auto-select first issue in search results if any exist
@@ -1437,6 +1445,11 @@ document.addEventListener("keydown", (e) => {
     toggleLayoutState();
   } else if (e.key.toLowerCase() === "b") {
     showBoardSelector();
+  } else if (e.key.toLowerCase() === "c") {
+    if (currentBoard === "cve-tracker") {
+      e.preventDefault();
+      showComponentFilterModal();
+    }
   } else if (e.key === "r") {
     refreshIssues();
   } else if (e.key === "/") {
@@ -1709,8 +1722,14 @@ async function switchToBoard(boardName) {
 
     // Reload issues
     allIssues = await fetchIssues();
+    unfilteredIssues = allIssues; // Update unfiltered copy
+    availableComponents = extractComponentsFromIssues(allIssues); // Re-extract components
+    componentFilter = "all"; // Reset filter when switching boards
     renderTable(allIssues);
     closeDetail();
+
+    // Update component filter visibility
+    updateComponentFilterVisibility();
 
     // Save state when board is switched
     saveUIState();
@@ -1743,10 +1762,13 @@ async function init() {
   }
 
   allIssues = await fetchIssues();
+  unfilteredIssues = allIssues; // Store unfiltered copy for component filtering
+  availableComponents = extractComponentsFromIssues(allIssues); // Extract components
   renderTable(allIssues);
 
   // Restore UI state after initial load
   restoreUIState();
+  updateComponentFilterVisibility(); // Update component filter button visibility
 
   // Auto-select first issue if no issue is currently selected and issues exist
   setTimeout(() => {
@@ -2846,3 +2868,185 @@ async function saveCustomField(fieldId, issueKey) {
     }
   }
 }
+
+// ============================================================================
+// Component Filter Functions
+// ============================================================================
+
+function extractComponentsFromIssues(issues) {
+  const componentSet = new Set();
+  issues.forEach((row) => {
+    const components = row[9] || []; // Components at index 9
+    components.forEach((comp) => {
+      if (comp) componentSet.add(comp);
+    });
+  });
+  return Array.from(componentSet).sort();
+}
+
+function showComponentFilterModal() {
+  if (availableComponents.length === 0) {
+    showNotification("No components found in current issues", "info");
+    return;
+  }
+
+  // Remove existing modal
+  const existing = document.getElementById("component-modal");
+  if (existing) existing.remove();
+
+  const modal = document.createElement("div");
+  modal.id = "component-modal";
+  modal.style.cssText = `
+        position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+        background: rgba(0,0,0,0.7); z-index: 10000;
+        display: flex; align-items: center; justify-content: center;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        animation: fadeIn 0.2s ease;
+    `;
+
+  const content = document.createElement("div");
+  content.style.cssText = `
+        background: #ffffff; color: #333; border: 1px solid #e1e4e8;
+        border-radius: 8px; padding: 1.5rem; max-width: 400px;
+        max-height: 80vh; overflow-y: auto; box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        margin: 1rem; min-width: 300px;
+    `;
+
+  let componentsHtml = `
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; border-bottom: 1px solid #e1e4e8; padding-bottom: 1rem;">
+            <h3 style="margin: 0; color: #0366d6; font-size: 1.1rem;">🔧 Filter by Component</h3>
+            <button id="close-component-modal" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #6a737d; padding: 0.25rem;">&times;</button>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+    `;
+
+  // Add "All Components" option
+  const isAllSelected = componentFilter === "all";
+  componentsHtml += `
+        <button class="component-option" data-component="all" style="
+            background: ${isAllSelected ? "#f1f8ff" : "#ffffff"};
+            border: 1px solid ${isAllSelected ? "#0366d6" : "#e1e4e8"};
+            border-radius: 6px; padding: 0.75rem; cursor: pointer;
+            text-align: left; transition: all 0.2s ease;
+            color: ${isAllSelected ? "#0366d6" : "#24292e"};
+        ">
+            <div style="font-weight: 600;">All Components ${isAllSelected ? "✓" : ""}</div>
+            <div style="font-size: 0.875rem; color: #6a737d;">Show all CVE issues</div>
+        </button>
+    `;
+
+  // Add individual components
+  availableComponents.forEach((comp) => {
+    const isSelected = componentFilter === comp;
+    componentsHtml += `
+            <button class="component-option" data-component="${comp}" style="
+                background: ${isSelected ? "#f1f8ff" : "#ffffff"};
+                border: 1px solid ${isSelected ? "#0366d6" : "#e1e4e8"};
+                border-radius: 6px; padding: 0.75rem; cursor: pointer;
+                text-align: left; transition: all 0.2s ease;
+                color: ${isSelected ? "#0366d6" : "#24292e"};
+            ">
+                <div style="font-weight: 600;">${comp} ${isSelected ? "✓" : ""}</div>
+            </button>
+        `;
+  });
+
+  componentsHtml += "</div>";
+  content.innerHTML = componentsHtml;
+  modal.appendChild(content);
+  document.body.appendChild(modal);
+
+  // Event handlers
+  modal.addEventListener("click", (e) => {
+    if (e.target === modal) hideComponentModal();
+  });
+
+  document
+    .getElementById("close-component-modal")
+    .addEventListener("click", hideComponentModal);
+
+  content.querySelectorAll(".component-option").forEach((button) => {
+    button.addEventListener("click", () => {
+      const component = button.getAttribute("data-component");
+      selectComponent(component);
+    });
+
+    button.addEventListener("mouseenter", () => {
+      if (!button.style.backgroundColor.includes("f1f8ff")) {
+        button.style.backgroundColor = "#f6f8fa";
+        button.style.borderColor = "#d1d5da";
+      }
+    });
+
+    button.addEventListener("mouseleave", () => {
+      if (!button.style.backgroundColor.includes("f1f8ff")) {
+        button.style.backgroundColor = "#ffffff";
+        button.style.borderColor = "#e1e4e8";
+      }
+    });
+  });
+
+  // Keyboard shortcuts
+  document.addEventListener("keydown", handleComponentModalKeyboard);
+}
+
+function handleComponentModalKeyboard(e) {
+  if (e.key === "Escape") {
+    hideComponentModal();
+  }
+}
+
+function hideComponentModal() {
+  const modal = document.getElementById("component-modal");
+  if (modal) {
+    modal.remove();
+    document.removeEventListener("keydown", handleComponentModalKeyboard);
+  }
+}
+
+function selectComponent(component) {
+  componentFilter = component;
+  hideComponentModal();
+  applyComponentFilter();
+}
+
+function applyComponentFilter() {
+  let filtered = unfilteredIssues;
+
+  if (componentFilter !== "all") {
+    filtered = unfilteredIssues.filter((row) => {
+      const components = row[9] || [];
+      return components.includes(componentFilter);
+    });
+  }
+
+  allIssues = filtered;
+  renderTable(filtered);
+
+  // Update button text
+  const filterText = document.getElementById("component-filter-text");
+  if (filterText) {
+    filterText.textContent =
+      componentFilter === "all" ? "All Components" : componentFilter;
+  }
+
+  // Update stats
+  updateStats(filtered.length);
+}
+
+function updateComponentFilterVisibility() {
+  const filterButton = document.getElementById("component-filter");
+  if (!filterButton) return;
+
+  // Show component filter only on cve-tracker board
+  if (currentBoard === "cve-tracker") {
+    filterButton.style.display = "inline-flex";
+  } else {
+    filterButton.style.display = "none";
+  }
+}
+
+// Add event listener for component filter button
+document
+  .getElementById("component-filter")
+  .addEventListener("click", showComponentFilterModal);

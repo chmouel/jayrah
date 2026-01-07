@@ -9,6 +9,11 @@ general:
   label_excludes: |
     ^(CVE-*|flawuuid|flaw.*#|periodic-ci|20\d+|CY\d+|pscomponent:)
 
+  # Component to repository path mapping (for future introspection features)
+  component_repos:
+    "Tekton Hub": "/home/user/repos/hub"
+    "Pipelines as Code": "/home/user/repos/pipelines-as-code"
+
 boards:
   - name: "myissue"
     jql: |
@@ -33,3 +38,11 @@ boards:
       component = 'MyComponent' AND fixVersion in unreleasedVersions(PRJ) AND resolution = 'Unresolved'
     order_by: "assignee,fixVersion "
     description: "Component issues targeted for next version and resolution is Unresolved"
+
+  - name: "cve-tracker"
+    jql: |
+      project = SRVKP AND status != Closed
+      AND summary ~ "cve-*"
+      AND labels = security
+    order_by: "priority DESC"
+    description: "CVE Security Tracker"

@@ -1697,3 +1697,31 @@ body {
   align-items: center;
   gap: 0.25rem;
 }
+
+/* Component Filter Button */
+.component-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--card-background);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 0.875rem;
+}
+
+.component-filter:hover {
+  background: var(--hover-background);
+  border-color: var(--primary-color);
+}
+
+.component-filter svg {
+  flex-shrink: 0;
+}
+
+#component-filter-text {
+  font-weight: 500;
+  white-space: nowrap;
+}

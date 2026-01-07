@@ -215,6 +215,54 @@ This will start a web UI server on [http://localhost:8000](http://localhost:8000
 **Security Note:**
 > The web server is intended for local development and use only. Do **not** expose it to the public internet, as it is not hardened for production or external access.
 
+### CVE Tracker Board
+
+Track security CVE issues across components with filtering and repository mapping.
+
+#### Setup
+
+Add to your `~/.config/jayrah/config.yaml`:
+
+```yaml
+general:
+  # ... your existing config ...
+
+  # Optional: Map components to local repository paths
+  component_repos:
+    "Tekton Hub": "/home/user/repos/hub"
+    "Pipelines as Code": "/home/user/repos/pipelines-as-code"
+
+boards:
+  - name: "cve-tracker"
+    jql: |
+      project = SRVKP AND status != Closed
+      AND summary ~ "cve-*"
+      AND labels = security
+    order_by: "priority DESC"
+    description: "CVE Security Tracker"
+```
+
+Customize the `project` and other JQL parameters as needed for your environment.
+
+#### Usage
+
+1. Start web UI: `jayrah web`
+2. Press **B** to open board switcher
+3. Select "CVE Security Tracker"
+4. Press **C** or click the component filter button to filter by component
+5. Select a specific component or "All Components"
+
+The component filter automatically detects all components from loaded CVE issues.
+
+#### Component Repository Mapping
+
+The `component_repos` mapping stores local paths to component repositories. This enables future features like:
+- Quick navigation to component source code
+- Local repository introspection
+- Cross-referencing CVEs with code changes
+
+The mapping is optional and doesn't affect the component filter functionality.
+
 ## Jayrah CLI
 
 jayrah also provides a command-line interface (CLI) for performing various Jira operations directly from the terminal. Here are some of the available commands:
