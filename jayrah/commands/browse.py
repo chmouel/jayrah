@@ -79,7 +79,6 @@ def browse(
 
     if choose:
         if not selected_key:
-            click.secho("No issue selected", fg="yellow", err=True)
             return
 
         server = jayrah_obj.config.get("jira_server")

@@ -192,6 +192,12 @@ class IssueBrowserApp(App, JayrahAppMixin, IssueBrowserActions):
         except Exception as e:
             self.log(f"Error handling row highlight: {e}")
 
+    @on(DataTable.RowSelected)
+    def _handle_row_selected(self, event: DataTable.RowSelected) -> None:  # type: ignore[name-defined]
+        """Handle Enter key press on a row - exit if in auto_choose mode."""
+        if self.auto_choose and self.selected_issue:
+            self.exit(self.selected_issue)
+
     def apply_fuzzy_filter(
         self, text: str = "", msg: str = "Showing all issues"
     ) -> None:
@@ -275,4 +281,8 @@ def run_textual_browser(
         issues, config, command, jql, order_by, auto_choose=auto_choose
     )
     result = app.run()
+    # In auto_choose mode, only return explicit exit value (Enter key)
+    # Don't fallback to selected_issue for q/Ctrl+C
+    if auto_choose:
+        return result
     return result if result else app.selected_issue
