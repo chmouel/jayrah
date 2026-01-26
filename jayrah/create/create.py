@@ -535,40 +535,46 @@ def _build_issue_template(values, resources):
     alllabels_f = [f"- {name}" for name in resources["labels"]]
     allpriorities_f = [f"- {name}" for name in resources["priorities"]]
 
-    # Build the YAML front matter
-    yaml_fields = [
-        f"title: {values.get('title', '')}",
-        f"type: {issuetype_value}",
-    ]
+    # Build the YAML front matter using safe_dump to handle quoting
+    frontmatter_data = {
+        "title": values.get("title", ""),
+        "type": issuetype_value,
+    }
 
     if issuetype_value.lower() == "epic":
-        yaml_fields.append(
-            f"epic-name: {values.get('epic_name', values.get('title', ''))}"
-        )
+        frontmatter_data["epic-name"] = values.get("epic_name", values.get("title", ""))
 
-    yaml_fields.extend(
-        [
-            f"components: {components_value}",
-            f"labels: {labels_value}",
-            f"assignee: {values.get('assignee', '')}",
-            f"priority: {values.get('priority', '')}",
-        ]
-    )
+    frontmatter_data["components"] = components_value
+    frontmatter_data["labels"] = labels_value
+    frontmatter_data["assignee"] = values.get("assignee", "")
+    frontmatter_data["priority"] = values.get("priority", "")
 
     # Add any other custom fields
     for key, value in values.items():
         if key.startswith("customfield_"):
-            yaml_fields.append(f"{key}: {value}")
+            frontmatter_data[key] = value
 
-    # Add required fields that are not yet in values
+    # Dump the main part preserving order
+    yaml_str = yaml.safe_dump(
+        frontmatter_data,
+        sort_keys=False,
+        default_flow_style=False,
+        allow_unicode=True,
+    ).strip()
+
+    # Add required fields that are not yet in values (appended manually to include comments)
+    missing_required_lines = []
     required_fields = resources.get("required_fields", {})
     for field_id, field_name in required_fields.items():
         if field_id not in values and field_id not in {
             k.replace("-", "_") for k in values
         }:
-            yaml_fields.append(f"{field_id}: <required> # {field_name}")
+            missing_required_lines.append(f"{field_id}: <required> # {field_name}")
 
-    template = "---\n" + "\n".join(yaml_fields) + "\n---\n"
+    template = "---\n" + yaml_str
+    if missing_required_lines:
+        template += "\n" + "\n".join(missing_required_lines)
+    template += "\n---\n"
     template += f"{content_value.strip() or defaults.DEFAULT_CONTENT}\n\n"
     template += f"{_issue_helper_comments(resources)}\n\n"
     template += f"{defaults.MARKER}\n\n"

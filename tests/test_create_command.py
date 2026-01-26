@@ -162,3 +162,36 @@ def test_parse_editor_submission_strips_helper_comments():
 
     assert updated["__raw_content__"].strip() == "Body text"
     assert "jayrah-helper" not in updated["__raw_content__"]
+
+
+def test_build_issue_template_handles_quoting():
+    """Ensure string values with colons are properly quoted in YAML frontmatter."""
+
+    values = {
+        "title": "Bug: Fix something",
+        "issuetype": "Bug",
+        "components": ["A, B", "C"],
+        "labels": [],
+        "assignee": "",
+        "priority": "",
+        "content": "Body text",
+    }
+    resources = {
+        "issuetypes": {"Bug": "1"},
+        "priorities": [],
+        "labels": [],
+        "components": [],
+        "required_fields": {},
+    }
+
+    template = _build_issue_template(values, resources)
+
+    # Check that it contains the quoted title
+    assert (
+        "title: 'Bug: Fix something'" in template
+        or 'title: "Bug: Fix something"' in template
+    )
+
+    # Verify it parses back correctly
+    updated = _parse_editor_submission(template, values.copy())
+    assert updated["title"] == "Bug: Fix something"
