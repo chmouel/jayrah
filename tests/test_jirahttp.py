@@ -207,6 +207,9 @@ def test_get_components(sample_config, mock_urlopen, mock_jira_client):
 @patch("urllib.request.urlopen")
 def test_http_error_handling(mock_urlopen, sample_config):
     """Test handling of HTTP errors."""
+    # Import JiraAuthenticationError for test
+    from jayrah.api.exceptions import JiraAuthenticationError
+
     # Create a mock Message object for headers
     mock_headers = MagicMock()
 
@@ -216,10 +219,13 @@ def test_http_error_handling(mock_urlopen, sample_config):
 
     client = JiraHTTP(sample_config)
 
-    with pytest.raises(Exception) as excinfo:
+    with pytest.raises(JiraAuthenticationError) as excinfo:
         client._request("GET", "issue/TEST-123")
 
-    assert "HTTP error" in str(excinfo.value)
+    # Verify the error message mentions authentication
+    assert "Authentication failed" in str(excinfo.value)
+    # Verify the error contains endpoint information
+    assert "issue/TEST-123" in str(excinfo.value)
 
 
 @patch("urllib.request.urlopen")

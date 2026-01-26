@@ -1,12 +1,13 @@
 """Refactored Jira HTTP API client with clean separation of concerns."""
 
 import sqlite3
+import time
 from typing import Any, Dict, List, Optional
 
 import click
 
 from ..utils import cache, log
-from . import auth, formatters, request_handler
+from . import auth, exceptions, formatters, request_handler
 
 
 class JiraHTTP:
@@ -255,85 +256,204 @@ class JiraHTTP:
 
         return self._request("POST", f"issue/{issue_key}/comment", jeez=payload)
 
-    def get_issue_types(self) -> Dict[str, str]:
-        """Get all available issue types for the project."""
+    def get_issue_types(self, use_cache: bool = True) -> Dict[str, str]:
+        """Get all available issue types for the project.
+
+        Args:
+            use_cache: Whether to use cached results (default: True)
+
+        Returns:
+            Dictionary mapping issue type names to IDs
+        """
         project_key = self.config.get("jira_project")
         ret: Dict[str, str] = {}
+        errors = []  # Track all attempted endpoints and their errors
 
+        # If no project configured, use global endpoint
         if not project_key:
-            response = self._request(
-                "GET", "issuetype", label="Fetching issue types", use_cache=False
-            )
-            if isinstance(response, list):
-                for it in response:
-                    if isinstance(it, dict):
-                        name = it.get("name")
-                        iid = it.get("id")
-                        if name and iid:
-                            ret[str(name)] = str(iid)
-            return ret
+            if self.verbose:
+                log("No project key configured, fetching global issue types")
+            try:
+                response = self._request(
+                    "GET",
+                    "issuetype",
+                    label="Fetching issue types",
+                    use_cache=use_cache,
+                )
+                if isinstance(response, list):
+                    for it in response:
+                        if isinstance(it, dict):
+                            name = it.get("name")
+                            iid = it.get("id")
+                            if name and iid:
+                                ret[str(name)] = str(iid)
+                if self.verbose:
+                    log(f"Found {len(ret)} global issue types")
+                return ret
+            except Exception as e:
+                if self.verbose:
+                    log(f"Failed to fetch global issue types: {e}")
+                return ret
 
-        # Try modern Jira DC endpoint first (Jira 8.14+)
-        try:
-            endpoint = f"issue/createmeta/{project_key}/issuetypes"
-            response = self._request(
-                "GET", endpoint, label="Fetching issue types (modern)", use_cache=False
-            )
-            if isinstance(response, dict) and "issueTypes" in response:
-                for it in response["issueTypes"]:
-                    if isinstance(it, dict):
-                        name = it.get("name")
-                        iid = it.get("id")
-                        if name and iid:
-                            ret[str(name)] = str(iid)
+        # Try endpoints in order of preference
+        endpoints = [
+            {
+                "name": "Modern Jira DC (8.14+)",
+                "endpoint": f"issue/createmeta/{project_key}/issuetypes",
+                "label": "Fetching issue types (modern)",
+                "parser": self._parse_modern_issue_types,
+            },
+            {
+                "name": "Legacy/Cloud createmeta",
+                "endpoint": self.formatter.get_issue_types_endpoint(project_key),
+                "label": "Fetching issue types",
+                "parser": self._parse_legacy_issue_types,
+            },
+            {
+                "name": "Global fallback",
+                "endpoint": "issuetype",
+                "label": "Fetching issue types (fallback)",
+                "parser": self._parse_global_issue_types,
+            },
+        ]
+
+        for i, ep_config in enumerate(endpoints):
+            try:
+                if self.verbose:
+                    log(
+                        f"Trying endpoint: {ep_config['name']} - {ep_config['endpoint']}"
+                    )
+
+                response = self._request(
+                    "GET",
+                    ep_config["endpoint"],
+                    label=ep_config["label"],
+                    use_cache=use_cache,
+                )
+
+                # Parse response using appropriate parser
+                ret = ep_config["parser"](response, project_key)
+
                 if ret:
+                    if self.verbose:
+                        log(
+                            f"✓ Success with {ep_config['name']}: found {len(ret)} issue types"
+                        )
                     return ret
-        except Exception:
-            pass
 
-        # Try legacy/Cloud createmeta endpoint
-        endpoint = self.formatter.get_issue_types_endpoint(project_key)
-        try:
-            response = self._request(
-                "GET", endpoint, label="Fetching issue types", use_cache=False
-            )
-            if isinstance(response, list):
-                for it in response:
-                    if isinstance(it, dict):
-                        name = it.get("name")
-                        iid = it.get("id")
-                        if name and iid:
-                            ret[str(name)] = str(iid)
-            elif isinstance(response, dict):
-                projects = response.get("projects", [])
-                for project in projects:
-                    if isinstance(project, dict) and project.get("key") == project_key:
-                        for it in project.get("issuetypes", []):
-                            if isinstance(it, dict):
-                                name = it.get("name")
-                                iid = it.get("id")
-                                if name and iid:
-                                    ret[str(name)] = str(iid)
-        except Exception:
-            # Final fallback to global
-            response = self._request(
-                "GET",
-                "issuetype",
-                label="Fetching issue types (fallback)",
-                use_cache=False,
-            )
-            if isinstance(response, list):
-                for it in response:
-                    if isinstance(it, dict):
-                        name = it.get("name")
-                        iid = it.get("id")
-                        if name and iid:
-                            ret[str(name)] = str(iid)
+                errors.append(f"{ep_config['name']}: No issue types found in response")
+                if self.verbose:
+                    log(f"No issue types found in {ep_config['name']} response")
+
+            except (
+                exceptions.JiraAuthenticationError,
+                exceptions.JiraAuthorizationError,
+                exceptions.JiraRateLimitError,
+            ) as e:
+                # Don't retry on auth or rate limit errors
+                errors.append(f"{ep_config['name']}: {str(e)}")
+                if self.verbose:
+                    log(
+                        f"✗ {ep_config['name']} failed with critical error: {type(e).__name__}"
+                    )
+                raise
+
+            except exceptions.JiraNotFoundError:
+                errors.append(f"{ep_config['name']}: Resource not found (404)")
+                if self.verbose:
+                    log(f"✗ {ep_config['name']} not found (404)")
+                    if "project" in ep_config["endpoint"].lower() and project_key:
+                        log(
+                            f"  → Check that project '{project_key}' exists and is accessible"
+                        )
+
+            except Exception as e:
+                errors.append(f"{ep_config['name']}: {type(e).__name__}: {str(e)}")
+                if self.verbose:
+                    log(f"✗ {ep_config['name']} failed: {e}")
+
+            # Add delay between attempts to avoid rate limiting (except after last attempt)
+            if i < len(endpoints) - 1:
+                if self.verbose:
+                    log("Waiting 0.5s before next attempt...")
+                time.sleep(0.5)
+
+        # If we got here, all endpoints failed
+        if self.verbose:
+            log("All endpoints failed to fetch issue types")
+            for error in errors:
+                log(f"  - {error}")
 
         return ret
 
-    def get_project_priorities(self, issuetype: Optional[str] = None) -> List[str]:
-        """Get all available priorities for the project, optionally filtered by issue type."""
+    def _parse_modern_issue_types(
+        self, response: Dict[str, Any], project_key: str
+    ) -> Dict[str, str]:
+        """Parse issue types from modern Jira DC endpoint."""
+        ret: Dict[str, str] = {}
+        if isinstance(response, dict) and "issueTypes" in response:
+            for it in response["issueTypes"]:
+                if isinstance(it, dict):
+                    name = it.get("name")
+                    iid = it.get("id")
+                    if name and iid:
+                        ret[str(name)] = str(iid)
+        return ret
+
+    def _parse_legacy_issue_types(
+        self, response: Dict[str, Any], project_key: str
+    ) -> Dict[str, str]:
+        """Parse issue types from legacy/Cloud createmeta endpoint."""
+        ret: Dict[str, str] = {}
+        if isinstance(response, list):
+            # Some endpoints return a list directly
+            for it in response:
+                if isinstance(it, dict):
+                    name = it.get("name")
+                    iid = it.get("id")
+                    if name and iid:
+                        ret[str(name)] = str(iid)
+        elif isinstance(response, dict):
+            # createmeta returns projects array
+            projects = response.get("projects", [])
+            for project in projects:
+                if isinstance(project, dict) and project.get("key") == project_key:
+                    for it in project.get("issuetypes", []):
+                        if isinstance(it, dict):
+                            name = it.get("name")
+                            iid = it.get("id")
+                            if name and iid:
+                                ret[str(name)] = str(iid)
+        return ret
+
+    def _parse_global_issue_types(
+        self, response: Dict[str, Any], project_key: str
+    ) -> Dict[str, str]:
+        """Parse issue types from global issuetype endpoint."""
+        ret: Dict[str, str] = {}
+        if isinstance(response, list):
+            for it in response:
+                if isinstance(it, dict):
+                    name = it.get("name")
+                    iid = it.get("id")
+                    if name and iid:
+                        ret[str(name)] = str(iid)
+        return ret
+
+    def get_project_priorities(
+        self,
+        issuetype: Optional[str] = None,
+        issue_types_cache: Optional[Dict[str, str]] = None,
+    ) -> List[str]:
+        """Get all available priorities for the project, optionally filtered by issue type.
+
+        Args:
+            issuetype: Filter priorities by issue type name
+            issue_types_cache: Pre-fetched issue types dict to avoid duplicate API calls
+
+        Returns:
+            List of priority names
+        """
         project_key = self.config.get("jira_project")
         if not project_key:
             return self._get_global_priorities()
@@ -343,9 +463,10 @@ class JiraHTTP:
         # Try modern Jira DC endpoint first if we have an issue type name
         if issuetype:
             try:
-                # Need to find the ID for the issue type name first
-                issue_types = self.get_issue_types()
-                it_id = issue_types.get(issuetype)
+                # Use cached issue types or fetch with caching enabled
+                if issue_types_cache is None:
+                    issue_types_cache = self.get_issue_types(use_cache=True)
+                it_id = issue_types_cache.get(issuetype)
                 if it_id:
                     endpoint = f"issue/createmeta/{project_key}/issuetypes/{it_id}"
                     response = self._request(

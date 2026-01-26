@@ -51,14 +51,36 @@ class JiraObjectCompletion(click.ParamType):
         """
         Provides shell completion by fetching data from JIRA.
         """
-        jiracnx = setup_jira_http(ctx)
-        fetch_method = getattr(jiracnx, self.fetch_method_name)
-        items = fetch_method()
-        return [
-            click.shell_completion.CompletionItem(item["name"])
-            for item in items
-            if "name" in item and item["name"].lower().startswith(incomplete.lower())
-        ]
+        try:
+            jiracnx = setup_jira_http(ctx)
+            fetch_method = getattr(jiracnx, self.fetch_method_name)
+
+            # Try calling with use_cache=True for methods that support it
+            # (like get_issue_types)
+            try:
+                items = fetch_method(use_cache=True)
+            except TypeError:
+                # Method doesn't accept use_cache parameter
+                items = fetch_method()
+
+            # Handle dict response (like from get_issue_types)
+            if isinstance(items, dict):
+                return [
+                    click.shell_completion.CompletionItem(name)
+                    for name in items.keys()
+                    if name.lower().startswith(incomplete.lower())
+                ]
+
+            # Handle list response (like from get_priorities)
+            return [
+                click.shell_completion.CompletionItem(item["name"])
+                for item in items
+                if "name" in item
+                and item["name"].lower().startswith(incomplete.lower())
+            ]
+        except Exception:
+            # Fail gracefully on errors - return empty list instead of crashing shell
+            return []
 
 
 class PriorityType(JiraObjectCompletion):

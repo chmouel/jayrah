@@ -3,6 +3,7 @@
 import json
 import ssl
 import sys
+import time
 import urllib.error
 import urllib.request
 from typing import Any, Dict, Optional
@@ -10,6 +11,7 @@ from urllib.parse import urlencode
 
 import click
 
+from . import exceptions
 from ..utils import cache, log
 
 
@@ -157,9 +159,32 @@ class JiraRequestHandler:
             return response_data
 
         except urllib.error.HTTPError as e:
-            log(f"HTTP error occurred: {e}")
-            log(f"Response: {e.read().decode('utf-8')}")
-            raise click.ClickException(f"HTTP error: {e}") from e
+            response_body = e.read().decode("utf-8")
+            status_code = e.code
+
+            if self.verbose:
+                log(f"HTTP error occurred: {status_code} {e.reason}")
+                log(f"Response: {response_body}")
+
+            # Add delay before potentially retrying to avoid rate limiting
+            time.sleep(0.5)
+
+            # Raise specific exceptions based on status code
+            if status_code == 429:
+                raise exceptions.JiraRateLimitError(url, response_body)
+            if status_code == 404:
+                raise exceptions.JiraNotFoundError(url, response_body)
+            if status_code == 401:
+                raise exceptions.JiraAuthenticationError(url, response_body)
+            if status_code == 403:
+                raise exceptions.JiraAuthorizationError(url, response_body)
+
+            raise exceptions.JiraAPIError(
+                f"HTTP {status_code}: {e.reason}",
+                url,
+                status_code,
+                response_body,
+            )
         except urllib.error.URLError as e:
             log(f"URL error occurred: {e}")
             raise click.ClickException(f"URL error: {e}") from e

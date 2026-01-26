@@ -258,7 +258,7 @@ def interactive_create(jayrah_obj, defaults, dry_run=False):
                 "Dry run enabled: no changes will be sent to Jira.", fg="yellow"
             )
 
-        if not click.confirm("Create issue?"):
+        if not click.confirm("Create issue?", default=True):
             if click.confirm("Re-open the editor before aborting?", default=False):
                 current = create_edit_issue(
                     jayrah_obj,
@@ -413,10 +413,15 @@ def _collect_issue_resources(jayrah_obj, issuetype=None):
 
     project_key = jayrah_obj.config.get("jira_project")
 
+    # Fetch issue types once BEFORE parallel requests to enable reuse
+    issuetypes = jayrah_obj.jira.get_issue_types(use_cache=True)
+
     with ThreadPoolExecutor() as executor:
-        future_issuetypes = executor.submit(jayrah_obj.jira.get_issue_types)
+        # Pass cached issue types to avoid duplicate API calls
         future_priorities = executor.submit(
-            jayrah_obj.jira.get_project_priorities, issuetype=issuetype
+            jayrah_obj.jira.get_project_priorities,
+            issuetype=issuetype,
+            issue_types_cache=issuetypes,
         )
         future_labels = executor.submit(jayrah_obj.jira.get_labels)
         future_components = executor.submit(jayrah_obj.jira.get_components)
@@ -426,11 +431,40 @@ def _collect_issue_resources(jayrah_obj, issuetype=None):
             else None
         )
 
-        issuetypes = future_issuetypes.result()
-        priorities = future_priorities.result()
-        raw_labels = future_labels.result()
-        components = future_components.result()
-        meta = future_meta.result() if future_meta else {}
+        # Collect results with error handling for non-critical failures
+        priorities = []
+        raw_labels = []
+        components = []
+        meta = {}
+
+        try:
+            priorities = future_priorities.result()
+        except Exception as e:
+            if jayrah_obj.verbose:
+                utils.log(f"Warning: Failed to fetch priorities: {e}")
+            # Continue with empty priorities
+
+        try:
+            raw_labels = future_labels.result()
+        except Exception as e:
+            if jayrah_obj.verbose:
+                utils.log(f"Warning: Failed to fetch labels: {e}")
+            # Continue with empty labels
+
+        try:
+            components = future_components.result()
+        except Exception as e:
+            if jayrah_obj.verbose:
+                utils.log(f"Warning: Failed to fetch components: {e}")
+            # Continue with empty components
+
+        if future_meta:
+            try:
+                meta = future_meta.result()
+            except Exception as e:
+                if jayrah_obj.verbose:
+                    utils.log(f"Warning: Failed to fetch metadata: {e}")
+                # Continue with empty meta
 
     required_fields = {}
     if meta and "projects" in meta:
