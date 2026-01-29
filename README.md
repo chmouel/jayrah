@@ -17,10 +17,10 @@ A simple CLI and TUI for working with Jira from your terminal.
 ## Install
 
 ```sh
-uvx jayrah
+curl -LsSf uvx.sh/jayrah/install.sh | sh
 ```
 
-Or from source:
+Or from source (need `uv` installed):
 
 ```sh
 git clone https://github.com/chmouel/jayrah.git
@@ -252,6 +252,7 @@ Generate comprehensive context files from board tickets for LLM consumption. Thi
 ```
 
 **Options:**
+
 - `--output`, `-o`: Output file path (default: stdout)
 - `--include-comments`, `-c`: Include all comments from tickets
 - `--include-metadata`, `-m`: Include custom fields and metadata
