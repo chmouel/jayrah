@@ -191,8 +191,8 @@ class IssueBrowserApp(App, JayrahAppMixin, IssueBrowserActions):
     @on(DataTable.RowSelected)
     def _handle_row_selected(self, event: DataTable.RowSelected) -> None:  # type: ignore[name-defined]
         """Handle Enter key press on a row - exit if in auto_choose mode."""
-        if self.auto_choose and self.selected_issue:
-            self.exit(self.selected_issue)
+        if self.auto_choose:
+            self.action_confirm_selection()
 
     def apply_fuzzy_filter(
         self, text: str = "", msg: str = "Showing all issues"
