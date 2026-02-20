@@ -1,10 +1,13 @@
 """Manage command for Jayrah Jira CLI."""
 
+import json
 import os
+import re
+from datetime import datetime, timezone
 
 import click
 
-from jayrah.utils import issue_view
+from jayrah.utils import adf, issue_view
 
 from ..ui import boards
 from .common import cli as ccli
@@ -14,6 +17,94 @@ from .completions import BoardType
 @ccli.group()
 def cli():
     """CLI for Jira tickets."""
+
+
+def _machine_timestamp() -> str:
+    """Return a compact UTC timestamp for machine payloads."""
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _display_name(value: dict | None) -> str | None:
+    """Extract a stable user display value from Jira user-like objects."""
+    if not isinstance(value, dict):
+        return None
+    return value.get("displayName") or value.get("name") or value.get("emailAddress")
+
+
+def _normalize_description(value) -> str:
+    """Normalize Jira description payloads into plain text."""
+    if isinstance(value, str):
+        return value
+    if isinstance(value, dict) and "raw" in value:
+        raw_value = value.get("raw")
+        return raw_value if isinstance(raw_value, str) else ""
+    if isinstance(value, dict) and value.get("type") == "doc" and "content" in value:
+        return adf.extract_text_from_adf(value)
+    return ""
+
+
+def _machine_issue_list_item(issue: dict) -> dict:
+    """Return a stable list payload for one issue."""
+    fields = issue.get("fields", {})
+    return {
+        "key": issue.get("key", ""),
+        "summary": fields.get("summary", ""),
+        "status": fields.get("status", {}).get("name"),
+        "priority": fields.get("priority", {}).get("name"),
+        "issue_type": fields.get("issuetype", {}).get("name"),
+        "assignee": _display_name(fields.get("assignee")),
+        "reporter": _display_name(fields.get("reporter")),
+        "created": fields.get("created"),
+        "updated": fields.get("updated"),
+    }
+
+
+def _machine_issue_detail(issue: dict) -> dict:
+    """Return a stable detail payload for one issue."""
+    fields = issue.get("fields", {})
+    components = [
+        component.get("name")
+        for component in fields.get("components", [])
+        if isinstance(component, dict) and component.get("name")
+    ]
+    fix_versions = [
+        version.get("name")
+        for version in fields.get("fixVersions", [])
+        if isinstance(version, dict) and version.get("name")
+    ]
+    labels = [label for label in fields.get("labels", []) if isinstance(label, str)]
+
+    return {
+        "key": issue.get("key", ""),
+        "summary": fields.get("summary", ""),
+        "status": fields.get("status", {}).get("name"),
+        "priority": fields.get("priority", {}).get("name"),
+        "issue_type": fields.get("issuetype", {}).get("name"),
+        "assignee": _display_name(fields.get("assignee")),
+        "reporter": _display_name(fields.get("reporter")),
+        "created": fields.get("created"),
+        "updated": fields.get("updated"),
+        "labels": labels,
+        "components": components,
+        "fix_versions": fix_versions,
+        "description": _normalize_description(fields.get("description")),
+    }
+
+
+def _resolve_current_user_jql(jql: str, jira_user: str | None) -> str:
+    """Replace currentUser() with configured jira_user for machine endpoints."""
+    if not jira_user:
+        return jql
+    if "currentUser()" not in jql and "currentuser()" not in jql.lower():
+        return jql
+
+    escaped_user = jira_user.replace("\\", "\\\\").replace('"', '\\"')
+    return re.sub(
+        r"currentUser\(\)",
+        f'"{escaped_user}"',
+        jql,
+        flags=re.IGNORECASE,
+    )
 
 
 @cli.command("gencontext")
@@ -465,6 +556,124 @@ def browse(jayrah_obj, board_name):
     except Exception as e:
         click.secho(f"Error fetching issues for board {board_name}: {e}", fg="red")
         sys.exit(1)
+
+
+@cli.command("browse-list")
+@click.argument("board_name", required=False)
+@click.option("--query", "-q", "jql_query", help="JQL query to use directly")
+@click.option("--limit", type=int, default=100, show_default=True)
+@click.option("--start-at", type=int, default=0, show_default=True)
+@click.option(
+    "--single-page",
+    is_flag=True,
+    help="Fetch only one page (disable pagination across all results)",
+)
+@click.pass_obj
+def browse_list(jayrah_obj, board_name, jql_query, limit, start_at, single_page):
+    """List issues in a stable machine-friendly JSON schema."""
+    try:
+        mode = "query"
+        order_by = None
+        resolved_jql = ""
+
+        if jql_query:
+            resolved_jql = jql_query.strip()
+            if not resolved_jql:
+                raise click.ClickException("JQL query cannot be empty")
+        else:
+            mode = "board"
+            if not board_name:
+                raise click.ClickException("Provide a board name or use --query")
+
+            board = next(
+                (
+                    candidate
+                    for candidate in jayrah_obj.config.get("boards", [])
+                    if candidate.get("name") == board_name
+                ),
+                None,
+            )
+            if not board:
+                raise click.ClickException(
+                    f"Board '{board_name}' not found in configuration."
+                )
+
+            resolved_jql = str(board.get("jql", "")).strip()
+            if not resolved_jql:
+                raise click.ClickException(
+                    f"Board '{board_name}' has no JQL query defined."
+                )
+
+            order_by = board.get("order_by")
+            if order_by:
+                resolved_jql = f"{resolved_jql} ORDER BY {order_by}"
+
+        resolved_jql = _resolve_current_user_jql(
+            resolved_jql, jayrah_obj.config.get("jira_user")
+        )
+
+        issues = jayrah_obj.issues_client.list_issues(
+            resolved_jql,
+            order_by=order_by,
+            limit=limit,
+            all_pages=not single_page,
+            start_at=start_at,
+        )
+
+        payload = {
+            "schema_version": "1",
+            "generated_at": _machine_timestamp(),
+            "source": {
+                "mode": mode,
+                "board": board_name,
+                "jql": resolved_jql,
+                "order_by": order_by,
+                "start_at": start_at,
+                "limit": limit,
+                "single_page": single_page,
+            },
+            "issues": [_machine_issue_list_item(issue) for issue in issues],
+            "issue_count": len(issues),
+        }
+        click.echo(json.dumps(payload))
+    except click.ClickException:
+        raise
+    except Exception as e:
+        raise click.ClickException(f"Error fetching issues: {e}") from e
+
+
+@cli.command("issue-show")
+@click.argument("ticket_number")
+@click.pass_obj
+def issue_show(jayrah_obj, ticket_number):
+    """Show issue details in a stable machine-friendly JSON schema."""
+    try:
+        fields = [
+            "key",
+            "summary",
+            "status",
+            "priority",
+            "issuetype",
+            "assignee",
+            "reporter",
+            "created",
+            "updated",
+            "labels",
+            "components",
+            "fixVersions",
+            "description",
+        ]
+        issue = jayrah_obj.jira.get_issue(ticket_number, fields=fields)
+        payload = {
+            "schema_version": "1",
+            "generated_at": _machine_timestamp(),
+            "issue": _machine_issue_detail(issue),
+        }
+        click.echo(json.dumps(payload))
+    except click.ClickException:
+        raise
+    except Exception as e:
+        raise click.ClickException(f"Error fetching issue {ticket_number}: {e}") from e
 
 
 class CustomCommands(click.MultiCommand):
