@@ -1,7 +1,9 @@
 """UI views and screens for the issue browser."""
 
 import re
+from typing import ClassVar
 
+from click import ClickException
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Container, Vertical
@@ -9,6 +11,7 @@ from textual.suggester import SuggestFromList
 from textual.widgets import DataTable, Label, Markdown
 
 from jayrah import utils
+from jayrah.api import exceptions as jira_exceptions
 
 from ...utils import adf, issue_view
 from .base import BaseModalScreen
@@ -18,7 +21,7 @@ from .enhanced_widgets import EmacsInput, EmacsTextArea
 class CommentsViewScreen(BaseModalScreen):
     """Modal screen for viewing comments on an issue."""
 
-    BINDINGS = [
+    BINDINGS: ClassVar[tuple[Binding, ...]] = (
         Binding("escape", "cancel", "Cancel"),
         Binding("q", "cancel", "Close"),
         Binding("f1", "help", "Help"),
@@ -27,7 +30,7 @@ class CommentsViewScreen(BaseModalScreen):
         Binding("n", "next_comment", "Next Comment"),
         Binding("p", "prev_comment", "Previous Comment"),
         Binding("a", "add_comment", "Add Comment"),
-    ]
+    )
 
     CSS = """
     #comments-container {
@@ -110,8 +113,8 @@ class CommentsViewScreen(BaseModalScreen):
             else:
                 help_widget.update("Press a to add comment, Escape or Q to close")
 
-        except Exception as e:
-            error_message = f"Error loading comments: {e!s}"
+        except jira_exceptions.JiraAPIError as exc:
+            error_message = f"Error loading comments: {exc!s}"
             markdown_widget = self.query_one("#comments-content", Markdown)
             markdown_widget.update(error_message)
 
@@ -119,12 +122,12 @@ class CommentsViewScreen(BaseModalScreen):
             if self._parent.config.get("verbose"):
                 from jayrah.utils import log
 
-                log(f"Comment loading error details: {type(e).__name__} - {e}")
+                log(f"Comment loading error details: {type(exc).__name__} - {exc}")
                 import traceback
 
                 log(traceback.format_exc())
 
-            self._parent.notify(f"Failed to load comments: {e}", severity="error")
+            self._parent.notify(f"Failed to load comments: {exc}", severity="error")
 
     def _format_comments(self, issue_data: dict) -> str:
         """Format comments into markdown."""
@@ -287,11 +290,11 @@ class CommentsViewScreen(BaseModalScreen):
 class AddCommentScreen(BaseModalScreen):
     """Modal screen for adding a comment to an issue."""
 
-    BINDINGS = [
+    BINDINGS: ClassVar[tuple[Binding, ...]] = (
         Binding("escape", "cancel", "Cancel"),
         Binding("ctrl+enter", "apply", "Add Comment"),
         Binding("f1", "help", "Help"),
-    ]
+    )
 
     CSS = """
     #comment-container {
@@ -364,10 +367,10 @@ class AddCommentScreen(BaseModalScreen):
 
             self.action_cancel()
 
-        except Exception as e:
+        except (jira_exceptions.JiraAPIError, ClickException) as exc:
             if self.config.get("verbose") and self.config["verbose"]:
-                utils.log(f"Error adding comment: {e}")
-            self._parent.notify(f"Failed to add comment: {e}", severity="error")
+                utils.log(f"Error adding comment: {exc}")
+            self._parent.notify(f"Failed to add comment: {exc}", severity="error")
 
 
 class SuggestFromListComma(SuggestFromList):
@@ -513,12 +516,15 @@ class IssueDetailPanel(Vertical):
             self.app.call_from_thread(
                 lambda: self._update_markdown(markdown_widget, all_content)
             )
-        except Exception as e:
-            error_message = f"⚠️ Error loading issue {ticket}:\n\n```\n{e!s}\n```\n\nPlease check the ticket ID and your connection."
+        except (jira_exceptions.JiraAPIError, ClickException) as exc:
+            error_message = (
+                f"⚠️ Error loading issue {ticket}:\n\n```\n{exc!s}\n```\n\n"
+                "Please check the ticket ID and your connection."
+            )
             self.app.call_from_thread(
                 lambda: self._update_markdown(markdown_widget, error_message)
             )
-            self.app.log.error(f"Failed to load or build issue {ticket}: {e}")
+            self.app.log.error(f"Failed to load or build issue {ticket}: {exc}")
 
     def _update_markdown(self, markdown_widget, content):
         markdown_widget.update(content)
@@ -533,11 +539,11 @@ class IssueDetailPanel(Vertical):
 class LabelsEditScreen(BaseModalScreen):
     """Modal screen for editing issue labels."""
 
-    BINDINGS = [
+    BINDINGS: ClassVar[tuple[Binding, ...]] = (
         Binding("escape", "cancel", "Cancel"),
         Binding("enter", "apply", "Apply"),
         Binding("f1", "help", "Help"),
-    ]
+    )
 
     CSS = """
     #labels-container {
@@ -644,7 +650,7 @@ class LabelsEditScreen(BaseModalScreen):
             labels_text = ", ".join(new_labels) if new_labels else "No labels"
             self._parent.notify(f"✅ Labels updated: {labels_text}")
 
-        except Exception as exc:
+        except jira_exceptions.JiraAPIError as exc:
             self._parent.notify(f"Error updating labels: {exc}", severity="error")
 
         self.safe_pop_screen()
@@ -653,11 +659,11 @@ class LabelsEditScreen(BaseModalScreen):
 class ComponentsEditScreen(BaseModalScreen):
     """Modal screen for editing issue components."""
 
-    BINDINGS = [
+    BINDINGS: ClassVar[tuple[Binding, ...]] = (
         Binding("escape", "cancel", "Cancel"),
         Binding("enter", "apply", "Apply"),
         Binding("f1", "help", "Help"),
-    ]
+    )
 
     CSS = """
     #components-container {
@@ -764,7 +770,7 @@ class ComponentsEditScreen(BaseModalScreen):
             )
             self._parent.notify(f"✅ Components updated: {components_text}")
 
-        except Exception as exc:
+        except jira_exceptions.JiraAPIError as exc:
             self._parent.notify(f"Error updating components: {exc}", severity="error")
 
         self.safe_pop_screen()
@@ -773,11 +779,11 @@ class ComponentsEditScreen(BaseModalScreen):
 class FuzzyFilterScreen(BaseModalScreen):
     """Modal screen for fuzzy filtering issues."""
 
-    BINDINGS = [
+    BINDINGS: ClassVar[tuple[Binding, ...]] = (
         Binding("escape", "cancel", "Cancel"),
         Binding("enter", "apply", "Apply"),
         Binding("f1", "help", "Help"),
-    ]
+    )
 
     CSS = """
     #filter-container {
@@ -834,11 +840,11 @@ class FuzzyFilterScreen(BaseModalScreen):
 class BoardSelectionScreen(BaseModalScreen):
     """Modal screen for selecting a different board."""
 
-    BINDINGS = [
+    BINDINGS: ClassVar[tuple[Binding, ...]] = (
         Binding("escape", "cancel", "Cancel"),
         Binding("enter", "apply", "Apply"),
         Binding("f1", "help", "Help"),
-    ]
+    )
 
     CSS = """
     #board-container {
@@ -913,11 +919,11 @@ class BoardSelectionScreen(BaseModalScreen):
 class TransitionSelectionScreen(BaseModalScreen):
     """Modal screen for selecting a transition to apply to an issue."""
 
-    BINDINGS = [
+    BINDINGS: ClassVar[tuple[Binding, ...]] = (
         Binding("escape", "cancel", "Cancel"),
         Binding("enter", "apply", "Apply"),
         Binding("f1", "help", "Help"),
-    ]
+    )
 
     CSS = """
     #transition-container {
@@ -992,7 +998,7 @@ class TransitionSelectionScreen(BaseModalScreen):
                             key=transition_id,
                         )
 
-            except Exception as exc:
+            except jira_exceptions.JiraAPIError as exc:
                 table.add_row(
                     "", f"Error loading transitions: {exc}", "", "", key="error"
                 )
@@ -1065,7 +1071,7 @@ class TransitionSelectionScreen(BaseModalScreen):
                 f"✅ Issue {self.issue_key} transitioned to '{to_status}' via '{transition_name}'"
             )
 
-        except Exception as exc:
+        except jira_exceptions.JiraAPIError as exc:
             self._parent.notify(f"Error applying transition: {exc}", severity="error")
 
         self.safe_pop_screen()
@@ -1074,11 +1080,11 @@ class TransitionSelectionScreen(BaseModalScreen):
 class EditSelectionScreen(BaseModalScreen):
     """Modal screen for selecting what to edit (title or description)."""
 
-    BINDINGS = [
+    BINDINGS: ClassVar[tuple[Binding, ...]] = (
         Binding("escape", "cancel", "Cancel"),
         Binding("enter", "apply", "Apply"),
         Binding("f1", "help", "Help"),
-    ]
+    )
 
     CSS = """
     #edit-container {
@@ -1211,7 +1217,7 @@ class EditSelectionScreen(BaseModalScreen):
                         self.config,
                     )
                 )
-        except Exception as exc:
+        except jira_exceptions.JiraAPIError as exc:
             if self.verbose:
                 raise
             self._parent.notify(
@@ -1223,11 +1229,11 @@ class EditSelectionScreen(BaseModalScreen):
 class TitleEditScreen(BaseModalScreen):
     """Modal screen for editing issue title/summary."""
 
-    BINDINGS = [
+    BINDINGS: ClassVar[tuple[Binding, ...]] = (
         Binding("escape", "cancel", "Cancel"),
         Binding("enter", "apply", "Apply"),
         Binding("f1", "help", "Help"),
-    ]
+    )
 
     CSS = """
     #title-container {
@@ -1325,7 +1331,7 @@ class TitleEditScreen(BaseModalScreen):
             # Show success notification
             self._parent.notify(f"✅ Title updated for {self.issue_key}")
 
-        except Exception as exc:
+        except jira_exceptions.JiraAPIError as exc:
             self._parent.notify(f"Error updating title: {exc}", severity="error")
 
         self.safe_pop_screen()
@@ -1334,11 +1340,11 @@ class TitleEditScreen(BaseModalScreen):
 class DescriptionEditScreen(BaseModalScreen):
     """Modal screen for editing issue description."""
 
-    BINDINGS = [
+    BINDINGS: ClassVar[tuple[Binding, ...]] = (
         Binding("escape", "cancel", "Cancel"),
         Binding("ctrl+s", "apply", "Save"),
         Binding("f1", "help", "Help"),
-    ]
+    )
 
     CSS = """
     #description-container {
@@ -1461,7 +1467,7 @@ class DescriptionEditScreen(BaseModalScreen):
             self._parent.notify(f"✅ Description updated for {self.issue_key}")
             self.safe_pop_screen()
 
-        except Exception as exc:
+        except jira_exceptions.JiraAPIError as exc:
             self._parent.notify(f"Error updating description: {exc}", severity="error")
             # Do not pop the screen on error, allow user to see the message and manually cancel.
 
@@ -1469,7 +1475,7 @@ class DescriptionEditScreen(BaseModalScreen):
 class ActionsPanel(BaseModalScreen):
     """Modal screen for displaying all available actions."""
 
-    BINDINGS = [
+    BINDINGS: ClassVar[tuple[Binding, ...]] = (
         Binding("escape", "cancel", "Cancel"),
         Binding("enter", "apply", "Apply"),
         Binding("l", "select_labels", "Labels"),
@@ -1480,7 +1486,7 @@ class ActionsPanel(BaseModalScreen):
         Binding("f", "select_filter", "Filter"),
         Binding("b", "select_board", "Board"),
         Binding("f1", "help", "Help"),
-    ]
+    )
 
     CSS = """
     #actions-container {
@@ -1643,11 +1649,11 @@ class ActionsPanel(BaseModalScreen):
 class CustomFieldEditScreen(BaseModalScreen):
     """Modal screen for editing a custom field."""
 
-    BINDINGS = [
+    BINDINGS: ClassVar[tuple[Binding, ...]] = (
         Binding("escape", "cancel", "Cancel"),
         Binding("enter", "apply", "Apply"),
         Binding("f1", "help", "Help"),
-    ]
+    )
 
     CSS = """
     #customfield-container {
@@ -1761,7 +1767,7 @@ class CustomFieldEditScreen(BaseModalScreen):
         if self.type == "number":
             try:
                 value = float(value) if "." in value else int(value)
-            except Exception:
+            except (ValueError, TypeError):
                 self._parent.notify("Invalid number format", severity="error")
                 return
         try:
@@ -1775,6 +1781,6 @@ class CustomFieldEditScreen(BaseModalScreen):
                 )
             self._parent.action_reload()
             self._parent.notify(f"✅ Updated {self.field_id} for {self.issue_key}")
-        except Exception as exc:
+        except jira_exceptions.JiraAPIError as exc:
             self._parent.notify(f"Error updating field: {exc}", severity="error")
         self.safe_pop_screen()
