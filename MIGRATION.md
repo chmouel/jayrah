@@ -158,3 +158,13 @@ MVP tests should focus on behavior, not styling:
 1. Add machine-friendly Python command(s) for `browse list` and `issue show` if output is not stable enough.
 2. Scaffold `rust/jayrah-tui` with event loop, static mock data screen, and keymap.
 3. Wire adapter call for real issue list and render table rows.
+2026-02-20 16:41 UTC | codex | phase0-contract | Started Step 1 implementation for machine-friendly browse/detail endpoints | in_progress | Add dedicated CLI machine commands and tests
+2026-02-20 16:42 UTC | codex | phase0-contract | Added new CLI endpoints `jayrah cli browse-list` and `jayrah cli issue-show` with stable JSON payload helpers | complete | Add contract-focused tests and run targeted pytest
+2026-02-20 16:43 UTC | codex | phase0-contract | Added machine contract tests for browse-list and issue-show endpoints | complete | Run targeted lint and pytest for new contract surface
+2026-02-20 16:43 UTC | codex | phase0-contract | Verified new machine endpoints with pytest and ruff checks (6 tests passed) | complete | Step 1 baseline complete; proceed to Rust scaffold in Step 2
+2026-02-20 16:47 UTC | codex | phase0-scaffold | Started Step 2 scaffold for rust/jayrah-tui mock event loop and keymap | in_progress | Create Rust workspace and initial TUI crate
+2026-02-20 16:48 UTC | codex | phase0-scaffold | Created Rust workspace and initial jayrah-tui crate with Ratatui mock browse UI/event loop/keymap | complete | Build-check crate and document usage
+2026-02-20 16:49 UTC | codex | phase0-scaffold | Ran cargo check for rust workspace and fixed ratatui API deprecation in table highlight style | complete | Share scaffold usage and move to Step 3 adapter wiring
+2026-02-20 16:49 UTC | codex | phase0-adapter | Started Step 3 adapter wiring from rust/jayrah-tui to Python machine endpoint | in_progress | Add subprocess JSON fetch path and render real issues
+2026-02-20 16:51 UTC | codex | phase0-adapter | Wired jayrah-tui reload/startup path to call `uv run jayrah cli browse-list` and parse JSON issues for rendering | complete | Validate runtime args/help and cargo checks
+2026-02-20 16:51 UTC | codex | phase0-adapter | Validated rust workspace with cargo fmt/check and jayrah-tui --help smoke run | complete | Phase 0 immediate tasks baseline complete

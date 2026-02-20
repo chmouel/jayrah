@@ -9,3 +9,6 @@ wheels/
 # Virtual environments
 .venv
 tmp/*
+
+# Rust build artifacts
+rust/target/
