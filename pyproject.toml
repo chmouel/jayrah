@@ -36,6 +36,13 @@ package = true
 [tool.mypy]
 disable_error_code = ["import-not-found"]
 
+[tool.ruff]
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
+ignore = ["E501"]
+
 [tool.pylint.'MESSAGES CONTROL']
 disable = [
   "R0902",                      # Too many instance attributes

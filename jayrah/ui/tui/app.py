@@ -15,7 +15,7 @@ from .views import IssueDetailPanel
 class IssueBrowserApp(App, JayrahAppMixin, IssueBrowserActions):
     """A **Textual** app for browsing Jira issues via *jayrah*."""
 
-    ### ─────────────────────────  Style  ──────────────────────────
+    # ─────────────────────────  Style  ──────────────────────────
     CSS = """
     /* Main layout */
     #main-panel {
@@ -62,7 +62,7 @@ class IssueBrowserApp(App, JayrahAppMixin, IssueBrowserActions):
     }
     """
 
-    ### ─────────────────────────  Key bindings  ──────────────────────────
+    # ─────────────────────────  Key bindings  ──────────────────────────
     BINDINGS = [
         Binding("escape", "quit", "Quit", show=False),
         Binding("o", "open_issue", "Open"),
@@ -85,7 +85,7 @@ class IssueBrowserApp(App, JayrahAppMixin, IssueBrowserActions):
         Binding("?", "help", "Help"),
     ]
 
-    ### ─────────────────────────  Lifecycle  ──────────────────────────
+    # ─────────────────────────  Lifecycle  ──────────────────────────
     def __init__(
         self,
         issues: list | None = None,
@@ -123,7 +123,7 @@ class IssueBrowserApp(App, JayrahAppMixin, IssueBrowserActions):
                 yield IssueDetailPanel(config=self.config)
         yield Footer()
 
-    ### ─────────────────────────  Helpers  ──────────────────────────
+    # ─────────────────────────  Helpers  ──────────────────────────
     def _create_datatable(self) -> DataTable:
         table = DataTable(id="issues-table")
         table.cursor_type = "row"  # Highlights whole rows
@@ -165,7 +165,7 @@ class IssueBrowserApp(App, JayrahAppMixin, IssueBrowserActions):
                 detail_panel = self.query_one(IssueDetailPanel)
                 detail_panel.update_issue(issue_key, self.config)
 
-    ### ─────────────────────────  Events  ──────────────────────────
+    # ─────────────────────────  Events  ──────────────────────────
     @on(DataTable.RowHighlighted)
     def _handle_row_highlighted(self, event: DataTable.RowHighlighted) -> None:  # type: ignore[name-defined]
         """Update the detail pane whenever the cursor highlights a new row."""
@@ -262,7 +262,7 @@ class IssueBrowserApp(App, JayrahAppMixin, IssueBrowserActions):
             detail_panel.update_issue(None, self.config)
 
 
-### ─────────────────────────  Public helper  ──────────────────────────
+# ─────────────────────────  Public helper  ──────────────────────────
 def run_textual_browser(
     issues: list,
     config: dict,
