@@ -91,3 +91,36 @@ def test_add_comment_v3(sample_config):
         assert payload["body"]["type"] == "doc"
         assert payload["body"]["version"] == 1
         assert payload["body"]["content"][0]["content"][0]["text"] == "Test comment"
+
+
+def test_v3_assignee_email_uses_name_field(sample_config):
+    """Test that API v3 does not treat email as accountId."""
+    client = JiraHTTP(sample_config, api_version="3")
+
+    with patch.object(client, "_request") as mock_request:
+        client.create_issue(
+            issuetype="Story",
+            summary="Test issue",
+            description="Test description",
+            assignee="user@example.com",
+        )
+
+        payload = mock_request.call_args[1]["jeez"]
+        assert payload["fields"]["assignee"] == {"name": "user@example.com"}
+
+
+def test_v3_assignee_account_id_uses_account_id_field(sample_config):
+    """Test that API v3 uses accountId when value looks like an account ID."""
+    client = JiraHTTP(sample_config, api_version="3")
+    account_id = "712020:82e09708-6d0a-4bc1-bbac-5ddf6f612345"
+
+    with patch.object(client, "_request") as mock_request:
+        client.create_issue(
+            issuetype="Story",
+            summary="Test issue",
+            description="Test description",
+            assignee=account_id,
+        )
+
+        payload = mock_request.call_args[1]["jeez"]
+        assert payload["fields"]["assignee"] == {"accountId": account_id}

@@ -64,7 +64,7 @@ class Boards:
             api_version = defaults.API_VERSION
         auth_method = self.config.get("auth_method")
         if not auth_method:
-            auth_method = "bearer"
+            auth_method = "basic" if api_version == "3" else "bearer"
         self.jira = jirahttp.JiraHTTP(
             config, api_version=api_version, auth_method=auth_method
         )

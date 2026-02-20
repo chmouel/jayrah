@@ -65,7 +65,7 @@ class V3Formatter(FormatterBase):
 
     def format_assignee(self, assignee: str) -> Dict[str, str]:
         """API v3 prefers accountId but falls back to username."""
-        if "@" in assignee:  # Looks like an email, likely an accountId
+        if self._looks_like_account_id(assignee):
             return {"accountId": assignee}
         return {"name": assignee}
 
@@ -91,6 +91,19 @@ class V3Formatter(FormatterBase):
             and obj.get("type") == "doc"
             and isinstance(obj.get("content"), list)
         )
+
+    def _looks_like_account_id(self, value: str) -> bool:
+        """Heuristic for Atlassian accountId values.
+
+        accountId values are opaque identifiers (often containing ":"), while
+        email addresses should not be treated as accountId.
+        """
+        if not value or "@" in value:
+            return False
+        if ":" in value:
+            return True
+        cleaned = value.replace("-", "")
+        return len(value) >= 20 and cleaned.isalnum()
 
 
 def create_formatter(api_version: str) -> FormatterBase:

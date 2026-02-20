@@ -141,3 +141,81 @@ def test_make_config_prompts_for_missing_values(
     assert result["jira_project"] == "TEST"
     assert result["jira_password"] == "prompted_password"
     assert mock_prompt_ask.call_count == 4
+
+
+@patch("rich.prompt.Prompt.ask")
+@patch("jayrah.config.write_config")
+def test_make_config_auth_prompt_default_is_basic_for_v3(
+    mock_write_config, mock_prompt_ask, tmp_path
+):
+    """Test auth prompt default follows API v3."""
+
+    def prompt_side_effect(prompt_text, *args, **kwargs):
+        if prompt_text == "Enter Jira server URL (or workspace id for atlassian cloud)":
+            return "https://prompted.example.com"
+        if prompt_text == "Select authentication version":
+            return "3"
+        if prompt_text == "Select authentication method":
+            assert kwargs.get("default") == "basic"
+            return "basic"
+        if prompt_text == "Enter Jira username":
+            return "prompted_user"
+        if prompt_text == "Enter your Jira Project (ie: SRVKP)":
+            return "TEST"
+        if prompt_text == "Enter your Jira password (or pass key prefixed by pass:)":
+            return "prompted_password"
+        raise AssertionError(f"Unexpected prompt: {prompt_text}")
+
+    mock_prompt_ask.side_effect = prompt_side_effect
+    config_file = tmp_path / "empty_config.yaml"
+
+    with patch("jayrah.config.read_config") as mock_read_config:
+        mock_read_config.return_value = {
+            "boards": defaults.BOARDS,
+            "cache_ttl": defaults.CACHE_DURATION,
+            "insecure": False,
+            "jira_server": None,
+            "jira_user": None,
+            "jira_project": None,
+            "jira_password": None,
+            "api_version": "",
+            "auth_method": "",
+        }
+        result = config.make_config({}, config_file)
+
+    assert result["api_version"] == "3"
+    assert result["auth_method"] == "basic"
+
+
+@patch("rich.prompt.Prompt.ask")
+@patch("jayrah.config.write_config")
+def test_make_config_auth_prompt_default_is_bearer_for_v2(
+    mock_write_config, mock_prompt_ask, tmp_path
+):
+    """Test auth prompt default follows API v2."""
+
+    def prompt_side_effect(prompt_text, *args, **kwargs):
+        if prompt_text == "Select authentication method":
+            assert kwargs.get("default") == "bearer"
+            return "bearer"
+        raise AssertionError(f"Unexpected prompt: {prompt_text}")
+
+    mock_prompt_ask.side_effect = prompt_side_effect
+    config_file = tmp_path / "config.yaml"
+
+    with patch("jayrah.config.read_config") as mock_read_config:
+        mock_read_config.return_value = {
+            "boards": defaults.BOARDS,
+            "cache_ttl": defaults.CACHE_DURATION,
+            "insecure": False,
+            "jira_server": "https://prompted.example.com",
+            "jira_user": "prompted_user",
+            "jira_project": "TEST",
+            "jira_password": "prompted_password",
+            "api_version": "2",
+            "auth_method": "",
+        }
+        result = config.make_config({}, config_file)
+
+    assert result["api_version"] == "2"
+    assert result["auth_method"] == "bearer"
