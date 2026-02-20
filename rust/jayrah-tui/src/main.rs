@@ -1,7 +1,11 @@
-use std::env;
-use std::io;
-use std::process::Command;
-use std::time::Duration;
+use std::{
+    collections::HashMap,
+    env, io,
+    process::Command,
+    sync::mpsc::{self, Receiver, Sender},
+    thread,
+    time::{Duration, Instant},
+};
 
 use anyhow::{anyhow, bail, Result};
 use crossterm::{
@@ -18,12 +22,31 @@ use ratatui::{
 };
 use serde::Deserialize;
 
+const DETAIL_FETCH_DEBOUNCE_MS: u64 = 120;
+
 #[derive(Clone, Debug)]
 struct Issue {
     key: String,
     summary: String,
     status: String,
     assignee: String,
+}
+
+#[derive(Clone, Debug)]
+struct IssueDetail {
+    key: String,
+    summary: String,
+    status: String,
+    priority: String,
+    issue_type: String,
+    assignee: String,
+    reporter: String,
+    created: String,
+    updated: String,
+    labels: Vec<String>,
+    components: Vec<String>,
+    fix_versions: Vec<String>,
+    description: String,
 }
 
 #[derive(Clone, Debug)]
@@ -108,6 +131,11 @@ struct App {
     status_line: String,
     source: AdapterSource,
     using_adapter: bool,
+    detail_cache: HashMap<String, IssueDetail>,
+    detail_errors: HashMap<String, String>,
+    detail_loading_key: Option<String>,
+    last_selected_key: Option<String>,
+    selected_changed_at: Instant,
 }
 
 impl App {
@@ -121,8 +149,14 @@ impl App {
             status_line: String::new(),
             source,
             using_adapter: false,
+            detail_cache: HashMap::new(),
+            detail_errors: HashMap::new(),
+            detail_loading_key: None,
+            last_selected_key: None,
+            selected_changed_at: Instant::now(),
         };
         app.reload_issues();
+        app.sync_selected_tracking();
         app
     }
 
@@ -187,8 +221,15 @@ impl App {
         self.issues.get(*issue_index)
     }
 
+    fn selected_issue_key(&self) -> Option<String> {
+        self.selected_issue().map(|issue| issue.key.clone())
+    }
+
     fn reload_issues(&mut self) {
         self.reload_count += 1;
+        self.detail_cache.clear();
+        self.detail_errors.clear();
+        self.detail_loading_key = None;
 
         if self.source.mock_only {
             self.issues = mock_issues(self.reload_count);
@@ -219,15 +260,181 @@ impl App {
         }
 
         self.normalize_selection();
+        self.sync_selected_tracking();
     }
 
-    fn open_selected_placeholder(&mut self) {
-        if let Some(issue) = self.selected_issue() {
-            self.status_line = format!("Open not wired yet for {}", issue.key);
+    fn sync_selected_tracking(&mut self) {
+        let current = self.selected_issue_key();
+        if current != self.last_selected_key {
+            self.last_selected_key = current;
+            self.selected_changed_at = Instant::now();
+        }
+    }
+
+    fn maybe_request_detail(&mut self, request_tx: &Sender<DetailRequest>) {
+        self.sync_selected_tracking();
+
+        let Some(key) = self.selected_issue_key() else {
+            return;
+        };
+
+        if self.detail_cache.contains_key(&key) {
             return;
         }
-        self.status_line = String::from("No issue selected");
+
+        if !self.using_adapter {
+            if let Some(issue) = self.selected_issue() {
+                self.detail_cache.insert(key, mock_detail_from_issue(issue));
+            }
+            return;
+        }
+
+        if self.detail_errors.contains_key(&key) {
+            return;
+        }
+
+        if self.detail_loading_key.as_deref() == Some(key.as_str()) {
+            return;
+        }
+
+        if self.selected_changed_at.elapsed() < Duration::from_millis(DETAIL_FETCH_DEBOUNCE_MS) {
+            return;
+        }
+
+        if request_tx.send(DetailRequest { key: key.clone() }).is_ok() {
+            self.detail_loading_key = Some(key.clone());
+            self.status_line = format!("Loading detail for {key}...");
+        }
     }
+
+    fn ingest_detail_result(&mut self, message: DetailResult) {
+        match message.result {
+            Ok(detail) => {
+                self.detail_cache.insert(message.key.clone(), detail);
+                self.detail_errors.remove(&message.key);
+                if self.detail_loading_key.as_deref() == Some(message.key.as_str()) {
+                    self.detail_loading_key = None;
+                }
+                if self.selected_issue_key().as_deref() == Some(message.key.as_str()) {
+                    self.status_line = format!("Loaded detail for {}", message.key);
+                }
+            }
+            Err(error) => {
+                self.detail_errors
+                    .insert(message.key.clone(), error.clone());
+                if self.detail_loading_key.as_deref() == Some(message.key.as_str()) {
+                    self.detail_loading_key = None;
+                }
+                if self.selected_issue_key().as_deref() == Some(message.key.as_str()) {
+                    self.status_line = format!(
+                        "Failed to load detail for {} ({})",
+                        message.key,
+                        compact_error(&error)
+                    );
+                }
+            }
+        }
+    }
+
+    fn detail_text_for_selected(&self) -> String {
+        let Some(issue) = self.selected_issue() else {
+            return "No issue selected".to_string();
+        };
+
+        let key = issue.key.as_str();
+        if let Some(detail) = self.detail_cache.get(key) {
+            let labels = join_or_dash(&detail.labels);
+            let components = join_or_dash(&detail.components);
+            let fix_versions = join_or_dash(&detail.fix_versions);
+            let description = if detail.description.is_empty() {
+                "<no description>"
+            } else {
+                detail.description.as_str()
+            };
+
+            return format!(
+                "Key: {}\nSummary: {}\nStatus: {}\nPriority: {}\nType: {}\nAssignee: {}\nReporter: {}\nCreated: {}\nUpdated: {}\nLabels: {}\nComponents: {}\nFix Versions: {}\n\nDescription\n{}",
+                detail.key,
+                detail.summary,
+                detail.status,
+                detail.priority,
+                detail.issue_type,
+                detail.assignee,
+                detail.reporter,
+                detail.created,
+                detail.updated,
+                labels,
+                components,
+                fix_versions,
+                description,
+            );
+        }
+
+        if let Some(error) = self.detail_errors.get(key) {
+            return format!(
+                "Key: {}\nStatus: {}\nAssignee: {}\n\nSummary\n{}\n\nDetail load failed\n{}",
+                issue.key,
+                issue.status,
+                issue.assignee,
+                issue.summary,
+                compact_error(error),
+            );
+        }
+
+        if self.detail_loading_key.as_deref() == Some(key) {
+            return format!(
+                "Loading detail for {}...\n\nSummary\n{}\n\nSource\n{}",
+                issue.key,
+                issue.summary,
+                self.source.describe(),
+            );
+        }
+
+        format!(
+            "Key: {}\nStatus: {}\nAssignee: {}\n\nSummary\n{}\n\nSource\n{}",
+            issue.key,
+            issue.status,
+            issue.assignee,
+            issue.summary,
+            self.source.describe(),
+        )
+    }
+
+    fn open_selected_issue(&mut self) {
+        let Some(key) = self.selected_issue_key() else {
+            self.status_line = String::from("No issue selected");
+            return;
+        };
+
+        if !self.using_adapter {
+            self.status_line = format!("Open disabled while using mock data ({key})");
+            return;
+        }
+
+        match open_issue_in_browser(&key) {
+            Ok(()) => {
+                self.status_line = format!("Opened {key} in browser");
+            }
+            Err(error) => {
+                self.status_line = format!(
+                    "Failed to open {} ({})",
+                    key,
+                    compact_error(&error.to_string())
+                );
+            }
+        }
+    }
+}
+
+#[derive(Debug)]
+struct DetailRequest {
+    key: String,
+}
+
+#[derive(Debug)]
+struct DetailResult {
+    key: String,
+    result: std::result::Result<IssueDetail, String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -244,6 +451,40 @@ struct BrowseIssue {
     status: Option<String>,
     #[serde(default)]
     assignee: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct IssueShowPayload {
+    issue: IssueShowIssue,
+}
+
+#[derive(Debug, Deserialize)]
+struct IssueShowIssue {
+    key: String,
+    #[serde(default)]
+    summary: String,
+    #[serde(default)]
+    status: Option<String>,
+    #[serde(default)]
+    priority: Option<String>,
+    #[serde(default)]
+    issue_type: Option<String>,
+    #[serde(default)]
+    assignee: Option<String>,
+    #[serde(default)]
+    reporter: Option<String>,
+    #[serde(default)]
+    created: Option<String>,
+    #[serde(default)]
+    updated: Option<String>,
+    #[serde(default)]
+    labels: Vec<String>,
+    #[serde(default)]
+    components: Vec<String>,
+    #[serde(default)]
+    fix_versions: Vec<String>,
+    #[serde(default)]
+    description: String,
 }
 
 fn load_issues_from_adapter(source: &AdapterSource) -> Result<Vec<Issue>> {
@@ -286,6 +527,65 @@ fn load_issues_from_adapter(source: &AdapterSource) -> Result<Vec<Issue>> {
         .collect())
 }
 
+fn load_issue_detail_from_adapter(key: &str) -> Result<IssueDetail> {
+    let output = Command::new("uv")
+        .args(["run", "jayrah", "cli", "issue-show", key])
+        .output()?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        bail!(
+            "status={} stderr='{}' stdout='{}'",
+            output.status,
+            stderr,
+            stdout
+        );
+    }
+
+    let payload: IssueShowPayload = serde_json::from_slice(&output.stdout)?;
+    let issue = payload.issue;
+
+    Ok(IssueDetail {
+        key: issue.key,
+        summary: if issue.summary.is_empty() {
+            "<no summary>".to_string()
+        } else {
+            issue.summary
+        },
+        status: issue.status.unwrap_or_else(|| "Unknown".to_string()),
+        priority: issue.priority.unwrap_or_else(|| "Unknown".to_string()),
+        issue_type: issue.issue_type.unwrap_or_else(|| "Unknown".to_string()),
+        assignee: issue.assignee.unwrap_or_else(|| "Unassigned".to_string()),
+        reporter: issue.reporter.unwrap_or_else(|| "Unknown".to_string()),
+        created: issue.created.unwrap_or_else(|| "Unknown".to_string()),
+        updated: issue.updated.unwrap_or_else(|| "Unknown".to_string()),
+        labels: issue.labels,
+        components: issue.components,
+        fix_versions: issue.fix_versions,
+        description: issue.description,
+    })
+}
+
+fn open_issue_in_browser(key: &str) -> Result<()> {
+    let output = Command::new("uv")
+        .args(["run", "jayrah", "cli", "open", key])
+        .output()?;
+
+    if output.status.success() {
+        return Ok(());
+    }
+
+    let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+    let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    bail!(
+        "status={} stderr='{}' stdout='{}'",
+        output.status,
+        stderr,
+        stdout
+    );
+}
+
 fn compact_error(value: &str) -> String {
     const LIMIT: usize = 60;
     let cleaned = value.replace('\n', " ");
@@ -293,6 +593,13 @@ fn compact_error(value: &str) -> String {
         return cleaned;
     }
     format!("{}...", &cleaned[..LIMIT])
+}
+
+fn join_or_dash(values: &[String]) -> String {
+    if values.is_empty() {
+        return "-".to_string();
+    }
+    values.join(", ")
 }
 
 fn mock_issues(reload_count: usize) -> Vec<Issue> {
@@ -330,6 +637,24 @@ fn mock_issues(reload_count: usize) -> Vec<Issue> {
     ]
 }
 
+fn mock_detail_from_issue(issue: &Issue) -> IssueDetail {
+    IssueDetail {
+        key: issue.key.clone(),
+        summary: issue.summary.clone(),
+        status: issue.status.clone(),
+        priority: "Mock".to_string(),
+        issue_type: "Task".to_string(),
+        assignee: issue.assignee.clone(),
+        reporter: "mock-reporter".to_string(),
+        created: "2026-02-20T00:00:00Z".to_string(),
+        updated: "2026-02-20T00:00:00Z".to_string(),
+        labels: vec!["mock".to_string()],
+        components: vec!["tui".to_string()],
+        fix_versions: Vec::new(),
+        description: "Mock detail payload used while adapter data is unavailable.".to_string(),
+    }
+}
+
 fn setup_terminal() -> Result<Terminal<CrosstermBackend<io::Stdout>>> {
     enable_raw_mode()?;
     let mut stdout = io::stdout();
@@ -347,7 +672,14 @@ fn restore_terminal(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> Re
 }
 
 fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, mut app: App) -> Result<()> {
+    let (detail_request_tx, detail_result_rx) = start_detail_worker();
+
     loop {
+        while let Ok(message) = detail_result_rx.try_recv() {
+            app.ingest_detail_result(message);
+        }
+
+        app.maybe_request_detail(&detail_request_tx);
         terminal.draw(|frame| draw_ui(frame, &app))?;
 
         if event::poll(Duration::from_millis(100))? {
@@ -366,6 +698,30 @@ fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, mut app: App) 
     }
 
     Ok(())
+}
+
+fn start_detail_worker() -> (Sender<DetailRequest>, Receiver<DetailResult>) {
+    let (request_tx, request_rx) = mpsc::channel::<DetailRequest>();
+    let (result_tx, result_rx) = mpsc::channel::<DetailResult>();
+
+    thread::spawn(move || {
+        while let Ok(request) = request_rx.recv() {
+            let result =
+                load_issue_detail_from_adapter(&request.key).map_err(|error| error.to_string());
+
+            if result_tx
+                .send(DetailResult {
+                    key: request.key,
+                    result,
+                })
+                .is_err()
+            {
+                break;
+            }
+        }
+    });
+
+    (request_tx, result_rx)
 }
 
 fn handle_key_event(app: &mut App, key: KeyEvent) -> bool {
@@ -400,7 +756,7 @@ fn handle_key_event(app: &mut App, key: KeyEvent) -> bool {
             app.filter_mode = true;
             app.status_line = String::from("Filter mode: type to filter, Enter to apply");
         }
-        KeyCode::Char('o') | KeyCode::Enter => app.open_selected_placeholder(),
+        KeyCode::Char('o') | KeyCode::Enter => app.open_selected_issue(),
         _ => {}
     }
 
@@ -460,20 +816,7 @@ fn draw_ui(frame: &mut Frame, app: &App) {
 
     frame.render_stateful_widget(table, main_chunks[0], &mut state);
 
-    let detail_text = if let Some(issue) = app.selected_issue() {
-        format!(
-            "Key: {}\nStatus: {}\nAssignee: {}\n\nSummary\n{}\n\nNotes\n- Source: {}\n- 'r' reloads from the current source",
-            issue.key,
-            issue.status,
-            issue.assignee,
-            issue.summary,
-            app.source.describe()
-        )
-    } else {
-        "No issue selected".to_string()
-    };
-
-    let detail = Paragraph::new(detail_text)
+    let detail = Paragraph::new(app.detail_text_for_selected())
         .block(Block::default().title("Detail").borders(Borders::ALL))
         .wrap(Wrap { trim: false });
     frame.render_widget(detail, main_chunks[1]);
@@ -494,7 +837,7 @@ fn draw_ui(frame: &mut Frame, app: &App) {
 }
 
 fn print_help() {
-    println!("jayrah-tui (phase 0 scaffold)");
+    println!("jayrah-tui (phase 1 preview)");
     println!("Usage:");
     println!("  cargo run -p jayrah-tui -- [--board <name>] [--query <jql>] [--mock]");
     println!("Options:");
