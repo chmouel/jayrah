@@ -45,7 +45,8 @@ def wrap_markdown(text):
     lines = []
     for line in text.split("\n"):
         # Skip wrapping for code blocks and headers
-        if line.endswith("```java"):
+        # Convert ```java fenced blocks to bash for better rendering
+        if line.startswith("```java"):
             line = "```bash"
 
         if line.startswith(("```", "#")):
