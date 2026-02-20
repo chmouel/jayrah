@@ -2,7 +2,6 @@
 
 import base64
 from abc import ABC, abstractmethod
-from typing import Dict
 
 import click
 
@@ -11,7 +10,7 @@ class AuthenticatorBase(ABC):
     """Base class for authentication handlers."""
 
     @abstractmethod
-    def get_headers(self) -> Dict[str, str]:
+    def get_headers(self) -> dict[str, str]:
         """Get authentication headers."""
 
 
@@ -23,7 +22,7 @@ class BearerAuthenticator(AuthenticatorBase):
             raise click.ClickException("Bearer authentication requires a token")
         self.token = token
 
-    def get_headers(self) -> Dict[str, str]:
+    def get_headers(self) -> dict[str, str]:
         return {"Authorization": f"Bearer {self.token}"}
 
 
@@ -38,7 +37,7 @@ class BasicAuthenticator(AuthenticatorBase):
         self.username = username
         self.password = password
 
-    def get_headers(self) -> Dict[str, str]:
+    def get_headers(self) -> dict[str, str]:
         auth_string = f"{self.username}:{self.password}"
         encoded_auth = base64.b64encode(auth_string.encode("utf-8")).decode("utf-8")
         return {"Authorization": f"Basic {encoded_auth}"}

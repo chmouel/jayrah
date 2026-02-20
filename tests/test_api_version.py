@@ -28,7 +28,7 @@ def test_create_issue_description_v2(sample_config):
         )
 
         # Extract the payload from the _request call
-        args, kwargs = mock_request.call_args
+        _args, kwargs = mock_request.call_args
         payload = kwargs.get("jeez", {})
 
         # Verify description format for v2
@@ -46,7 +46,7 @@ def test_create_issue_description_v3(sample_config):
         )
 
         # Extract the payload from the _request call
-        args, kwargs = mock_request.call_args
+        _args, kwargs = mock_request.call_args
         payload = kwargs.get("jeez", {})
 
         # Verify description format for v3 (should be ADF)
@@ -67,7 +67,7 @@ def test_add_comment_v2(sample_config):
         client.add_comment("TEST-123", "Test comment")
 
         # Extract the payload from the _request call
-        args, kwargs = mock_request.call_args
+        _args, kwargs = mock_request.call_args
         payload = kwargs.get("jeez", {})
 
         # Verify comment format for v2
@@ -82,7 +82,7 @@ def test_add_comment_v3(sample_config):
         client.add_comment("TEST-123", "Test comment")
 
         # Extract the payload from the _request call
-        args, kwargs = mock_request.call_args
+        _args, kwargs = mock_request.call_args
         payload = kwargs.get("jeez", {})
 
         # Verify comment format for v3 (should be ADF wrapped in body)

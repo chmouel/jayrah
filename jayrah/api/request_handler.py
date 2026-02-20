@@ -6,13 +6,13 @@ import sys
 import time
 import urllib.error
 import urllib.request
-from typing import Any, Dict, Optional
+from typing import Any
 from urllib.parse import urlencode
 
 import click
 
-from . import exceptions
 from ..utils import cache, log
+from . import exceptions
 
 
 class JiraRequestHandler:
@@ -21,7 +21,7 @@ class JiraRequestHandler:
     def __init__(
         self,
         base_url: str,
-        headers: Dict[str, str],
+        headers: dict[str, str],
         cache_instance: cache.JiraCache,
         verbose: bool = False,
         insecure: bool = False,
@@ -55,9 +55,9 @@ class JiraRequestHandler:
         self,
         method: str,
         url: str,
-        headers: Dict[str, str],
-        params: Optional[Dict[str, Any]] = None,
-        json_data: Optional[Dict[str, Any]] = None,
+        headers: dict[str, str],
+        params: dict[str, Any] | None = None,
+        json_data: dict[str, Any] | None = None,
     ) -> str:
         """Generate an equivalent curl command for debugging purposes."""
         curl_parts = [f"curl -X {method}"]
@@ -89,11 +89,11 @@ class JiraRequestHandler:
         self,
         method: str,
         endpoint: str,
-        params: Optional[Dict[str, Any]] = None,
-        json_data: Optional[Dict[str, Any]] = None,
-        label: Optional[str] = None,
+        params: dict[str, Any] | None = None,
+        json_data: dict[str, Any] | None = None,
+        label: str | None = None,
         use_cache: bool = True,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Make HTTP request to Jira API."""
         endpoint = endpoint.lstrip("/")
         url = f"{self.base_url}/{endpoint}"
@@ -192,9 +192,9 @@ class JiraRequestHandler:
     def _send_request(
         self,
         request: urllib.request.Request,
-        data: Optional[bytes],
-        label: Optional[str],
-    ) -> Dict[str, Any]:
+        data: bytes | None,
+        label: str | None,
+    ) -> dict[str, Any]:
         """Send the actual HTTP request."""
         if (not self.verbose and not self.quiet) and label:
             with click.progressbar(
@@ -214,8 +214,8 @@ class JiraRequestHandler:
         return response_data
 
     def _execute_request(
-        self, request: urllib.request.Request, data: Optional[bytes]
-    ) -> Dict[str, Any]:
+        self, request: urllib.request.Request, data: bytes | None
+    ) -> dict[str, Any]:
         """Execute the HTTP request and parse response."""
         with urllib.request.urlopen(request, data=data) as response:
             status_code = response.status

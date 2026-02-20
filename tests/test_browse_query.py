@@ -3,8 +3,10 @@ Tests for the browse command with --query option.
 """
 
 from unittest.mock import MagicMock
+
 import pytest
 from click.testing import CliRunner
+
 from jayrah import commands
 from jayrah.ui import boards
 

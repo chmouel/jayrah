@@ -1,6 +1,7 @@
 """Enhanced Input and TextArea widgets with emacs/readline keybindings."""
 
 import re
+
 from textual.binding import Binding
 from textual.widgets import Input, TextArea
 
@@ -185,12 +186,12 @@ class EmacsTextArea(TextArea):
 
     def action_cursor_line_start(self) -> None:
         """Move cursor to start of current line (Ctrl+A)."""
-        cursor_row, cursor_col = self.cursor_location
+        cursor_row, _cursor_col = self.cursor_location
         self.cursor_location = (cursor_row, 0)
 
     def action_cursor_line_end(self) -> None:
         """Move cursor to end of current line (Ctrl+E)."""
-        cursor_row, cursor_col = self.cursor_location
+        cursor_row, _cursor_col = self.cursor_location
         lines = self.text.split("\n")
         if cursor_row < len(lines):
             line_length = len(lines[cursor_row])

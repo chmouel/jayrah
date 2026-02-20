@@ -2,7 +2,8 @@
 """MCP server implementation for Jayrah AI integration."""
 
 import json
-from typing import Dict, List, Sequence, TypeVar, Union
+from collections.abc import Sequence
+from typing import TypeVar, Union
 
 import mcp.server.stdio
 from mcp import types
@@ -30,7 +31,7 @@ class ServerContext:
         self.boards_obj = boards.Boards(self.wconfig)
 
 
-def _create_board_resource(board: Dict) -> types.Resource:
+def _create_board_resource(board: dict) -> types.Resource:
     """Create a resource object for a Jira board."""
     board_name = board.get("name", "")
     description = board.get("description", f"Jira board: {board_name}")
@@ -43,7 +44,7 @@ def _create_board_resource(board: Dict) -> types.Resource:
     )
 
 
-def _format_issue_details(ticket: str, issue: Dict) -> str:
+def _format_issue_details(ticket: str, issue: dict) -> str:
     """Format issue details into a readable string."""
     fields = issue.get("fields", {})
     summary = fields.get("summary", "No summary")
@@ -64,7 +65,7 @@ def _format_issue_details(ticket: str, issue: Dict) -> str:
     return "\n".join(formatted)
 
 
-def _format_transitions(ticket: str, transitions: Dict) -> str:
+def _format_transitions(ticket: str, transitions: dict) -> str:
     """Format transitions data into a readable string."""
     result = f"Available transitions for {ticket}:\n\n"
 
@@ -81,13 +82,13 @@ def _format_transitions(ticket: str, transitions: Dict) -> str:
 # pylint: disable=too-many-arguments
 def _format_issues_summary(
     board_name: str,
-    issues: List[Dict],
+    issues: list[dict],
     limit: int = 10,
     page: int = 1,
     page_size: int = 100,
-    search_terms: List | None = None,
+    search_terms: list | None = None,
     use_or: bool = False,
-    filters: List | None = None,
+    filters: list | None = None,
     search_term: str | None = None,  # For backward compatibility
 ) -> str:
     """Format a list of issues into a readable summary."""
@@ -154,7 +155,7 @@ def _format_issues_summary(
 
 def _format_search_results(
     jql: str,
-    issues: List[Dict],
+    issues: list[dict],
     total: int,
     limit: int = 10,
     page: int = 1,
@@ -200,7 +201,7 @@ def create_server(context: ServerContext) -> Server:
     server = Server("jayrah")
 
     @server.list_resources()
-    async def handle_list_resources() -> List[types.Resource]:
+    async def handle_list_resources() -> list[types.Resource]:
         """List all available Jira boards as resources."""
         return [
             _create_board_resource(board) for board in context.wconfig.get("boards", [])
@@ -243,13 +244,13 @@ def create_server(context: ServerContext) -> Server:
             return json.dumps(issue)
         except AttributeError as e:
             return json.dumps(
-                {"error": f"Attribute error fetching issue {issue_key}: {str(e)}"}
+                {"error": f"Attribute error fetching issue {issue_key}: {e!s}"}
             )
         except Exception as e:  # pylint: disable=W0718
-            return json.dumps({"error": f"Error fetching issue {issue_key}: {str(e)}"})
+            return json.dumps({"error": f"Error fetching issue {issue_key}: {e!s}"})
 
     @server.list_prompts()
-    async def handle_list_prompts() -> List[types.Prompt]:
+    async def handle_list_prompts() -> list[types.Prompt]:
         """
         List available prompts.
         Each prompt can have optional arguments to customize its behavior.
@@ -270,7 +271,7 @@ def create_server(context: ServerContext) -> Server:
 
     @server.get_prompt()
     async def handle_get_prompt(
-        name: str, arguments: Dict[str, str] | None
+        name: str, arguments: dict[str, str] | None
     ) -> types.GetPromptResult:
         """Generate a prompt by combining arguments with server state."""
         if name == "analyze-jira-issue":
@@ -279,7 +280,7 @@ def create_server(context: ServerContext) -> Server:
         raise ValueError(f"Unknown prompt: {name}")
 
     async def _generate_analyze_issue_prompt(
-        arguments: Dict[str, str],
+        arguments: dict[str, str],
     ) -> types.GetPromptResult:
         """Generate a prompt to analyze a Jira issue."""
         issue_key = arguments.get("issue_key")
@@ -304,10 +305,10 @@ def create_server(context: ServerContext) -> Server:
                 ],
             )
         except Exception as e:
-            raise ValueError(f"Error fetching issue {issue_key}: {str(e)}") from e
+            raise ValueError(f"Error fetching issue {issue_key}: {e!s}") from e
 
     @server.list_tools()
-    async def handle_list_tools() -> List[types.Tool]:
+    async def handle_list_tools() -> list[types.Tool]:
         """
         List available tools, mapping to Jira CLI commands.
         Each tool specifies its arguments using JSON Schema validation.
@@ -624,7 +625,7 @@ def create_server(context: ServerContext) -> Server:
 
     @server.call_tool()
     async def handle_call_tool(
-        name: str, arguments: Dict | None
+        name: str, arguments: dict | None
     ) -> Sequence[ContentType]:
         """Handle tool execution requests, mapping to Jira CLI commands."""
         tool_handlers = {
@@ -650,11 +651,11 @@ def create_server(context: ServerContext) -> Server:
         except Exception as e:  # pylint: disable=W0718
             return [
                 types.TextContent(
-                    type="text", text=f"Error executing tool '{name}': {str(e)}"
+                    type="text", text=f"Error executing tool '{name}': {e!s}"
                 )
             ]
 
-    async def _handle_browse(arguments: Dict) -> Sequence[ContentType]:
+    async def _handle_browse(arguments: dict) -> Sequence[ContentType]:
         """Handle the browse tool to list issues on a board."""
         board = arguments.get("board")
         limit = arguments.get("limit", 10)  # Default display limit is 10
@@ -730,7 +731,7 @@ def create_server(context: ServerContext) -> Server:
             )
         ]
 
-    async def _handle_create_issue(arguments: Dict) -> Sequence[ContentType]:
+    async def _handle_create_issue(arguments: dict) -> Sequence[ContentType]:
         """Handle the create-issue tool to create a new Jira issue."""
         issuetype = arguments.get("issuetype", "Story")
         summary = arguments.get("summary")
@@ -759,7 +760,7 @@ def create_server(context: ServerContext) -> Server:
             )
         ]
 
-    async def _handle_view_issue(arguments: Dict) -> Sequence[ContentType]:
+    async def _handle_view_issue(arguments: dict) -> Sequence[ContentType]:
         """Handle the view-issue tool to view details of a specific Jira issue."""
         ticket = arguments.get("ticket")
         if not ticket:
@@ -769,7 +770,7 @@ def create_server(context: ServerContext) -> Server:
         formatted_issue = _format_issue_details(ticket, issue)
         return [types.TextContent(type="text", text=formatted_issue)]
 
-    async def _handle_transition_issue(arguments: Dict) -> Sequence[ContentType]:
+    async def _handle_transition_issue(arguments: dict) -> Sequence[ContentType]:
         """Handle the transition-issue tool to transition a Jira issue to a new status."""
         ticket = arguments.get("ticket")
         transition_id = arguments.get("transition_id")
@@ -787,7 +788,7 @@ def create_server(context: ServerContext) -> Server:
             )
         ]
 
-    async def _handle_get_transitions(arguments: Dict) -> Sequence[ContentType]:
+    async def _handle_get_transitions(arguments: dict) -> Sequence[ContentType]:
         """Handle the get-transitions tool to get available transitions for a Jira issue."""
         ticket = arguments.get("ticket")
         if not ticket:
@@ -798,7 +799,7 @@ def create_server(context: ServerContext) -> Server:
 
         return [types.TextContent(type="text", text=formatted_transitions)]
 
-    async def _handle_open_issue(arguments: Dict) -> Sequence[ContentType]:
+    async def _handle_open_issue(arguments: dict) -> Sequence[ContentType]:
         """Handle the open-issue tool to get URL to open a Jira issue in browser."""
         ticket = arguments.get("ticket")
         if not ticket:
@@ -807,7 +808,7 @@ def create_server(context: ServerContext) -> Server:
         url = utils.make_full_url(ticket, context.wconfig.get("jira_server"))
         return [types.TextContent(type="text", text=f"URL for {ticket}: {url}")]
 
-    async def _handle_list_boards(arguments: Dict) -> Sequence[ContentType]:
+    async def _handle_list_boards(arguments: dict) -> Sequence[ContentType]:
         """Handle the list-boards tool to list all available Jira boards."""
         # Format board information
         formatted_boards = "Available boards:\n\n"
@@ -818,7 +819,7 @@ def create_server(context: ServerContext) -> Server:
 
         return [types.TextContent(type="text", text=formatted_boards)]
 
-    async def _handle_search(arguments: Dict) -> Sequence[ContentType]:
+    async def _handle_search(arguments: dict) -> Sequence[ContentType]:
         """Handle the search tool for comprehensive Jira issue searching."""
         # Get search parameters
         custom_jql = arguments.get("jql")
@@ -883,17 +884,13 @@ def create_server(context: ServerContext) -> Server:
 
             # Components filter
             if components:
-                comp_filters = []
-                for comp in components:
-                    comp_filters.append(f'component = "{comp}"')
+                comp_filters = [f'component = "{comp}"' for comp in components]
                 if comp_filters:
                     jql_parts.append(f"({' OR '.join(comp_filters)})")
 
             # Labels filter
             if labels:
-                label_filters = []
-                for label in labels:
-                    label_filters.append(f'labels = "{label}"')
+                label_filters = [f'labels = "{label}"' for label in labels]
                 if label_filters:
                     jql_parts.append(f"({' AND '.join(label_filters)})")
 
@@ -959,11 +956,11 @@ def create_server(context: ServerContext) -> Server:
         except Exception as e:
             return [
                 types.TextContent(
-                    type="text", text=f"Error executing search: {str(e)}\nJQL: {jql}"
+                    type="text", text=f"Error executing search: {e!s}\nJQL: {jql}"
                 )
             ]
 
-    async def _handle_add_comment(arguments: Dict) -> Sequence[ContentType]:
+    async def _handle_add_comment(arguments: dict) -> Sequence[ContentType]:
         """Handle the add-comment tool to add a comment to a Jira issue."""
         ticket = arguments.get("ticket")
         comment = arguments.get("comment")
@@ -980,7 +977,7 @@ def create_server(context: ServerContext) -> Server:
             )
         ]
 
-    async def _handle_get_issue_json(arguments: Dict) -> Sequence[ContentType]:
+    async def _handle_get_issue_json(arguments: dict) -> Sequence[ContentType]:
         """Handle the get-issue-json tool to get raw JSON for a Jira issue."""
         ticket = arguments.get("ticket")
         if not ticket:
@@ -989,7 +986,7 @@ def create_server(context: ServerContext) -> Server:
         issue = context.boards_obj.jira.get_issue(ticket)
         return [types.TextContent(type="text", text=json.dumps(issue, indent=2))]
 
-    async def _handle_aggregate_story_points(arguments: Dict) -> Sequence[ContentType]:
+    async def _handle_aggregate_story_points(arguments: dict) -> Sequence[ContentType]:
         """Handle the aggregate-story-points tool to calculate total story points from a JQL query."""
         jql = arguments.get("jql")
         if not jql:
@@ -1091,7 +1088,7 @@ def create_server(context: ServerContext) -> Server:
             return [
                 types.TextContent(
                     type="text",
-                    text=f"Error aggregating story points: {str(e)}\nJQL: {jql}",
+                    text=f"Error aggregating story points: {e!s}\nJQL: {jql}",
                 )
             ]
 

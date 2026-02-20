@@ -1,40 +1,40 @@
 """TUI components for the issue browser."""
 
+from .actions import IssueBrowserActions
 from .app import IssueBrowserApp, run_textual_browser
+from .base import BaseModalScreen, JayrahAppMixin
+from .helpers import filter_issues_by_text, get_row_data_for_issue
 from .views import (
+    AddCommentScreen,
+    BoardSelectionScreen,
+    CommentsViewScreen,
+    ComponentsEditScreen,
+    DescriptionEditScreen,
+    EditSelectionScreen,
+    FuzzyFilterScreen,
     IssueDetailPanel,
     LabelsEditScreen,
-    ComponentsEditScreen,
-    CommentsViewScreen,
-    AddCommentScreen,
-    EditSelectionScreen,
     TitleEditScreen,
-    DescriptionEditScreen,
-    FuzzyFilterScreen,
-    BoardSelectionScreen,
     TransitionSelectionScreen,
 )
-from .actions import IssueBrowserActions
-from .base import JayrahAppMixin, BaseModalScreen
-from .helpers import get_row_data_for_issue, filter_issues_by_text
 
 __all__ = [
-    "IssueBrowserApp",
-    "run_textual_browser",
-    "IssueDetailPanel",
-    "LabelsEditScreen",
-    "ComponentsEditScreen",
-    "CommentsViewScreen",
     "AddCommentScreen",
-    "EditSelectionScreen",
-    "TitleEditScreen",
-    "DescriptionEditScreen",
-    "FuzzyFilterScreen",
-    "BoardSelectionScreen",
-    "TransitionSelectionScreen",
-    "IssueBrowserActions",
-    "JayrahAppMixin",
     "BaseModalScreen",
-    "get_row_data_for_issue",
+    "BoardSelectionScreen",
+    "CommentsViewScreen",
+    "ComponentsEditScreen",
+    "DescriptionEditScreen",
+    "EditSelectionScreen",
+    "FuzzyFilterScreen",
+    "IssueBrowserActions",
+    "IssueBrowserApp",
+    "IssueDetailPanel",
+    "JayrahAppMixin",
+    "LabelsEditScreen",
+    "TitleEditScreen",
+    "TransitionSelectionScreen",
     "filter_issues_by_text",
+    "get_row_data_for_issue",
+    "run_textual_browser",
 ]

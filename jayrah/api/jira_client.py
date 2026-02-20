@@ -2,7 +2,7 @@
 
 import sqlite3
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import click
 
@@ -15,9 +15,9 @@ class JiraHTTP:
 
     def __init__(
         self,
-        config: Dict[str, Any],
+        config: dict[str, Any],
         api_version: str = "2",
-        auth_method: Optional[str] = None,
+        auth_method: str | None = None,
     ):
         """Initialize the Jira client.
 
@@ -81,11 +81,11 @@ class JiraHTTP:
         self,
         method: str,
         endpoint: str,
-        params: Optional[Dict[str, Any]] = None,
-        jeez: Optional[Dict[str, Any]] = None,
-        label: Optional[str] = None,
+        params: dict[str, Any] | None = None,
+        jeez: dict[str, Any] | None = None,
+        label: str | None = None,
         use_cache: bool = True,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Backward compatibility method that delegates to request_handler.request().
 
         This method maintains the same interface as the original JiraHTTP class
@@ -111,9 +111,9 @@ class JiraHTTP:
         jql: str,
         start_at: int = 0,
         max_results: int = 50,
-        fields: Optional[List[str]] = None,
+        fields: list[str] | None = None,
         use_cache: bool = True,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Search for issues using JQL."""
         params = {"jql": jql, "startAt": start_at, "maxResults": max_results}
         if fields:
@@ -146,13 +146,13 @@ class JiraHTTP:
         self,
         issuetype: str,
         summary: str,
-        description: Optional[str] = None,
-        priority: Optional[str] = None,
-        assignee: Optional[str] = None,
-        labels: Optional[List[str]] = None,
-        components: Optional[List[str]] = None,
-        extra_fields: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
+        description: str | None = None,
+        priority: str | None = None,
+        assignee: str | None = None,
+        labels: list[str] | None = None,
+        components: list[str] | None = None,
+        extra_fields: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         """Create a new issue."""
         payload = self._build_create_issue_payload(
             issuetype,
@@ -170,13 +170,13 @@ class JiraHTTP:
         self,
         issuetype: str,
         summary: str,
-        description: Optional[str],
-        priority: Optional[str],
-        assignee: Optional[str],
-        labels: Optional[List[str]],
-        components: List[str],
-        extra_fields: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
+        description: str | None,
+        priority: str | None,
+        assignee: str | None,
+        labels: list[str] | None,
+        components: list[str],
+        extra_fields: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         """Build the payload for creating an issue."""
         payload = {
             "fields": {
@@ -212,8 +212,8 @@ class JiraHTTP:
         return payload
 
     def get_issue(
-        self, issue_key: str, fields: Optional[List[str]] = None, use_cache: bool = True
-    ) -> Dict[str, Any]:
+        self, issue_key: str, fields: list[str] | None = None, use_cache: bool = True
+    ) -> dict[str, Any]:
         """Get a specific issue by key."""
         params = {}
         if fields:
@@ -226,7 +226,7 @@ class JiraHTTP:
             "GET", f"issue/{issue_key}", params=params, use_cache=use_cache
         )
 
-    def update_issue(self, issue_key: str, fields: Dict[str, Any]) -> Dict[str, Any]:
+    def update_issue(self, issue_key: str, fields: dict[str, Any]) -> dict[str, Any]:
         """Update an existing issue's fields."""
         # Handle description formatting if present
         if "description" in fields and isinstance(fields["description"], str):
@@ -243,13 +243,13 @@ class JiraHTTP:
 
         return self._request("PUT", f"issue/{issue_key}", jeez=payload)
 
-    def get_transitions(self, issue_key: str) -> Dict[str, Any]:
+    def get_transitions(self, issue_key: str) -> dict[str, Any]:
         """Get available transitions for an issue."""
         return self._request(
             "GET", f"issue/{issue_key}/transitions", label="All transitions"
         )
 
-    def transition_issue(self, issue_key: str, transition_id: str) -> Dict[str, Any]:
+    def transition_issue(self, issue_key: str, transition_id: str) -> dict[str, Any]:
         """Transition an issue to a new status."""
         payload = {"transition": {"id": transition_id}}
 
@@ -258,7 +258,7 @@ class JiraHTTP:
 
         return self._request("POST", f"issue/{issue_key}/transitions", jeez=payload)
 
-    def add_comment(self, issue_key: str, comment: str) -> Dict[str, Any]:
+    def add_comment(self, issue_key: str, comment: str) -> dict[str, Any]:
         """Add a comment to an issue."""
         payload = self.formatter.format_comment(comment)
 
@@ -267,7 +267,7 @@ class JiraHTTP:
 
         return self._request("POST", f"issue/{issue_key}/comment", jeez=payload)
 
-    def get_issue_types(self, use_cache: bool = True) -> Dict[str, str]:
+    def get_issue_types(self, use_cache: bool = True) -> dict[str, str]:
         """Get all available issue types for the project.
 
         Args:
@@ -277,7 +277,7 @@ class JiraHTTP:
             Dictionary mapping issue type names to IDs
         """
         project_key = self.config.get("jira_project")
-        ret: Dict[str, str] = {}
+        ret: dict[str, str] = {}
         errors = []  # Track all attempted endpoints and their errors
 
         # If no project configured, use global endpoint
@@ -362,7 +362,7 @@ class JiraHTTP:
                 exceptions.JiraRateLimitError,
             ) as e:
                 # Don't retry on auth or rate limit errors
-                errors.append(f"{ep_config['name']}: {str(e)}")
+                errors.append(f"{ep_config['name']}: {e!s}")
                 if self.verbose:
                     log(
                         f"✗ {ep_config['name']} failed with critical error: {type(e).__name__}"
@@ -379,7 +379,7 @@ class JiraHTTP:
                         )
 
             except Exception as e:
-                errors.append(f"{ep_config['name']}: {type(e).__name__}: {str(e)}")
+                errors.append(f"{ep_config['name']}: {type(e).__name__}: {e!s}")
                 if self.verbose:
                     log(f"✗ {ep_config['name']} failed: {e}")
 
@@ -398,10 +398,10 @@ class JiraHTTP:
         return ret
 
     def _parse_modern_issue_types(
-        self, response: Dict[str, Any], project_key: str
-    ) -> Dict[str, str]:
+        self, response: dict[str, Any], project_key: str
+    ) -> dict[str, str]:
         """Parse issue types from modern Jira DC endpoint."""
-        ret: Dict[str, str] = {}
+        ret: dict[str, str] = {}
         if isinstance(response, dict) and "issueTypes" in response:
             for it in response["issueTypes"]:
                 if isinstance(it, dict):
@@ -412,10 +412,10 @@ class JiraHTTP:
         return ret
 
     def _parse_legacy_issue_types(
-        self, response: Dict[str, Any], project_key: str
-    ) -> Dict[str, str]:
+        self, response: dict[str, Any], project_key: str
+    ) -> dict[str, str]:
         """Parse issue types from legacy/Cloud createmeta endpoint."""
-        ret: Dict[str, str] = {}
+        ret: dict[str, str] = {}
         if isinstance(response, list):
             # Some endpoints return a list directly
             for it in response:
@@ -438,10 +438,10 @@ class JiraHTTP:
         return ret
 
     def _parse_global_issue_types(
-        self, response: Dict[str, Any], project_key: str
-    ) -> Dict[str, str]:
+        self, response: dict[str, Any], project_key: str
+    ) -> dict[str, str]:
         """Parse issue types from global issuetype endpoint."""
-        ret: Dict[str, str] = {}
+        ret: dict[str, str] = {}
         if isinstance(response, list):
             for it in response:
                 if isinstance(it, dict):
@@ -453,9 +453,9 @@ class JiraHTTP:
 
     def get_project_priorities(
         self,
-        issuetype: Optional[str] = None,
-        issue_types_cache: Optional[Dict[str, str]] = None,
-    ) -> List[str]:
+        issuetype: str | None = None,
+        issue_types_cache: dict[str, str] | None = None,
+    ) -> list[str]:
         """Get all available priorities for the project, optionally filtered by issue type.
 
         Args:
@@ -493,12 +493,12 @@ class JiraHTTP:
                                     if isinstance(v, dict) and v.get("name"):
                                         priorities_set.add(str(v.get("name")))
                         if priorities_set:
-                            return sorted(list(priorities_set))
+                            return sorted(priorities_set)
             except Exception:
                 pass
 
         # Try legacy/Cloud createmeta endpoint
-        params: Dict[str, Any] = {
+        params: dict[str, Any] = {
             "projectKeys": project_key,
             "expand": "projects.issuetypes.fields",
         }
@@ -528,13 +528,13 @@ class JiraHTTP:
                                         priorities_set.add(str(v.get("name")))
 
             if priorities_set:
-                return sorted(list(priorities_set))
+                return sorted(priorities_set)
         except Exception:
             pass
 
         return self._get_global_priorities()
 
-    def _get_global_priorities(self) -> List[str]:
+    def _get_global_priorities(self) -> list[str]:
         """Get global priorities as a fallback."""
         try:
             priorities = self.get_priorities()
@@ -548,17 +548,17 @@ class JiraHTTP:
             pass
         return []
 
-    def get_priorities(self) -> Dict[str, Any]:
+    def get_priorities(self) -> dict[str, Any]:
         """Get all available priorities."""
         return self._request("GET", "priority", label="Fetching priorities")
 
-    def get_users(self) -> Dict[str, Any]:
+    def get_users(self) -> dict[str, Any]:
         """Get all available users."""
         return self._request(
             "GET", "user/search", params={"maxResults": 1000}, label="Fetching users"
         )
 
-    def get_labels(self, max_results: int = 100) -> List[str]:
+    def get_labels(self, max_results: int = 100) -> list[str]:
         """Get all available labels."""
         jql = f"project = {self.config.get('jira_project')}"
         response = self._request(
@@ -572,9 +572,9 @@ class JiraHTTP:
         for issue in response.get("issues", []):
             labels.update(issue.get("fields", {}).get("labels", []))
 
-        return sorted(list(labels))
+        return sorted(labels)
 
-    def get_components(self, max_results: int = 100) -> List[str]:
+    def get_components(self, max_results: int = 100) -> list[str]:
         """Get all available components."""
         jql = f"project = {self.config.get('jira_project')}"
         response = self._request(
@@ -590,9 +590,9 @@ class JiraHTTP:
             for component in issue_components:
                 components.add(component.get("name", ""))
 
-        return sorted(list(filter(None, components)))
+        return sorted(filter(None, components))
 
-    def get_createmeta(self, project_key: str, issuetype_name: str) -> Dict[str, Any]:
+    def get_createmeta(self, project_key: str, issuetype_name: str) -> dict[str, Any]:
         """Get creation metadata for a specific project and issue type."""
         params = {
             "projectKeys": project_key,
@@ -601,7 +601,7 @@ class JiraHTTP:
         }
         return self._request("GET", "issue/createmeta", params=params)
 
-    def get_cache_stats(self) -> Dict[str, Any]:
+    def get_cache_stats(self) -> dict[str, Any]:
         """Get statistics about the SQLite cache usage."""
         if self.verbose:
             log("Fetching cache statistics...")
@@ -631,7 +631,7 @@ class JiraHTTP:
             # Calculate additional stats
             size_mb = round(total_size / (1024 * 1024), 2) if total_size else 0
 
-            stats = {
+            return {
                 "entries": total_entries,
                 "size_bytes": total_size,
                 "size_mb": size_mb,
@@ -641,8 +641,6 @@ class JiraHTTP:
                 "db_path": str(self.request_handler.cache.db_path),
                 "serialization": "pickle",
             }
-
-            return stats
 
         except sqlite3.Error as e:
             if self.verbose:

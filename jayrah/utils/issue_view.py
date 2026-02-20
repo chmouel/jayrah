@@ -48,7 +48,7 @@ def wrap_markdown(text):
         if line.endswith("```java"):
             line = "```bash"
 
-        if line.startswith("```") or line.startswith("#"):
+        if line.startswith(("```", "#")):
             lines.append(line)
         else:
             # Wrap the line to the terminal width

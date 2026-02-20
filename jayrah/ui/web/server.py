@@ -1,6 +1,5 @@
 import os
 import pathlib
-from typing import Optional
 
 from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -72,7 +71,7 @@ def initialize_app_state(user_config=None):
 
 @app.get("/api/issues")
 def get_issues(
-    q: Optional[str] = Query(None), state: WebAppState = Depends(get_app_state)
+    q: str | None = Query(None), state: WebAppState = Depends(get_app_state)
 ):
     if not state.issues:
         raise HTTPException(
@@ -125,16 +124,15 @@ def get_boards(state: WebAppState = Depends(get_app_state)):
     try:
         boards = state.config.get("boards", [])
         # Extract board names and descriptions
-        board_list = []
-        for board in boards:
-            if isinstance(board, dict) and "name" in board:
-                board_list.append(
-                    {
-                        "name": board["name"],
-                        "description": board.get("description", board["name"]),
-                        "jql": board.get("jql", ""),
-                    }
-                )
+        board_list = [
+            {
+                "name": board["name"],
+                "description": board.get("description", board["name"]),
+                "jql": board.get("jql", ""),
+            }
+            for board in boards
+            if isinstance(board, dict) and "name" in board
+        ]
         return {"boards": board_list}
     except Exception as e:
         print(f"Error getting boards: {e}")
@@ -149,7 +147,7 @@ def switch_board(board_name: str, state: WebAppState = Depends(get_app_state)):
         from jayrah.ui import boards
 
         # Get the new board's JQL and order_by
-        jql, order_by = boards.check(board_name, state.config)
+        jql, _order_by = boards.check(board_name, state.config)
         if not jql:
             raise HTTPException(
                 status_code=400,
@@ -176,7 +174,7 @@ def switch_board(board_name: str, state: WebAppState = Depends(get_app_state)):
     except Exception as e:
         print(f"Error switching board: {e}")
         raise HTTPException(
-            status_code=500, detail=f"Error switching board: {str(e)}"
+            status_code=500, detail=f"Error switching board: {e!s}"
         ) from e
 
 
@@ -212,7 +210,7 @@ def refresh_issues(state: WebAppState = Depends(get_app_state)):
     except Exception as e:
         print(f"Error refreshing issues: {e}")
         raise HTTPException(
-            status_code=500, detail=f"Error refreshing issues: {str(e)}"
+            status_code=500, detail=f"Error refreshing issues: {e!s}"
         ) from e
 
 
@@ -265,7 +263,7 @@ def update_issue_labels(
     except Exception as e:
         print(f"Error updating labels: {e}")
         raise HTTPException(
-            status_code=500, detail=f"Error updating labels: {str(e)}"
+            status_code=500, detail=f"Error updating labels: {e!s}"
         ) from e
 
 
@@ -273,12 +271,11 @@ def update_issue_labels(
 def get_issue_transitions(key: str, state: WebAppState = Depends(get_app_state)):
     """Get available transitions for an issue"""
     try:
-        transitions_data = state.jayrah_obj.jira.get_transitions(key)
-        return transitions_data
+        return state.jayrah_obj.jira.get_transitions(key)
     except Exception as e:
         print(f"Error getting transitions for {key}: {e}")
         raise HTTPException(
-            status_code=500, detail=f"Error getting transitions: {str(e)}"
+            status_code=500, detail=f"Error getting transitions: {e!s}"
         ) from e
 
 
@@ -315,7 +312,7 @@ def apply_issue_transition(
     except Exception as e:
         print(f"Error applying transition to {key}: {e}")
         raise HTTPException(
-            status_code=500, detail=f"Error applying transition: {str(e)}"
+            status_code=500, detail=f"Error applying transition: {e!s}"
         ) from e
 
 
@@ -436,9 +433,7 @@ def get_stats(state: WebAppState = Depends(get_app_state)):
         try:
             created_str = fields.get("created", "")
             if created_str:
-                created_date = datetime.fromisoformat(
-                    created_str.replace("Z", "+00:00")
-                )
+                created_date = datetime.fromisoformat(created_str)
                 if created_date.replace(tzinfo=None) > week_ago:
                     created_this_week += 1
                 # Trend: created
@@ -449,9 +444,7 @@ def get_stats(state: WebAppState = Depends(get_app_state)):
 
             updated_str = fields.get("updated", "")
             if updated_str:
-                updated_date = datetime.fromisoformat(
-                    updated_str.replace("Z", "+00:00")
-                )
+                updated_date = datetime.fromisoformat(updated_str)
                 if updated_date.replace(tzinfo=None) > week_ago:
                     updated_this_week += 1
 
@@ -471,9 +464,7 @@ def get_stats(state: WebAppState = Depends(get_app_state)):
 
             # Stuck: not updated in >7 days
             if updated_str:
-                updated_date = datetime.fromisoformat(
-                    updated_str.replace("Z", "+00:00")
-                )
+                updated_date = datetime.fromisoformat(updated_str)
                 if updated_date.replace(tzinfo=None) < week_ago and (
                     not resolution or resolution_name == "Unresolved"
                 ):
@@ -486,9 +477,7 @@ def get_stats(state: WebAppState = Depends(get_app_state)):
 
             # Closed trend: closed in week
             if resolution and "date" in resolution:
-                closed_date = datetime.fromisoformat(
-                    resolution["date"].replace("Z", "+00:00")
-                )
+                closed_date = datetime.fromisoformat(resolution["date"])
                 for i, (y, w) in enumerate(week_bins):
                     if closed_date.isocalendar()[:2] == (y, w):
                         trend_closed[i] += 1
@@ -626,5 +615,5 @@ def update_issue_custom_field(
     except Exception as e:
         print(f"Error updating custom field for {key}: {e}")
         raise HTTPException(
-            status_code=500, detail=f"Error updating custom field: {str(e)}"
+            status_code=500, detail=f"Error updating custom field: {e!s}"
         ) from e

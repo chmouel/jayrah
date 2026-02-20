@@ -37,7 +37,7 @@ class IssueBrowserActions:
     issues: list = []  # List of issues fetched from JIRA
     selected_issue: str | None = None  # Currently selected issue
 
-    def action_reload(self) -> None:  # noqa: D401
+    def action_reload(self) -> None:
         """Reload issues asynchronously with loading state."""
         # Show loading state
         cast(Any, self).notify("🔄 Reloading issues...")
@@ -50,7 +50,7 @@ class IssueBrowserActions:
             thread=True,
         )
 
-    def action_add_labels(self) -> None:  # noqa: D401
+    def action_add_labels(self) -> None:
         """Open modal to edit labels for the selected issue."""
         if not cast(Any, self).selected_issue:
             cast(Any, self).notify("No issue selected", severity="warning")
@@ -75,7 +75,7 @@ class IssueBrowserActions:
         except Exception as exc:
             cast(Any, self).notify(f"Error loading issue data: {exc}", severity="error")
 
-    def action_edit_components(self) -> None:  # noqa: D401
+    def action_edit_components(self) -> None:
         """Open modal to edit components for the selected issue."""
         if not cast(Any, self).selected_issue:
             cast(Any, self).notify("No issue selected", severity="warning")
@@ -103,7 +103,7 @@ class IssueBrowserActions:
         except Exception as exc:
             cast(Any, self).notify(f"Error loading issue data: {exc}", severity="error")
 
-    def action_transition_issue(self) -> None:  # noqa: D401
+    def action_transition_issue(self) -> None:
         """Open modal to transition the selected issue to a new status."""
         if not cast(Any, self).selected_issue:
             cast(Any, self).notify("No issue selected", severity="warning")
@@ -123,7 +123,7 @@ class IssueBrowserActions:
                 f"Error loading transitions: {exc}", severity="error"
             )
 
-    def action_edit_issue(self) -> None:  # noqa: D401
+    def action_edit_issue(self) -> None:
         """Open modal to edit the selected issue (title or description)."""
         if not cast(Any, self).selected_issue:
             cast(Any, self).notify("No issue selected", severity="warning")
@@ -143,7 +143,7 @@ class IssueBrowserActions:
                 f"Error opening edit dialog: {exc}", severity="error"
             )
 
-    def action_view_comments(self) -> None:  # noqa: D401
+    def action_view_comments(self) -> None:
         """Open modal to view comments for the selected issue."""
         if not cast(Any, self).selected_issue:
             cast(Any, self).notify("No issue selected", severity="warning")
@@ -161,56 +161,56 @@ class IssueBrowserActions:
         except Exception as exc:
             cast(Any, self).notify(f"Error loading comments: {exc}", severity="error")
 
-    def action_filter(self) -> None:  # noqa: D401
+    def action_filter(self) -> None:
         """Open a simple filter dialog to search across all visible fields."""
         # Show the filter screen
         cast(Any, self).push_screen(FuzzyFilterScreen(self))
 
-    def action_change_board(self) -> None:  # noqa: D401
+    def action_change_board(self) -> None:
         """Open modal to select a different board."""
         # Show the board selection screen
         cast(Any, self).push_screen(BoardSelectionScreen(self, cast(Any, self).config))
 
-    def action_show_actions(self) -> None:  # noqa: D401
+    def action_show_actions(self) -> None:
         """Show a panel with all available actions."""
         # Show the actions panel
         cast(Any, self).push_screen(ActionsPanel(self))
 
-    def action_cursor_down(self) -> None:  # noqa: D401
+    def action_cursor_down(self) -> None:
         """Move cursor down in the issues table."""
         table = cast(Any, self).query_one("#issues-table")
         table.action_cursor_down()
 
-    def action_cursor_up(self) -> None:  # noqa: D401
+    def action_cursor_up(self) -> None:
         """Move cursor up in the issues table."""
         table = cast(Any, self).query_one("#issues-table")
         table.action_cursor_up()
 
-    def action_scroll_down(self) -> None:  # noqa: D401
+    def action_scroll_down(self) -> None:
         """Scroll down the issue detail panel content."""
         detail_panel = cast(Any, self).query_one(IssueDetailPanel)
         markdown_widget = detail_panel.query_one("#detail-markdown")
         markdown_widget.scroll_down()
 
-    def action_scroll_up(self) -> None:  # noqa: D401
+    def action_scroll_up(self) -> None:
         """Scroll up the issue detail panel content."""
         detail_panel = cast(Any, self).query_one(IssueDetailPanel)
         markdown_widget = detail_panel.query_one("#detail-markdown")
         markdown_widget.scroll_up()
 
-    def action_page_scroll_down(self) -> None:  # noqa: D401
+    def action_page_scroll_down(self) -> None:
         """Scroll down one page in the issue detail panel content."""
         detail_panel = cast(Any, self).query_one(IssueDetailPanel)
         markdown_widget = detail_panel.query_one("#detail-markdown")
         markdown_widget.scroll_page_down()
 
-    def action_page_scroll_up(self) -> None:  # noqa: D401
+    def action_page_scroll_up(self) -> None:
         """Scroll up one page in the issue detail panel content."""
         detail_panel = cast(Any, self).query_one(IssueDetailPanel)
         markdown_widget = detail_panel.query_one("#detail-markdown")
         markdown_widget.scroll_page_up()
 
-    def action_open_issue(self) -> None:  # noqa: D401
+    def action_open_issue(self) -> None:
         """Open the selected issue in the browser."""
         if not cast(Any, self).selected_issue:
             cast(Any, self).notify("No issue selected", severity="error")
@@ -225,7 +225,7 @@ class IssueBrowserActions:
         except Exception as exc:
             cast(Any, self).notify(f"Error opening issue: {exc}", severity="error")
 
-    def action_copy_url(self) -> None:  # noqa: D401
+    def action_copy_url(self) -> None:
         """Copy the URL of the selected issue to clipboard."""
         if not cast(Any, self).selected_issue:
             cast(Any, self).notify("No issue selected", severity="error")
@@ -266,7 +266,7 @@ class IssueBrowserActions:
         except Exception as exc:
             cast(Any, self).notify(f"Error copying URL: {exc}", severity="error")
 
-    def action_confirm_selection(self) -> None:  # noqa: D401
+    def action_confirm_selection(self) -> None:
         """Confirm the currently highlighted issue when auto choose is enabled."""
         if not getattr(self, "auto_choose", False):
             self.action_open_issue()
@@ -278,11 +278,11 @@ class IssueBrowserActions:
 
         cast(Any, self).exit(cast(Any, self).selected_issue)
 
-    def action_quit(self) -> None:  # noqa: D401
+    def action_quit(self) -> None:
         """Quit the application."""
         cast(Any, self).exit()  # *app.selected_issue* persists after exit
 
-    def action_help(self) -> None:  # noqa: D401
+    def action_help(self) -> None:
         """Show the help panel with key bindings."""
         from textual.css.query import NoMatches
         from textual.widgets import HelpPanel

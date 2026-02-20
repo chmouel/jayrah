@@ -34,7 +34,7 @@ def main():
         click.secho(f"Error: {e}", fg="red")
         if verbose:
             utils.log("Verbose mode enabled. Full error details:")
-            raise e
+            raise
         sys.exit(1)
 
 

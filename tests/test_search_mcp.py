@@ -1,7 +1,8 @@
 """Test the new search functionality in the MCP server."""
 
-import pytest
 from unittest.mock import MagicMock
+
+import pytest
 
 from jayrah.mcp.server import ServerContext, create_server
 
@@ -71,9 +72,7 @@ def test_search_jql_construction_logic():
     jql_parts = []
     components = ["UI", "Backend"]
     if components:
-        comp_filters = []
-        for comp in components:
-            comp_filters.append(f'component = "{comp}"')
+        comp_filters = [f'component = "{comp}"' for comp in components]
         if comp_filters:
             jql_parts.append(f"({' OR '.join(comp_filters)})")
 
@@ -83,9 +82,7 @@ def test_search_jql_construction_logic():
     jql_parts = []
     labels = ["critical", "security"]
     if labels:
-        label_filters = []
-        for label in labels:
-            label_filters.append(f'labels = "{label}"')
+        label_filters = [f'labels = "{label}"' for label in labels]
         if label_filters:
             jql_parts.append(f"({' AND '.join(label_filters)})")
 

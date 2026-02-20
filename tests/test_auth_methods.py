@@ -94,7 +94,7 @@ class TestJiraHTTPAuth(unittest.TestCase):
         client.get_issue_types()
 
         # Check that urlopen was called with the correct request
-        args, kwargs = mock_urlopen.call_args
+        args, _kwargs = mock_urlopen.call_args
         request = args[0]
 
         # Verify the Authorization header contains Basic auth

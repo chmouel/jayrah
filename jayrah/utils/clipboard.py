@@ -4,7 +4,6 @@
 import os
 import platform
 import subprocess
-from typing import Optional
 
 
 def detect_platform() -> str:
@@ -81,7 +80,7 @@ def copy_to_clipboard(text: str) -> bool:
         return False
 
 
-def get_clipboard_command() -> Optional[str]:
+def get_clipboard_command() -> str | None:
     """Get the clipboard command for the current platform.
 
     Returns:

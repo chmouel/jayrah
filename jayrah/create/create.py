@@ -1,20 +1,19 @@
 """Issue creation utilities for Jayrah."""
 
+import difflib
+import re
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
-import difflib
 from pathlib import Path
-import re
-import yaml
 
 import click
 import jira2markdown
+import yaml
 
 from .. import utils
 from ..utils import issue_view, markdown_to_jira
 from . import defaults
 from . import template_loader as tpl
-
 
 HELPER_COMMENT_PREFIX = "<!-- jayrah-helper:"
 
@@ -23,8 +22,7 @@ def _suggest_epic_name(title):
     """Suggest an epic name based on the title."""
     # Format: lowercase, alphanumeric and dashes only
     epic_name = re.sub(r"[^a-zA-Z0-9\s-]", "", title).lower()
-    epic_name = re.sub(r"[\s-]+", "-", epic_name).strip("-")
-    return epic_name
+    return re.sub(r"[\s-]+", "-", epic_name).strip("-")
 
 
 def _choose_priority(priorities):
@@ -180,9 +178,9 @@ def create_edit_issue(
         ret["epic_name"] = values["epic_name"]
 
     # Include any custom fields
-    for key, value in values.items():
-        if key.startswith("customfield_"):
-            ret[key] = value
+    ret.update(
+        {key: value for key, value in values.items() if key.startswith("customfield_")}
+    )
 
     return ret
 
@@ -376,7 +374,7 @@ def create_issue(
             )
             return issue_key
     except Exception as e:
-        click.secho(f"❌ Error creating issue: {str(e)}", fg="red")
+        click.secho(f"❌ Error creating issue: {e!s}", fg="red")
 
     return ""
 
@@ -550,9 +548,9 @@ def _build_issue_template(values, resources):
     frontmatter_data["priority"] = values.get("priority", "")
 
     # Add any other custom fields
-    for key, value in values.items():
-        if key.startswith("customfield_"):
-            frontmatter_data[key] = value
+    frontmatter_data.update(
+        {key: value for key, value in values.items() if key.startswith("customfield_")}
+    )
 
     # Dump the main part preserving order
     yaml_str = yaml.safe_dump(

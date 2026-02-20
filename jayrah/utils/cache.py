@@ -7,7 +7,7 @@ import sqlite3
 import threading
 import time
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 from jayrah import utils
 
@@ -69,7 +69,7 @@ class JiraCache:
         return self._conn
 
     def _generate_key(
-        self, url: str, params: Optional[Dict] = None, data: Optional[Dict] = None
+        self, url: str, params: dict | None = None, data: dict | None = None
     ) -> str:
         """Generate a unique key for the cache entry."""
         # Create a string representation of the request
@@ -95,8 +95,8 @@ class JiraCache:
             self._preloaded_cache = {k: (d, t) for k, d, t in rows}
 
     def get(
-        self, url: str, params: Optional[Dict] = None, data: Optional[Dict] = None
-    ) -> Optional[Dict]:
+        self, url: str, params: dict | None = None, data: dict | None = None
+    ) -> dict | None:
         """Get a cached response."""
         if self.config.get("no_cache"):
             return None
@@ -126,8 +126,8 @@ class JiraCache:
         self,
         url: str,
         data: Any,
-        params: Optional[Dict] = None,
-        request_data: Optional[Dict] = None,
+        params: dict | None = None,
+        request_data: dict | None = None,
     ) -> None:
         key = self._generate_key(url, params, request_data)
         timestamp = time.time()
@@ -167,7 +167,7 @@ class JiraCache:
         except sqlite3.Error as e:
             utils.log(f"Error clearing cache: {e}")
 
-    def prune(self, max_age: Optional[int] = None) -> int:
+    def prune(self, max_age: int | None = None) -> int:
         if max_age is None:
             max_age = int(self.cache_ttl)
         cutoff_time = time.time() - max_age

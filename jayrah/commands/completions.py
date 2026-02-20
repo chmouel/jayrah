@@ -67,7 +67,7 @@ class JiraObjectCompletion(click.ParamType):
             if isinstance(items, dict):
                 return [
                     click.shell_completion.CompletionItem(name)
-                    for name in items.keys()
+                    for name in items
                     if name.lower().startswith(incomplete.lower())
                 ]
 

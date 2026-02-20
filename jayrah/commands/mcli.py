@@ -53,8 +53,8 @@ def gencontext(
     Example: jayrah gencontext my-board --include-comments --include-metadata
     Example: jayrah gencontext -q "project = FOO" --include-comments
     """
-    from ..utils.context_generator import ContextGenerator
     from ..config import defaults
+    from ..utils.context_generator import ContextGenerator
 
     # Get board configuration
     if jql_query:

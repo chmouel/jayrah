@@ -68,16 +68,13 @@ def create_adf_from_text(text):
 
         # Split paragraph into lines for multiple text nodes
         lines = para.split("\n")
-        para_content = []
 
-        for line in lines:
-            if line.strip():
-                para_content.append({"type": "text", "text": line})
+        para_content = [
+            {"type": "text", "text": line} for line in lines if line.strip()
+        ]
 
         if para_content:
             content.append({"type": "paragraph", "content": para_content})
 
     # Create the document structure
-    adf_doc = {"type": "doc", "version": 1, "content": content}
-
-    return adf_doc
+    return {"type": "doc", "version": 1, "content": content}

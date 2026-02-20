@@ -114,14 +114,13 @@ class IssueBrowserApp(App, JayrahAppMixin, IssueBrowserActions):
     def compose(self) -> ComposeResult:  # type: ignore[override]
         """Create the widget tree."""
         yield Header(show_clock=True)
-        with Container():
-            with Vertical():
-                # Main content area
-                with Vertical(id="main-panel"):
-                    yield self._create_datatable()
-                # Detail panel at the bottom
-                with Vertical(id="bottom-panel"):
-                    yield IssueDetailPanel(config=self.config)
+        with Container(), Vertical():
+            # Main content area
+            with Vertical(id="main-panel"):
+                yield self._create_datatable()
+            # Detail panel at the bottom
+            with Vertical(id="bottom-panel"):
+                yield IssueDetailPanel(config=self.config)
         yield Footer()
 
     ### ─────────────────────────  Helpers  ──────────────────────────
@@ -146,7 +145,7 @@ class IssueBrowserApp(App, JayrahAppMixin, IssueBrowserActions):
             table.add_row(*row_data)
         return table
 
-    def on_mount(self) -> None:  # noqa: D401 – Textual lifecycle method
+    def on_mount(self) -> None:
         self.title = "Jayrah – Your friendly Jira browser"
 
         if self.auto_choose and self.issues:

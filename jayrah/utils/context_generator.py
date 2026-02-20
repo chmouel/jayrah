@@ -2,7 +2,7 @@
 
 import json
 from datetime import datetime
-from typing import Any, Dict, List
+from typing import Any
 
 from .. import utils
 
@@ -13,7 +13,7 @@ class ContextGenerator:
     def __init__(
         self,
         issues_client,
-        config: Dict[str, Any],
+        config: dict[str, Any],
         include_comments: bool = False,
         include_metadata: bool = False,
         output_format: str = "markdown",
@@ -75,7 +75,7 @@ class ContextGenerator:
             return self._generate_markdown_context(board_name, jql, issues)
         return self._generate_plain_context(board_name, jql, issues)
 
-    def _get_fields_list(self) -> List[str]:
+    def _get_fields_list(self) -> list[str]:
         """Get the list of fields to fetch from Jira."""
         # Base fields always included
         fields = [
@@ -121,7 +121,7 @@ class ContextGenerator:
         return fields
 
     def _generate_markdown_context(
-        self, board_name: str, jql: str, issues: List[Dict]
+        self, board_name: str, jql: str, issues: list[dict]
     ) -> str:
         """Generate markdown-formatted context."""
         content = []
@@ -187,7 +187,7 @@ class ContextGenerator:
         return "\n".join(content)
 
     def _generate_plain_context(
-        self, board_name: str, jql: str, issues: List[Dict]
+        self, board_name: str, jql: str, issues: list[dict]
     ) -> str:
         """Generate plain text context."""
         content = []
@@ -238,7 +238,7 @@ class ContextGenerator:
 
         return "\n".join(content)
 
-    def _format_issue_markdown(self, issue: Dict) -> List[str]:
+    def _format_issue_markdown(self, issue: dict) -> list[str]:
         """Format a single issue in markdown."""
         content = []
         fields = issue.get("fields", {})
@@ -327,7 +327,7 @@ class ContextGenerator:
 
         return content
 
-    def _format_issue_plain(self, issue: Dict, index: int) -> List[str]:
+    def _format_issue_plain(self, issue: dict, index: int) -> list[str]:
         """Format a single issue in plain text."""
         content = []
         fields = issue.get("fields", {})
@@ -412,7 +412,7 @@ class ContextGenerator:
 
         return content
 
-    def _format_comment_markdown(self, comment: Dict) -> List[str]:
+    def _format_comment_markdown(self, comment: dict) -> list[str]:
         """Format a comment in markdown."""
         content = []
         author = comment.get("author", {})
@@ -427,7 +427,7 @@ class ContextGenerator:
 
         return content
 
-    def _format_comment_plain(self, comment: Dict, index: int) -> List[str]:
+    def _format_comment_plain(self, comment: dict, index: int) -> list[str]:
         """Format a comment in plain text."""
         content = []
         author = comment.get("author", {})
@@ -452,7 +452,7 @@ class ContextGenerator:
             return description
         return str(description) if description else "No description"
 
-    def _extract_text_from_adf(self, adf_content: Dict) -> str:
+    def _extract_text_from_adf(self, adf_content: dict) -> str:
         """Extract plain text from ADF (Atlassian Document Format)."""
         if not isinstance(adf_content, dict):
             return str(adf_content)
@@ -465,8 +465,7 @@ class ContextGenerator:
                 if node.get("type") == "text":
                     return node.get("text", "")
                 if "content" in node:
-                    for child in node["content"]:
-                        text_parts.append(extract_text(child))
+                    text_parts.extend(extract_text(child) for child in node["content"])
                 return " ".join(text_parts)
             if isinstance(node, list):
                 return " ".join(extract_text(item) for item in node)
@@ -474,7 +473,7 @@ class ContextGenerator:
 
         return extract_text(adf_content)
 
-    def _extract_metadata(self, fields: Dict) -> Dict[str, str]:
+    def _extract_metadata(self, fields: dict) -> dict[str, str]:
         """Extract custom fields and metadata."""
         metadata = {}
 
@@ -517,7 +516,7 @@ class ContextGenerator:
         """Format ISO date string to readable format."""
         try:
             # Parse ISO format and convert to readable format
-            dt = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
+            dt = datetime.fromisoformat(date_str)
             return dt.strftime("%Y-%m-%d %H:%M:%S")
         except (ValueError, AttributeError):
             return str(date_str)

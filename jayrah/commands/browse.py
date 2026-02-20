@@ -3,8 +3,8 @@
 import click
 
 from .. import utils
-from ..ui import boards
 from ..config import defaults
+from ..ui import boards
 from .common import cli
 from .completions import BoardType
 

@@ -1,4 +1,5 @@
 import unittest
+
 from jayrah.utils.markdown_to_jira import (
     convert,
     convert_v3,

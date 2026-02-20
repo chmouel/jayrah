@@ -111,7 +111,7 @@ class CommentsViewScreen(BaseModalScreen):
                 help_widget.update("Press a to add comment, Escape or Q to close")
 
         except Exception as e:
-            error_message = f"Error loading comments: {str(e)}"
+            error_message = f"Error loading comments: {e!s}"
             markdown_widget = self.query_one("#comments-content", Markdown)
             markdown_widget.update(error_message)
 
@@ -461,9 +461,8 @@ class IssueDetailPanel(Vertical):
             if self.ticket
             else "Select an issue to view details"
         )
-        with Container():
-            with Vertical(id="detail-label"):
-                yield Markdown(initial_message, id="detail-markdown")
+        with Container(), Vertical(id="detail-label"):
+            yield Markdown(initial_message, id="detail-markdown")
 
     def update_issue(
         self, ticket: str | None, config: dict | None, use_cache: bool = True
@@ -515,7 +514,7 @@ class IssueDetailPanel(Vertical):
                 lambda: self._update_markdown(markdown_widget, all_content)
             )
         except Exception as e:
-            error_message = f"⚠️ Error loading issue {ticket}:\n\n```\n{str(e)}\n```\n\nPlease check the ticket ID and your connection."
+            error_message = f"⚠️ Error loading issue {ticket}:\n\n```\n{e!s}\n```\n\nPlease check the ticket ID and your connection."
             self.app.call_from_thread(
                 lambda: self._update_markdown(markdown_widget, error_message)
             )
@@ -1214,7 +1213,7 @@ class EditSelectionScreen(BaseModalScreen):
                 )
         except Exception as exc:
             if self.verbose:
-                raise exc
+                raise
             self._parent.notify(
                 f"Error starting edit please try again. {exc} ", severity="error"
             )

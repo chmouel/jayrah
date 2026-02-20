@@ -4,7 +4,7 @@ Handles headings, formatting, lists, links, code, blockquotes, tables, images, e
 """
 
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 CODE_BLOCK_LANGS_TO_JIRA = {
     "sh": "bash",
@@ -141,7 +141,7 @@ def convert(markdown_text):
     return "\n".join(converted_lines)
 
 
-def convert_v3(markdown_text: str) -> Dict[str, Any]:
+def convert_v3(markdown_text: str) -> dict[str, Any]:
     """
     Converts Markdown to JIRA API v3 format (Atlassian Document Format - ADF).
 
@@ -175,7 +175,7 @@ def convert_v3(markdown_text: str) -> Dict[str, Any]:
     doc = {"version": 1, "type": "doc", "content": []}
 
     # Helper functions
-    def text_node(value: str, marks: Optional[List[Dict]] = None) -> Dict[str, Any]:
+    def text_node(value: str, marks: list[dict] | None = None) -> dict[str, Any]:
         """Create a text node with optional formatting marks."""
         if not value:
             return {"type": "text", "text": ""}
@@ -184,11 +184,11 @@ def convert_v3(markdown_text: str) -> Dict[str, Any]:
             node["marks"] = marks
         return node
 
-    def paragraph_node(content: List[Dict]) -> Dict[str, Any]:
+    def paragraph_node(content: list[dict]) -> dict[str, Any]:
         """Create a paragraph node."""
         return {"type": "paragraph", "content": content or [text_node("")]}
 
-    def hardbreak_node() -> Dict[str, Any]:
+    def hardbreak_node() -> dict[str, Any]:
         """Create a hard break node."""
         return {"type": "hardBreak"}
 
@@ -216,7 +216,7 @@ def convert_v3(markdown_text: str) -> Dict[str, Any]:
         match = re.match(r"^(\s*)", line)
         return len(match.group(1)) if match else 0
 
-    def process_inline_formatting(text: str) -> List[Dict[str, Any]]:
+    def process_inline_formatting(text: str) -> list[dict[str, Any]]:
         """Process inline markdown formatting."""
         if not text:
             return [text_node("")]
@@ -250,7 +250,7 @@ def convert_v3(markdown_text: str) -> Dict[str, Any]:
                 content.append(text_node(code_text, [{"type": "code"}]))
 
             # Bold + Italic
-            elif full_match.startswith("***") or full_match.startswith("___"):
+            elif full_match.startswith(("***", "___")):
                 inner_text = match.group(2) or match.group(3)
                 content.append(
                     text_node(inner_text, [{"type": "strong"}, {"type": "em"}])
@@ -262,7 +262,7 @@ def convert_v3(markdown_text: str) -> Dict[str, Any]:
                 content.append(text_node(inner_text, [{"type": "strike"}]))
 
             # Bold
-            elif full_match.startswith("**") or full_match.startswith("__"):
+            elif full_match.startswith(("**", "__")):
                 inner_text = match.group(5) or match.group(6)
                 content.append(text_node(inner_text, [{"type": "strong"}]))
 
@@ -441,17 +441,13 @@ def convert_v3(markdown_text: str) -> Dict[str, Any]:
                 doc["content"].append(current_table)
 
             # Parse table row
-            cells = []
             # Handle edge cases with pipes
             line_content = line.strip()
-            if line_content.startswith("|"):
-                line_content = line_content[1:]
-            if line_content.endswith("|"):
-                line_content = line_content[:-1]
+            line_content = line_content.removeprefix("|")
+            line_content = line_content.removesuffix("|")
 
             parts = line_content.split("|")
-            for part in parts:
-                cells.append(part.strip())
+            cells = [part.strip() for part in parts]
 
             if cells and any(
                 cell for cell in cells
@@ -494,9 +490,12 @@ def convert_v3(markdown_text: str) -> Dict[str, Any]:
             continue
 
         # Break contexts if we're in a non-continuing context
-        if current_blockquote and not line.startswith(">"):
-            finalize_contexts()
-        elif current_table and "|" not in line:
+        if (
+            current_blockquote
+            and not line.startswith(">")
+            or current_table
+            and "|" not in line
+        ):
             finalize_contexts()
         elif current_list_stack and not re.match(r"^(\s*)([-*+]|\d+\.)", line):
             current_list_stack = []

@@ -1,7 +1,5 @@
 """Board management and selection utilities for Jayrah UI."""
 
-import typing
-
 import click
 
 from .. import utils
@@ -20,7 +18,7 @@ def show(config):
         click.echo()
 
 
-def check(board, config) -> typing.Tuple[str, str]:
+def check(board, config) -> tuple[str, str]:
     if not board:
         if len(config["boards"]) == 0:
             click.secho("no boards has been setup", fg="red")
@@ -97,7 +95,7 @@ class Boards:
             )
         except Exception as e:
             click.secho(f"Error occurred with Textual UI: {e}", fg="red")
-            raise e
+            raise
         if self.verbose and selected_key:
             print(f"User selected: {selected_key}")
 

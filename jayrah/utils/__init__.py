@@ -101,9 +101,8 @@ def edit_text_with_editor(initial_text, extension=".md"):
 
         # Read the edited content
         with open(tf_path, "r") as tf:
-            edited_text = tf.read()
+            return tf.read()
 
-        return edited_text
     finally:
         # Clean up the temporary file
         os.unlink(tf_path)

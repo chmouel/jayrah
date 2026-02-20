@@ -1,7 +1,8 @@
 """Test the add-comment functionality in the MCP server."""
 
-import pytest
 from unittest.mock import MagicMock
+
+import pytest
 from mcp import types
 
 from jayrah.mcp.server import ServerContext, create_server
