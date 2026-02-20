@@ -1,5 +1,14 @@
 # Repository Guidelines
 
+## Rewrite In Progress (Mandatory)
+- The repository is currently in a Python -> Rust Ratatui TUI rewrite.
+- Before starting any rewrite-related task, always read `MIGRATION.md`.
+- During rewrite work, always append step-by-step progress entries to `MIGRATION.md` as you go.
+- Required log format: `YYYY-MM-DD HH:MM UTC | actor | area | action | result | next`
+- If scope changes, add a `Decision` log entry before implementation.
+- If blocked, add a `Blocker` log entry with clear unblock conditions.
+- Keep the migration log append-only; never delete prior entries.
+
 ## Project Structure & Module Organization
 - Source: `jayrah/` (entrypoint `jayrah.cli:main`). Key modules: `api/`, `commands/`, `ui/` (TUI + `ui/web/`), `config/`, `utils/`.
 - Tests: `tests/` with `test_*.py` modules and `conftest.py`.
