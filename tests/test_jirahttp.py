@@ -37,6 +37,14 @@ def test_init(sample_config):
     assert client_v3.headers["Content-Type"] == "application/json"
 
 
+def test_init_trims_server_trailing_slash(sample_config):
+    """Test initialization trims trailing slash from jira_server."""
+    config = sample_config.copy()
+    config["jira_server"] = "https://test-jira.example.com/"
+    client = JiraHTTP(config, api_version="3")
+    assert client.base_url == "https://test-jira.example.com/rest/api/3"
+
+
 def test_search_issues(sample_config, mock_urlopen, mock_jira_client):
     """Test searching for issues."""
     client = JiraHTTP(sample_config)
@@ -55,6 +63,29 @@ def test_search_issues(sample_config, mock_urlopen, mock_jira_client):
         mock_request.assert_called_once_with(
             "GET",
             "search",
+            params={"jql": "project = TEST", "startAt": 0, "maxResults": 10},
+            label="✨ Fetching Jira issues",
+            use_cache=True,
+        )
+        assert result["issues"][0]["key"] == "TEST-123"
+
+
+def test_search_issues_v3_uses_search_jql(sample_config):
+    """Test searching for issues on API v3 uses /search/jql endpoint."""
+    client = JiraHTTP(sample_config, api_version="3")
+
+    with patch.object(client, "_request") as mock_request:
+        mock_request.return_value = {"issues": [{"key": "TEST-123"}]}
+
+        result = client.search_issues(
+            "project = TEST",
+            start_at=0,
+            max_results=10,
+        )
+
+        mock_request.assert_called_once_with(
+            "GET",
+            "search/jql",
             params={"jql": "project = TEST", "startAt": 0, "maxResults": 10},
             label="✨ Fetching Jira issues",
             use_cache=True,
@@ -202,6 +233,30 @@ def test_get_components(sample_config, mock_urlopen, mock_jira_client):
         # Check that unique components are returned sorted
         expected_components = ["API", "Backend", "Frontend"]
         assert result == expected_components
+
+
+def test_get_components_v3_uses_search_jql(sample_config):
+    """Test getting components with API v3 uses /search/jql endpoint."""
+    client = JiraHTTP(sample_config, api_version="3")
+
+    with patch.object(client, "_request") as mock_request:
+        mock_request.return_value = {
+            "issues": [
+                {"fields": {"components": [{"name": "Backend"}]}},
+            ]
+        }
+
+        client.get_components()
+
+        mock_request.assert_called_once_with(
+            "GET",
+            "search/jql",
+            params={
+                "jql": "project = TEST",
+                "maxResults": 100,
+                "fields": "components",
+            },
+        )
 
 
 @patch("urllib.request.urlopen")

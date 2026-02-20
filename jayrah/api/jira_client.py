@@ -34,6 +34,7 @@ class JiraHTTP:
         server = config.get("jira_server")
         if not server:
             raise click.ClickException("jira_server not configured")
+        server = server.rstrip("/")
 
         self.base_url = f"{server}/rest/api/{api_version}"
 
@@ -99,6 +100,12 @@ class JiraHTTP:
             use_cache=use_cache,
         )
 
+    def _search_endpoint(self) -> str:
+        """Return the Jira search endpoint for the configured API version."""
+        if self.api_version == "3":
+            return "search/jql"
+        return "search"
+
     def search_issues(
         self,
         jql: str,
@@ -124,7 +131,11 @@ class JiraHTTP:
             label += f" from {start_at} to {start_at + max_results}"
 
         return self._request(
-            "GET", "search", params=params, label=label, use_cache=use_cache
+            "GET",
+            self._search_endpoint(),
+            params=params,
+            label=label,
+            use_cache=use_cache,
         )
 
     def get_fields(self) -> Any:
@@ -552,7 +563,7 @@ class JiraHTTP:
         jql = f"project = {self.config.get('jira_project')}"
         response = self._request(
             "GET",
-            "search",
+            self._search_endpoint(),
             params={"jql": jql, "maxResults": max_results, "fields": "labels"},
         )
 
@@ -568,7 +579,7 @@ class JiraHTTP:
         jql = f"project = {self.config.get('jira_project')}"
         response = self._request(
             "GET",
-            "search",
+            self._search_endpoint(),
             params={"jql": jql, "maxResults": max_results, "fields": "components"},
         )
 
