@@ -1,0 +1,154 @@
+use std::{io, time::Duration};
+
+use anyhow::Result;
+use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
+use ratatui::{
+    backend::CrosstermBackend,
+    layout::{Constraint, Direction, Layout},
+    style::{Modifier, Style},
+    widgets::{Block, Borders, Cell, Paragraph, Row, Table, TableState, Wrap},
+    Frame, Terminal,
+};
+
+use crate::{app::App, worker::start_detail_worker};
+
+pub fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, mut app: App) -> Result<()> {
+    let (detail_request_tx, detail_result_rx) = start_detail_worker();
+
+    loop {
+        while let Ok(message) = detail_result_rx.try_recv() {
+            app.ingest_detail_result(message);
+        }
+
+        app.maybe_request_detail(&detail_request_tx);
+        terminal.draw(|frame| draw_ui(frame, &app))?;
+
+        if event::poll(Duration::from_millis(100))? {
+            let Event::Key(key) = event::read()? else {
+                continue;
+            };
+
+            if key.kind != KeyEventKind::Press {
+                continue;
+            }
+
+            if handle_key_event(&mut app, key) {
+                break;
+            }
+        }
+    }
+
+    Ok(())
+}
+
+fn handle_key_event(app: &mut App, key: KeyEvent) -> bool {
+    if app.filter_mode {
+        match key.code {
+            KeyCode::Esc | KeyCode::Enter => {
+                app.filter_mode = false;
+                app.normalize_selection();
+                app.status_line = format!("Filter applied: '{}'", app.filter_input);
+            }
+            KeyCode::Backspace => {
+                app.filter_input.pop();
+                app.normalize_selection();
+            }
+            KeyCode::Char(c) => {
+                if !key.modifiers.contains(KeyModifiers::CONTROL) {
+                    app.filter_input.push(c);
+                    app.normalize_selection();
+                }
+            }
+            _ => {}
+        }
+        return false;
+    }
+
+    match key.code {
+        KeyCode::Char('q') | KeyCode::Esc => return true,
+        KeyCode::Char('j') | KeyCode::Down => app.next(),
+        KeyCode::Char('k') | KeyCode::Up => app.prev(),
+        KeyCode::Char('r') => app.reload_issues(),
+        KeyCode::Char('f') | KeyCode::Char('/') => {
+            app.filter_mode = true;
+            app.status_line = String::from("Filter mode: type to filter, Enter to apply");
+        }
+        KeyCode::Char('o') | KeyCode::Enter => app.open_selected_issue(),
+        _ => {}
+    }
+
+    false
+}
+
+fn draw_ui(frame: &mut Frame, app: &App) {
+    let vertical = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Min(0), Constraint::Length(1)])
+        .split(frame.area());
+
+    let main_chunks = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([Constraint::Percentage(60), Constraint::Percentage(40)])
+        .split(vertical[0]);
+
+    let visible = app.visible_indices();
+
+    let rows: Vec<Row> = visible
+        .iter()
+        .filter_map(|index| app.issues.get(*index))
+        .map(|issue| {
+            Row::new(vec![
+                Cell::from(issue.key.clone()),
+                Cell::from(issue.summary.clone()),
+                Cell::from(issue.status.clone()),
+                Cell::from(issue.assignee.clone()),
+            ])
+        })
+        .collect();
+
+    let issues_title = if app.using_adapter {
+        "Issues (adapter)"
+    } else {
+        "Issues (mock)"
+    };
+
+    let table = Table::new(
+        rows,
+        [
+            Constraint::Length(12),
+            Constraint::Percentage(52),
+            Constraint::Length(14),
+            Constraint::Length(14),
+        ],
+    )
+    .header(Row::new(vec!["Key", "Summary", "Status", "Assignee"]))
+    .block(Block::default().title(issues_title).borders(Borders::ALL))
+    .row_highlight_style(Style::default().add_modifier(Modifier::REVERSED))
+    .highlight_symbol(">> ");
+
+    let mut state = TableState::default();
+    if !visible.is_empty() {
+        state.select(Some(app.selected));
+    }
+
+    frame.render_stateful_widget(table, main_chunks[0], &mut state);
+
+    let detail = Paragraph::new(app.detail_text_for_selected())
+        .block(Block::default().title("Detail").borders(Borders::ALL))
+        .wrap(Wrap { trim: false });
+    frame.render_widget(detail, main_chunks[1]);
+
+    let mode = if app.filter_mode { "FILTER" } else { "NORMAL" };
+    let footer = if app.filter_mode {
+        format!(
+            "[{}] filter: {}  | Enter/Esc apply  Backspace delete",
+            mode, app.filter_input
+        )
+    } else {
+        format!(
+            "[{}] j/k or arrows move | f filter | r reload | o open | q quit | {}",
+            mode, app.status_line
+        )
+    };
+    frame.render_widget(Paragraph::new(footer), vertical[1]);
+}
