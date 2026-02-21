@@ -13,6 +13,7 @@ use crate::{
         mock_boards, mock_comments_for_issue, mock_custom_fields, mock_detail_from_issue,
         mock_issues, mock_transitions_for_issue,
     },
+    telemetry,
     types::{
         AdapterSource, BoardEntry, CustomFieldEntry, Issue, IssueComment, IssueDetail,
         IssueTransition,
@@ -649,8 +650,10 @@ impl App {
             return;
         }
 
+        let started = Instant::now();
         match load_issues_from_adapter(&self.source) {
             Ok(issues) => {
+                telemetry::emit_success("issues.reload", None, started.elapsed());
                 self.using_adapter = true;
                 self.issues = issues;
                 self.status_line = format!(
@@ -660,6 +663,12 @@ impl App {
                 );
             }
             Err(error) => {
+                telemetry::emit_failure(
+                    "issues.reload",
+                    None,
+                    started.elapsed(),
+                    &error.to_string(),
+                );
                 self.using_adapter = false;
                 self.issues = mock_issues(self.reload_count);
                 self.status_line = format!(
@@ -811,11 +820,19 @@ impl App {
         if self.source.mock_only {
             self.boards = mock_boards();
         } else {
+            let started = Instant::now();
             match load_boards_from_adapter() {
                 Ok(boards) => {
+                    telemetry::emit_success("boards.load", None, started.elapsed());
                     self.boards = boards;
                 }
                 Err(error) => {
+                    telemetry::emit_failure(
+                        "boards.load",
+                        None,
+                        started.elapsed(),
+                        &error.to_string(),
+                    );
                     self.boards.clear();
                     self.status_line = format!(
                         "Failed to load boards ({})",
@@ -850,11 +867,19 @@ impl App {
         if self.source.mock_only {
             self.custom_fields = mock_custom_fields();
         } else {
+            let started = Instant::now();
             match load_custom_fields_from_adapter() {
                 Ok(fields) => {
+                    telemetry::emit_success("custom_fields.load", None, started.elapsed());
                     self.custom_fields = fields;
                 }
                 Err(error) => {
+                    telemetry::emit_failure(
+                        "custom_fields.load",
+                        None,
+                        started.elapsed(),
+                        &error.to_string(),
+                    );
                     self.custom_fields.clear();
                     self.status_line = format!(
                         "Failed to load custom fields ({})",
@@ -1053,11 +1078,19 @@ impl App {
 
         let selected_index = self.board_selected.min(self.boards.len() - 1);
         let selected = self.boards[selected_index].clone();
+        let replaced_query_mode = self.source.query.is_some();
         self.source.board = Some(selected.name.clone());
         self.source.query = None;
         self.enter_detail_mode();
         self.reload_issues();
-        self.status_line = format!("Switched to board '{}'", selected.name);
+        self.status_line = if replaced_query_mode {
+            format!(
+                "Switched to board '{}' (replaced active raw query mode)",
+                selected.name
+            )
+        } else {
+            format!("Switched to board '{}'", selected.name)
+        };
     }
 
     fn update_issue_status(&mut self, key: &str, status: &str) {
@@ -1471,16 +1504,20 @@ impl App {
             return "No boards loaded.\n\nPress b to retry loading configured boards.".to_string();
         }
 
-        let current_board = self
-            .source
-            .board
-            .as_deref()
-            .unwrap_or("myissue")
-            .to_string();
+        let current_source = if let Some(board) = self.source.board.as_deref() {
+            board.to_string()
+        } else if self.source.query.is_some() {
+            "<raw query mode>".to_string()
+        } else {
+            "myissue".to_string()
+        };
         let mut out = format!(
             "Configured Boards\nCurrent: {}\n\nUse n/p to choose and Enter to switch.\n\n",
-            current_board
+            current_source
         );
+        if self.source.query.is_some() {
+            out.push_str("Note: switching boards will replace the active raw query.\n\n");
+        }
         for (index, board) in self.boards.iter().enumerate() {
             let marker = if index == self.board_selected {
                 ">"
@@ -1558,11 +1595,23 @@ impl App {
             return;
         }
 
+        let started = Instant::now();
         match open_issue_in_browser(&key) {
             Ok(()) => {
+                telemetry::emit_success(
+                    "issue.open_browser",
+                    Some(key.as_str()),
+                    started.elapsed(),
+                );
                 self.status_line = format!("Opened {key} in browser");
             }
             Err(error) => {
+                telemetry::emit_failure(
+                    "issue.open_browser",
+                    Some(key.as_str()),
+                    started.elapsed(),
+                    &error.to_string(),
+                );
                 self.status_line = format!(
                     "Failed to open {} ({})",
                     key,
@@ -1584,6 +1633,14 @@ mod tests {
         AdapterSource {
             board: None,
             query: None,
+            mock_only: true,
+        }
+    }
+
+    fn mock_query_source() -> AdapterSource {
+        AdapterSource {
+            board: None,
+            query: Some("project = DEMO".to_string()),
             mock_only: true,
         }
     }
@@ -1770,6 +1827,28 @@ mod tests {
         assert_eq!(app.source.board.as_deref(), Some("team"));
         assert!(!app.in_boards_mode());
         assert!(app.status_line.contains("Switched to board 'team'"));
+    }
+
+    #[test]
+    fn apply_selected_board_replaces_query_mode_with_board_mode() {
+        let mut app = App::new(mock_query_source(), false);
+        app.enter_boards_mode();
+        app.next_board();
+        app.apply_selected_board();
+
+        assert_eq!(app.source.board.as_deref(), Some("team"));
+        assert_eq!(app.source.query, None);
+        assert!(app.status_line.contains("replaced active raw query mode"));
+    }
+
+    #[test]
+    fn boards_text_warns_when_in_query_mode() {
+        let mut app = App::new(mock_query_source(), false);
+        app.enter_boards_mode();
+
+        let text = app.boards_text();
+        assert!(text.contains("Current: <raw query mode>"));
+        assert!(text.contains("switching boards will replace the active raw query"));
     }
 
     #[test]

@@ -1,6 +1,7 @@
 use std::{
     sync::mpsc::{self, Receiver, Sender},
     thread,
+    time::Instant,
 };
 
 use crate::{
@@ -16,6 +17,7 @@ use crate::{
         CommentRequest, CommentResult, DetailRequest, DetailResult, EditField, EditIssueRequest,
         EditIssueResult, TransitionRequest, TransitionResult,
     },
+    telemetry,
 };
 
 pub fn start_detail_worker() -> (Sender<DetailRequest>, Receiver<DetailResult>) {
@@ -29,8 +31,10 @@ pub fn start_detail_worker() -> (Sender<DetailRequest>, Receiver<DetailResult>) 
                 request = newer_request;
             }
 
+            let started = Instant::now();
             let result =
                 load_issue_detail_from_adapter(&request.key).map_err(|error| error.to_string());
+            emit_adapter_op("detail.load", Some(request.key.as_str()), started, &result);
 
             if result_tx
                 .send(DetailResult {
@@ -58,8 +62,15 @@ pub fn start_comment_worker() -> (Sender<CommentRequest>, Receiver<CommentResult
                 request = newer_request;
             }
 
+            let started = Instant::now();
             let result =
                 load_issue_comments_from_adapter(&request.key).map_err(|error| error.to_string());
+            emit_adapter_op(
+                "comments.load",
+                Some(request.key.as_str()),
+                started,
+                &result,
+            );
 
             if result_tx
                 .send(CommentResult {
@@ -82,8 +93,10 @@ pub fn start_add_comment_worker() -> (Sender<AddCommentRequest>, Receiver<AddCom
 
     thread::spawn(move || {
         while let Ok(request) = request_rx.recv() {
+            let started = Instant::now();
             let result = add_issue_comment_from_adapter(&request.key, &request.body)
                 .map_err(|error| error.to_string());
+            emit_adapter_op("comments.add", Some(request.key.as_str()), started, &result);
 
             if result_tx
                 .send(AddCommentResult {
@@ -111,8 +124,15 @@ pub fn start_transition_worker() -> (Sender<TransitionRequest>, Receiver<Transit
                 request = newer_request;
             }
 
+            let started = Instant::now();
             let result = load_issue_transitions_from_adapter(&request.key)
                 .map_err(|error| error.to_string());
+            emit_adapter_op(
+                "transitions.load",
+                Some(request.key.as_str()),
+                started,
+                &result,
+            );
 
             if result_tx
                 .send(TransitionResult {
@@ -138,8 +158,15 @@ pub fn start_apply_transition_worker() -> (
 
     thread::spawn(move || {
         while let Ok(request) = request_rx.recv() {
+            let started = Instant::now();
             let result = apply_issue_transition_from_adapter(&request.key, &request.transition_id)
                 .map_err(|error| error.to_string());
+            emit_adapter_op(
+                "transitions.apply",
+                Some(request.key.as_str()),
+                started,
+                &result,
+            );
 
             if result_tx
                 .send(ApplyTransitionResult {
@@ -164,6 +191,7 @@ pub fn start_edit_issue_worker() -> (Sender<EditIssueRequest>, Receiver<EditIssu
 
     thread::spawn(move || {
         while let Ok(request) = request_rx.recv() {
+            let started = Instant::now();
             let result = match request.field {
                 EditField::Summary => {
                     update_issue_summary_from_adapter(&request.key, &request.value)
@@ -190,6 +218,14 @@ pub fn start_edit_issue_worker() -> (Sender<EditIssueRequest>, Receiver<EditIssu
                     None => Err("custom field metadata is missing".to_string()),
                 },
             };
+            let op = match request.field {
+                EditField::Summary => "issue.update.summary",
+                EditField::Description => "issue.update.description",
+                EditField::Labels => "issue.update.labels",
+                EditField::Components => "issue.update.components",
+                EditField::CustomField => "issue.update.custom_field",
+            };
+            emit_adapter_op(op, Some(request.key.as_str()), started, &result);
 
             if result_tx
                 .send(EditIssueResult {
@@ -216,4 +252,17 @@ fn csv_to_values(value: &str) -> Vec<String> {
         .filter(|entry| !entry.is_empty())
         .map(|entry| entry.to_string())
         .collect()
+}
+
+fn emit_adapter_op<T>(
+    op: &str,
+    key: Option<&str>,
+    started: Instant,
+    result: &std::result::Result<T, String>,
+) {
+    let elapsed = started.elapsed();
+    match result {
+        Ok(_) => telemetry::emit_success(op, key, elapsed),
+        Err(error) => telemetry::emit_failure(op, key, elapsed, error),
+    }
 }

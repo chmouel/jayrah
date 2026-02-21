@@ -2,6 +2,7 @@ mod adapter;
 mod app;
 mod cli_args;
 mod mock;
+mod telemetry;
 mod terminal;
 mod tui;
 mod types;

@@ -280,6 +280,8 @@ def test_browse_command_falls_back_to_textual_when_config_rust_unavailable(
 
     assert result.exit_code == 0
     assert "falling back to Textual UI" in result.output
+    assert "--ui textual" in result.output
+    assert "JAYRAH_TUI_TELEMETRY=1" in result.output
     assert mock_boards.last_instance is not None
     assert mock_boards.last_instance.list_issues_called
     assert len(mock_boards.last_instance.calls) == 2

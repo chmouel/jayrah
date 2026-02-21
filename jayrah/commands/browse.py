@@ -109,7 +109,11 @@ def browse(
             if explicit_rust_request:
                 raise
             click.secho(
-                f"Rust UI unavailable ({rust_error}); falling back to Textual UI.",
+                (
+                    f"Rust UI unavailable ({rust_error}); falling back to Textual UI.\n"
+                    "Hint: retry with '--ui textual' or enable Rust telemetry with "
+                    "'JAYRAH_TUI_TELEMETRY=1' and rerun."
+                ),
                 fg="yellow",
             )
             issues = jayrah_obj.issues_client.list_issues(jql, order_by=order_by)

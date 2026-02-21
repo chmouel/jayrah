@@ -286,8 +286,11 @@ Exit criteria:
 2. Tune responsiveness and async cancellation/debounce paths.
 3. Phased policy:
    - Stage 1: keep current fallback policy
-   - Stage 2: warn on fallback and surface migration hints
-   - Stage 3: set rust as recommended/default backend path
+   - Stage 2: warn on fallback and surface migration hints.
+     Entry criteria: Phase B parity checklist is complete, telemetry hooks are enabled in release builds, and live Jira validation passes for browse/detail/comments/transitions/edit flows.
+     Behavior: config-default rust fallback emits a visible warning with actionable recovery hints (retry with `--ui textual` or inspect rust logs), while explicit rust requests remain strict failures.
+   - Stage 3: set rust as recommended/default backend path.
+     Entry criteria: 14-day observation window with no P0/P1 rust TUI regressions, fallback rate under 5% for config-default rust launches, and release docs/help updated with final backend guidance.
 
 Exit criteria:
 - Stability and latency targets met under regression/smoke tests.
@@ -438,3 +441,35 @@ Exit criteria:
 - 2026-02-21 06:30 UTC | uncertainty | Jira API v3 behavior for comment-create, transition-list/apply, description-update, labels/components update, and custom-field update still needs validation against a live Jira Cloud instance.
 - 2026-02-21 06:30 UTC | uncertainty | Board switcher currently resets query mode to selected board mode by design; confirm expected UX for users who started in raw `--query` mode.
 - 2026-02-21 06:30 UTC | uncertainty | Final fallback policy progression (Stage 2/3) still needs explicit acceptance criteria tied to parity/stability thresholds.
+2026-02-21 06:55 UTC | codex | phaseC-instrumentation | Started Phase C latency/error instrumentation hooks for Rust TUI runtime operations | in_progress | Add opt-in telemetry emitter and wire app/worker operation timing + failure events
+2026-02-21 06:58 UTC | codex | phaseC-instrumentation | Added opt-in telemetry hooks (`JAYRAH_TUI_TELEMETRY`) with structured stderr events for operation latency/error across issue reload, board/custom-field loads, browser-open, detail/comments/transitions fetch, comment add, transition apply, and edit-update workers | complete | Validate workspace build/tests and refresh hardening TODO snapshot
+2026-02-21 06:58 UTC | codex | phaseC-instrumentation | Verified with `cargo fmt --all`, `cargo check --workspace`, and `cargo test --workspace` (60 tests passed) | complete | Continue Phase C with live Jira validation and rollout policy criteria
+- 2026-02-21 06:58 UTC | todo | Phase C hardening remains: run live Jira validation for write/update flows and define rollout staging acceptance criteria.
+- 2026-02-21 06:58 UTC | uncertainty | Board switcher currently resets query mode to selected board mode by design; confirm expected UX for users who started in raw `--query` mode.
+- 2026-02-21 06:58 UTC | uncertainty | Final fallback policy progression (Stage 2/3) still needs explicit acceptance criteria tied to parity/stability thresholds.
+2026-02-21 06:59 UTC | codex | Decision | Locked explicit Stage 2/3 rollout acceptance criteria for rust-backend fallback policy progression (entry gates, warning behavior, stability window, fallback-rate threshold) | complete | Update Phase C plan text and remove fallback-criteria uncertainty from current snapshot
+2026-02-21 06:59 UTC | codex | phaseC-rollout-criteria | Added concrete Phase C Stage 2/3 rollout criteria and behavior definitions in migration plan (live-validation prerequisite, warning semantics, 14-day stability window, fallback-rate threshold) | complete | Implement policy toggles/docs in launcher path when Stage 2 begins
+- 2026-02-21 06:59 UTC | todo | Phase C hardening remains: run live Jira validation for write/update flows and then implement Stage 2 warning behavior in launcher UX.
+- 2026-02-21 06:59 UTC | uncertainty | Board switcher currently resets query mode to selected board mode by design; confirm expected UX for users who started in raw `--query` mode.
+2026-02-21 07:00 UTC | codex | Decision | Resolved board-switch query-mode UX: switching to a configured board explicitly exits raw `--query` mode and should be communicated in-pane and in status messaging | complete | Implement explicit query-mode replacement copy and add regression tests
+2026-02-21 07:00 UTC | codex | phaseC-board-switch-ux | Added explicit query-mode replacement messaging for board switching (boards pane note + switch status suffix) and tests for query->board behavior | complete | Run rust workspace formatting/check/tests and refresh hardening TODO snapshot
+2026-02-21 07:00 UTC | codex | phaseC-board-switch-ux | Verified with `cargo fmt --all`, `cargo check --workspace`, and `cargo test --workspace` (62 tests passed) | complete | Continue Phase C with live Jira validation and Stage 2 launcher warning behavior
+- 2026-02-21 07:00 UTC | todo | Phase C hardening remains: run live Jira validation for write/update flows and implement Stage 2 fallback warning behavior in launcher UX.
+- 2026-02-21 07:00 UTC | uncertainty | none
+2026-02-21 07:01 UTC | codex | phaseC-stage2-warning | Started Stage 2 launcher warning behavior implementation for config-default rust fallback path | in_progress | Add actionable fallback messaging and regression coverage in Python browse command
+2026-02-21 07:01 UTC | codex | phaseC-stage2-warning | Added Stage 2 fallback warning copy with actionable hints (`--ui textual`, `JAYRAH_TUI_TELEMETRY=1`) when rust launcher fails and browse falls back from config-default rust to textual | complete | Run targeted Python tests and re-verify Rust workspace tests
+2026-02-21 07:01 UTC | codex | phaseC-stage2-warning | Verified with `uv run pytest tests/test_commands.py tests/test_rust_tui_launcher.py -q` (13 passed) and `cargo test --workspace` (62 passed) | complete | Continue Phase C with live Jira validation for write/update parity flows
+- 2026-02-21 07:01 UTC | todo | Phase C hardening remaining: execute live Jira validation for native rust write/update flows (comments, transitions, summary/description, labels/components, custom fields).
+- 2026-02-21 07:01 UTC | uncertainty | none
+2026-02-21 07:02 UTC | codex | phaseC-live-validation-harness | Started Phase C live Jira validation harness for native Rust write/update flows | in_progress | Add opt-in ignored test with explicit env guards for safe execution on dedicated validation issue
+2026-02-21 07:06 UTC | codex | phaseC-live-validation-harness | Added ignored live-validation test in `jayrah-jira` covering read paths plus write/update flows (summary, description, labels, components, comment add, transition apply/revert, custom-field set/restore) guarded by required `JAYRAH_LIVE_VALIDATE_*` env vars | complete | Run workspace checks and attempt guarded live validation execution
+2026-02-21 07:06 UTC | codex | phaseC-live-validation-harness | Verified with `cargo fmt --all`, `cargo check --workspace`, and `cargo test --workspace` (61 passed, 1 ignored) | complete | Execute ignored live-validation test with explicit env configuration
+2026-02-21 07:07 UTC | codex | phaseC-live-validation-harness | Blocker: live-validation execution failed because required env var `JAYRAH_LIVE_VALIDATE_WRITES` is unset | blocked | Unblock by setting all required `JAYRAH_LIVE_VALIDATE_*` vars (issue key, write flag, comment flag, transition ids, custom-field id/type/value/restore) and rerun `cargo test -p jayrah-jira live_validation_round_trip_write_flows -- --ignored --nocapture`
+- 2026-02-21 07:07 UTC | todo | Phase C hardening remaining: run the guarded live-validation test with required `JAYRAH_LIVE_VALIDATE_*` environment variables on a dedicated Jira validation issue.
+- 2026-02-21 07:07 UTC | uncertainty | none
+2026-02-21 07:11 UTC | codex | phaseC-live-validation-harness | Blocker update: guarded live validation executed with env vars but failed on detail fetch with Jira 404 `Issue Does Not Exist` for configured validation issue key | blocked | Unblock by using an issue key that exists on the configured Jira site and is readable/writable by configured credentials, then rerun ignored live-validation test
+- 2026-02-21 07:11 UTC | todo | Phase C hardening remaining: rerun live-validation test with a valid accessible issue key and required transition/custom-field env values, then record pass/fail evidence.
+- 2026-02-21 07:11 UTC | uncertainty | none
+2026-02-21 07:12 UTC | codex | Decision | Deferred live Jira validation blocker (invalid/inaccessible validation issue key) to unblock ongoing migration work | complete | Keep live-validation harness in place and resume once a valid writable issue key/env set is available
+- 2026-02-21 07:12 UTC | todo | Deferred: rerun guarded live-validation test later with a valid accessible issue key and required transition/custom-field env values.
+- 2026-02-21 07:12 UTC | uncertainty | none

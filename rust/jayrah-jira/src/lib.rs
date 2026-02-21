@@ -722,6 +722,13 @@ fn extract_adf_text(node: &Value, out: &mut String) {
 
 #[cfg(test)]
 mod tests {
+    use std::{
+        env,
+        time::{SystemTime, UNIX_EPOCH},
+    };
+
+    use anyhow::{anyhow, bail, Result};
+    use jayrah_config::{resolve_current_user_jql, JayrahConfig};
     use serde_json::json;
 
     use super::{
@@ -883,5 +890,126 @@ mod tests {
         assert_eq!(transition.name, None);
         assert_eq!(transition.to_status, None);
         assert_eq!(transition.description, None);
+    }
+
+    #[test]
+    #[ignore = "requires live Jira credentials and explicit write-validation env vars"]
+    fn live_validation_round_trip_write_flows() -> Result<()> {
+        require_env_flag("JAYRAH_LIVE_VALIDATE_WRITES")?;
+
+        let issue_key = required_env("JAYRAH_LIVE_VALIDATE_ISSUE_KEY")?;
+        let transition_id = required_env("JAYRAH_LIVE_VALIDATE_TRANSITION_ID")?;
+        let transition_revert_id = required_env("JAYRAH_LIVE_VALIDATE_TRANSITION_REVERT_ID")?;
+        let custom_field_id = required_env("JAYRAH_LIVE_VALIDATE_CUSTOM_FIELD_ID")?;
+        let custom_field_type = required_env("JAYRAH_LIVE_VALIDATE_CUSTOM_FIELD_TYPE")?;
+        let custom_field_value = required_env("JAYRAH_LIVE_VALIDATE_CUSTOM_FIELD_VALUE")?;
+        let custom_field_restore_value =
+            required_env("JAYRAH_LIVE_VALIDATE_CUSTOM_FIELD_RESTORE_VALUE")?;
+        require_env_flag("JAYRAH_LIVE_VALIDATE_ADD_COMMENT")?;
+
+        let config = JayrahConfig::load_default()?;
+        let client = JiraClient::from_config(&config)?;
+
+        // Validate read paths first so failures are clearly scoped before writes.
+        let board = config.resolve_board(None)?;
+        let mut board_jql = board.jql.clone();
+        if let Some(order_by) = board.order_by.as_deref() {
+            if !board_jql.to_ascii_lowercase().contains("order by") && !order_by.trim().is_empty() {
+                board_jql = format!("{board_jql} ORDER BY {}", order_by.trim());
+            }
+        }
+        let resolved_board_jql = resolve_current_user_jql(&board_jql, config.jira_user.as_deref());
+        let list = client.search_issues_all(
+            &resolved_board_jql,
+            10,
+            &["key", "summary", "status", "assignee"],
+        )?;
+        if list.is_empty() {
+            bail!("live validation failed: board query returned zero issues");
+        }
+
+        let original_detail = client.get_issue_detail(&issue_key)?;
+        let _comments = client.get_issue_comments(&issue_key)?;
+        let transitions = client.get_issue_transitions(&issue_key)?;
+        if transitions.is_empty() {
+            bail!("live validation failed: transitions list is empty for {issue_key}");
+        }
+
+        let stamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|duration| duration.as_secs())
+            .unwrap_or(0);
+        let marker = format!("[jayrah-live-{stamp}]");
+
+        let original_summary = original_detail
+            .summary
+            .clone()
+            .filter(|summary| !summary.trim().is_empty())
+            .ok_or_else(|| anyhow!("live validation failed: issue summary is empty"))?;
+        let mut temporary_summary = format!("{original_summary} {marker}");
+        if temporary_summary.len() > 250 {
+            temporary_summary = format!("{marker} {issue_key}");
+        }
+        client.update_issue_summary(&issue_key, &temporary_summary)?;
+        client.update_issue_summary(&issue_key, &original_summary)?;
+
+        let original_description = original_detail.description.clone();
+        let temporary_description = if original_description.trim().is_empty() {
+            format!("Jayrah live validation marker {marker}")
+        } else {
+            format!("{original_description}\n\n{marker}")
+        };
+        client.update_issue_description(&issue_key, &temporary_description)?;
+        client.update_issue_description(&issue_key, &original_description)?;
+
+        let mut temporary_labels = original_detail.labels.clone();
+        let validation_label = "jayrah-live-validation".to_string();
+        if !temporary_labels
+            .iter()
+            .any(|label| label == &validation_label)
+        {
+            temporary_labels.push(validation_label);
+        }
+        client.update_issue_labels(&issue_key, &temporary_labels)?;
+        client.update_issue_labels(&issue_key, &original_detail.labels)?;
+
+        // Components may be constrained by project settings, so validate via no-op update.
+        client.update_issue_components(&issue_key, &original_detail.components)?;
+
+        client.add_issue_comment(
+            &issue_key,
+            format!("Jayrah live validation comment {marker}").as_str(),
+        )?;
+
+        client.transition_issue(&issue_key, &transition_id)?;
+        client.transition_issue(&issue_key, &transition_revert_id)?;
+
+        client.update_issue_custom_field(
+            &issue_key,
+            &custom_field_id,
+            &custom_field_type,
+            &custom_field_value,
+        )?;
+        client.update_issue_custom_field(
+            &issue_key,
+            &custom_field_id,
+            &custom_field_type,
+            &custom_field_restore_value,
+        )?;
+
+        Ok(())
+    }
+
+    fn required_env(name: &str) -> Result<String> {
+        env::var(name).map_err(|_| anyhow!("missing required env var: {name}"))
+    }
+
+    fn require_env_flag(name: &str) -> Result<()> {
+        let value = required_env(name)?;
+        if value == "1" {
+            Ok(())
+        } else {
+            bail!("expected {name}=1 for live validation run")
+        }
     }
 }
