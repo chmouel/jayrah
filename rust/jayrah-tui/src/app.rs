@@ -27,6 +27,8 @@ const TRANSITION_FETCH_DEBOUNCE_MS: u64 = 120;
 const PANE_RESIZE_STEP_PERCENT: u16 = 5;
 const MIN_LEFT_PANE_PERCENT: u16 = 25;
 const MAX_LEFT_PANE_PERCENT: u16 = 75;
+const HORIZONTAL_FIRST_PANE_DEFAULT_PERCENT: u16 = 40;
+const VERTICAL_FIRST_PANE_DEFAULT_PERCENT: u16 = 30;
 const ACTIONS_DEFAULT_VIEWPORT_HEIGHT: u16 = 20;
 const DETAIL_DEFAULT_VIEWPORT_HEIGHT: u16 = 20;
 
@@ -127,6 +129,12 @@ enum DetailPaneMode {
     Actions,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PaneOrientation {
+    Horizontal,
+    Vertical,
+}
+
 #[derive(Debug)]
 pub struct App {
     pub(crate) issues: Vec<Issue>,
@@ -167,7 +175,9 @@ pub struct App {
     actions_viewport_height: u16,
     detail_scroll: u16,
     detail_viewport_height: u16,
-    left_pane_percent: u16,
+    pane_orientation: PaneOrientation,
+    horizontal_first_pane_percent: u16,
+    vertical_first_pane_percent: u16,
     last_selected_key: Option<String>,
     selected_changed_at: Instant,
 }
@@ -213,7 +223,9 @@ impl App {
             actions_viewport_height: ACTIONS_DEFAULT_VIEWPORT_HEIGHT,
             detail_scroll: 0,
             detail_viewport_height: DETAIL_DEFAULT_VIEWPORT_HEIGHT,
-            left_pane_percent: 60,
+            pane_orientation: PaneOrientation::Horizontal,
+            horizontal_first_pane_percent: HORIZONTAL_FIRST_PANE_DEFAULT_PERCENT,
+            vertical_first_pane_percent: VERTICAL_FIRST_PANE_DEFAULT_PERCENT,
             last_selected_key: None,
             selected_changed_at: Instant::now(),
         };
@@ -1045,7 +1057,7 @@ impl App {
     }
 
     pub fn submit_edit_input(&mut self, submit_tx: &Sender<EditIssueRequest>) {
-        self.submit_edit_value(self.edit_input.to_string(), submit_tx);
+        self.submit_edit_value(self.edit_input.clone(), submit_tx);
     }
 
     pub fn submit_edit_value(&mut self, value: String, submit_tx: &Sender<EditIssueRequest>) {
@@ -1653,7 +1665,7 @@ impl App {
     pub fn actions_text(&self) -> String {
         let mode = if self.choose_mode { "choose" } else { "normal" };
         format!(
-            "Jayrah Rust TUI Actions ({mode} mode)\n\nNavigation (detail mode)\n  j/k or arrows: move issue selection\n  J/K: scroll detail pane\n  Ctrl+d/Ctrl+u: page detail pane down/up\n  f or /: filter issues\n  r: reload issues\n\nIssue Actions\n  o: open selected issue in browser\n  e: edit issue summary\n  E: edit issue description\n  l: edit issue labels\n  m: edit issue components\n  u: custom field editor popup\n  b: board switcher popup\n  c: comments popup\n  t: transitions popup\n  ?: actions/help popup\n\nActions Popup\n  j/k or arrows: scroll help\n  Ctrl+d/Ctrl+u: page down/up\n\nComments Popup\n  j/k or n/p: previous/next comment\n  a: compose comment\n  Enter: submit comment draft\n\nTransitions Popup\n  j/k or n/p: previous/next transition\n  Enter: apply selected transition\n\nBoards Popup\n  j/k or n/p: previous/next board\n  Enter: switch active board\n\nCustom Fields Popup\n  j/k or n/p: previous/next field\n  Enter: edit selected custom field\n\nGlobal\n  q: quit (or close active popup)\n  Esc: close active popup/filter"
+            "Jayrah Rust TUI Actions ({mode} mode)\n\nNavigation (detail mode)\n  j/k or arrows: move issue selection\n  J/K: scroll detail pane\n  Ctrl+d/Ctrl+u: page detail pane down/up\n  Ctrl+v: toggle horizontal/vertical layout\n  Alt+h/Alt+l: resize first/second pane\n  f or /: filter issues\n  r: reload issues\n\nIssue Actions\n  o: open selected issue in browser\n  e: edit issue summary\n  E: edit issue description\n  l: edit issue labels\n  m: edit issue components\n  u: custom field editor popup\n  b: board switcher popup\n  c: comments popup\n  t: transitions popup\n  ?: actions/help popup\n\nActions Popup\n  j/k or arrows: scroll help\n  Ctrl+d/Ctrl+u: page down/up\n\nComments Popup\n  j/k or n/p: previous/next comment\n  a: compose comment\n  Enter: submit comment draft\n\nTransitions Popup\n  j/k or n/p: previous/next transition\n  Enter: apply selected transition\n\nBoards Popup\n  j/k or n/p: previous/next board\n  Enter: switch active board\n\nCustom Fields Popup\n  j/k or n/p: previous/next field\n  Enter: edit selected custom field\n\nGlobal\n  q: quit (or close active popup)\n  Esc: close active popup/filter"
         )
     }
 
@@ -1680,32 +1692,63 @@ impl App {
     }
 
     pub fn pane_width_percentages(&self) -> (u16, u16) {
-        (self.left_pane_percent, 100u16 - self.left_pane_percent)
+        let first_pane_percent = self.active_first_pane_percent();
+        (first_pane_percent, 100u16 - first_pane_percent)
+    }
+
+    pub fn pane_orientation(&self) -> PaneOrientation {
+        self.pane_orientation
+    }
+
+    pub fn toggle_pane_orientation(&mut self) {
+        self.pane_orientation = match self.pane_orientation {
+            PaneOrientation::Horizontal => PaneOrientation::Vertical,
+            PaneOrientation::Vertical => PaneOrientation::Horizontal,
+        };
+        let layout = match self.pane_orientation {
+            PaneOrientation::Horizontal => "horizontal",
+            PaneOrientation::Vertical => "vertical",
+        };
+        self.status_line = format!("Layout: {layout}");
+    }
+
+    fn active_first_pane_percent(&self) -> u16 {
+        match self.pane_orientation {
+            PaneOrientation::Horizontal => self.horizontal_first_pane_percent,
+            PaneOrientation::Vertical => self.vertical_first_pane_percent,
+        }
+    }
+
+    fn set_active_first_pane_percent(&mut self, value: u16) {
+        match self.pane_orientation {
+            PaneOrientation::Horizontal => self.horizontal_first_pane_percent = value,
+            PaneOrientation::Vertical => self.vertical_first_pane_percent = value,
+        }
     }
 
     pub fn grow_left_pane(&mut self) {
         let new_value = self
-            .left_pane_percent
+            .active_first_pane_percent()
             .saturating_add(PANE_RESIZE_STEP_PERCENT)
             .min(MAX_LEFT_PANE_PERCENT);
-        self.left_pane_percent = new_value;
+        self.set_active_first_pane_percent(new_value);
         self.status_line = format!(
-            "Pane resize: issues {}% | detail {}%",
-            self.left_pane_percent,
-            100u16 - self.left_pane_percent
+            "Pane resize: first {}% | second {}%",
+            new_value,
+            100u16 - new_value
         );
     }
 
     pub fn grow_right_pane(&mut self) {
         let new_value = self
-            .left_pane_percent
+            .active_first_pane_percent()
             .saturating_sub(PANE_RESIZE_STEP_PERCENT)
             .max(MIN_LEFT_PANE_PERCENT);
-        self.left_pane_percent = new_value;
+        self.set_active_first_pane_percent(new_value);
         self.status_line = format!(
-            "Pane resize: issues {}% | detail {}%",
-            self.left_pane_percent,
-            100u16 - self.left_pane_percent
+            "Pane resize: first {}% | second {}%",
+            new_value,
+            100u16 - new_value
         );
     }
 
@@ -1751,7 +1794,7 @@ impl App {
 mod tests {
     use std::sync::mpsc;
 
-    use super::{App, MAX_LEFT_PANE_PERCENT, MIN_LEFT_PANE_PERCENT};
+    use super::{App, PaneOrientation, MAX_LEFT_PANE_PERCENT, MIN_LEFT_PANE_PERCENT};
     use crate::types::AdapterSource;
 
     fn mock_source() -> AdapterSource {
@@ -1924,6 +1967,8 @@ mod tests {
         let text = app.actions_text();
         assert!(text.contains("J/K: scroll detail pane"));
         assert!(text.contains("Ctrl+d/Ctrl+u: page detail pane down/up"));
+        assert!(text.contains("Ctrl+v: toggle horizontal/vertical layout"));
+        assert!(text.contains("Alt+h/Alt+l: resize first/second pane"));
         assert!(text.contains("b: board switcher popup"));
         assert!(text.contains("c: comments popup"));
         assert!(text.contains("t: transitions popup"));
@@ -2176,6 +2221,43 @@ mod tests {
     }
 
     #[test]
+    fn default_pane_orientation_is_horizontal() {
+        let app = App::new(mock_source(), false);
+        assert_eq!(app.pane_orientation(), PaneOrientation::Horizontal);
+        assert_eq!(app.pane_width_percentages(), (60, 40));
+    }
+
+    #[test]
+    fn toggle_pane_orientation_flips_between_horizontal_and_vertical() {
+        let mut app = App::new(mock_source(), false);
+        assert_eq!(app.pane_orientation(), PaneOrientation::Horizontal);
+
+        app.toggle_pane_orientation();
+        assert_eq!(app.pane_orientation(), PaneOrientation::Vertical);
+        assert_eq!(app.pane_width_percentages(), (30, 70));
+
+        app.toggle_pane_orientation();
+        assert_eq!(app.pane_orientation(), PaneOrientation::Horizontal);
+        assert_eq!(app.pane_width_percentages(), (60, 40));
+    }
+
+    #[test]
+    fn pane_resize_values_are_independent_per_orientation() {
+        let mut app = App::new(mock_source(), false);
+
+        app.grow_left_pane();
+        assert_eq!(app.pane_width_percentages(), (65, 35));
+
+        app.toggle_pane_orientation();
+        assert_eq!(app.pane_width_percentages(), (30, 70));
+        app.grow_left_pane();
+        assert_eq!(app.pane_width_percentages(), (35, 65));
+
+        app.toggle_pane_orientation();
+        assert_eq!(app.pane_width_percentages(), (65, 35));
+    }
+
+    #[test]
     fn pane_resize_bounds_are_enforced() {
         let mut app = App::new(mock_source(), false);
 
@@ -2192,5 +2274,20 @@ mod tests {
         let (left, right) = app.pane_width_percentages();
         assert_eq!(left, MIN_LEFT_PANE_PERCENT);
         assert_eq!(left + right, 100);
+
+        app.toggle_pane_orientation();
+        for _ in 0..10 {
+            app.grow_left_pane();
+        }
+        let (top, bottom) = app.pane_width_percentages();
+        assert_eq!(top, MAX_LEFT_PANE_PERCENT);
+        assert_eq!(top + bottom, 100);
+
+        for _ in 0..20 {
+            app.grow_right_pane();
+        }
+        let (top, bottom) = app.pane_width_percentages();
+        assert_eq!(top, MIN_LEFT_PANE_PERCENT);
+        assert_eq!(top + bottom, 100);
     }
 }

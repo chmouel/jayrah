@@ -12,7 +12,7 @@ use ratatui::{
 use tui_textarea::TextArea;
 
 use crate::{
-    app::App,
+    app::{App, PaneOrientation},
     worker::{
         start_add_comment_worker, start_apply_transition_worker, start_comment_worker,
         start_detail_worker, start_edit_issue_worker, start_transition_worker,
@@ -234,6 +234,13 @@ fn handle_key_event_with_edit_session(
                 app.set_edit_input(session.textarea.lines().join("\n"));
             }
         }
+        return None;
+    }
+
+    if key.modifiers.contains(KeyModifiers::CONTROL)
+        && matches!(key.code, KeyCode::Char(c) if c.eq_ignore_ascii_case(&'v'))
+    {
+        app.toggle_pane_orientation();
         return None;
     }
 
@@ -528,19 +535,23 @@ fn edit_input_height(inner_height: u16, is_summary_target: bool) -> u16 {
 }
 
 fn draw_ui(frame: &mut Frame, app: &mut App, edit_session: Option<&EditInputSession>) {
-    let vertical = Layout::default()
+    let root_chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([Constraint::Min(0), Constraint::Length(1)])
         .split(frame.area());
 
-    let (left_pane_percent, right_pane_percent) = app.pane_width_percentages();
+    let (first_pane_percent, second_pane_percent) = app.pane_width_percentages();
+    let main_direction = match app.pane_orientation() {
+        PaneOrientation::Horizontal => Direction::Horizontal,
+        PaneOrientation::Vertical => Direction::Vertical,
+    };
     let main_chunks = Layout::default()
-        .direction(Direction::Horizontal)
+        .direction(main_direction)
         .constraints([
-            Constraint::Percentage(left_pane_percent),
-            Constraint::Percentage(right_pane_percent),
+            Constraint::Percentage(first_pane_percent),
+            Constraint::Percentage(second_pane_percent),
         ])
-        .split(vertical[0]);
+        .split(root_chunks[0]);
 
     let visible = app.visible_indices();
 
@@ -595,7 +606,7 @@ fn draw_ui(frame: &mut Frame, app: &mut App, edit_session: Option<&EditInputSess
     if app.in_popup_mode() {
         let popup_title = app.right_pane_title();
         let popup_text = app.right_pane_text();
-        let popup_area = adaptive_popup_area(vertical[0], popup_title, popup_text.as_str());
+        let popup_area = adaptive_popup_area(root_chunks[0], popup_title, popup_text.as_str());
 
         if app.in_actions_mode() {
             let popup_viewport_height = popup_area.height.saturating_sub(2);
@@ -616,7 +627,7 @@ fn draw_ui(frame: &mut Frame, app: &mut App, edit_session: Option<&EditInputSess
         let is_description_target = app.edit_target_label() == "description";
         let is_summary_target = app.edit_target_label() == "summary";
         let edit_popup_area =
-            edit_popup_area(vertical[0], is_description_target, is_summary_target);
+            edit_popup_area(root_chunks[0], is_description_target, is_summary_target);
         frame.render_widget(Clear, edit_popup_area);
         let issue_key = app
             .selected_issue_key()
@@ -698,41 +709,41 @@ fn draw_ui(frame: &mut Frame, app: &mut App, edit_session: Option<&EditInputSess
         )
     } else if app.in_actions_mode() {
         format!(
-            "[{}] ? close | j/k scroll | Ctrl+d/u page | e/E/l/m edit | u custom popup | b boards popup | c comments popup | t transitions popup | f filter | r reload | {}",
+            "[{}] ? close | j/k scroll | Ctrl+d/u page | Ctrl+v layout | Alt+h/l resize panes | e/E/l/m edit | u custom popup | b boards popup | c comments popup | t transitions popup | f filter | r reload | {}",
             mode, app.status_line
         )
     } else if app.in_custom_fields_mode() {
         format!(
-            "[{}] j/k/n/p pick field | Enter edit | u close | r reload | o open | {}",
+            "[{}] j/k/n/p pick field | Enter edit | Ctrl+v layout | u close | r reload | o open | {}",
             mode, app.status_line
         )
     } else if app.in_boards_mode() {
         format!(
-            "[{}] j/k/n/p pick board | Enter switch | u custom | b close | r reload | o open | {}",
+            "[{}] j/k/n/p pick board | Enter switch | Ctrl+v layout | u custom | b close | r reload | o open | {}",
             mode, app.status_line
         )
     } else if app.in_transitions_mode() {
         format!(
-            "[{}] j/k/n/p pick transition | Enter apply | e/E/l/m edit | u custom | t close | r reload | o open | {}",
+            "[{}] j/k/n/p pick transition | Enter apply | Ctrl+v layout | e/E/l/m edit | u custom | t close | r reload | o open | {}",
             mode, app.status_line
         )
     } else if app.in_comments_mode() {
         format!(
-            "[{}] j/k/n/p move comments | a add | e/E/l/m edit | u custom | c close | r reload | o open | {}",
+            "[{}] j/k/n/p move comments | a add | Ctrl+v layout | e/E/l/m edit | u custom | c close | r reload | o open | {}",
             mode, app.status_line
         )
     } else if app.choose_mode {
         format!(
-            "[{}] j/k move | J/K scroll detail | Ctrl+d/u page detail | Enter choose | e/E/l/m edit | u custom popup | b boards popup | c comments popup | t transitions popup | ? help popup | Alt+h/l resize panes | f filter | o open | q quit | {}",
+            "[{}] j/k move | J/K scroll detail | Ctrl+d/u page detail | Ctrl+v toggle layout | Enter choose | e/E/l/m edit | u custom popup | b boards popup | c comments popup | t transitions popup | ? help popup | Alt+h/l resize first/second pane | f filter | o open | q quit | {}",
             mode, app.status_line
         )
     } else {
         format!(
-            "[{}] j/k move | J/K scroll detail | Ctrl+d/u page detail | e/E/l/m edit | u custom popup | b boards popup | c comments popup | t transitions popup | ? help popup | Alt+h/l resize panes | f filter | r reload | o open | q quit | {}",
+            "[{}] j/k move | J/K scroll detail | Ctrl+d/u page detail | Ctrl+v toggle layout | e/E/l/m edit | u custom popup | b boards popup | c comments popup | t transitions popup | ? help popup | Alt+h/l resize first/second pane | f filter | r reload | o open | q quit | {}",
             mode, app.status_line
         )
     };
-    frame.render_widget(Paragraph::new(footer), vertical[1]);
+    frame.render_widget(Paragraph::new(footer), root_chunks[1]);
 }
 
 #[cfg(test)]
@@ -748,7 +759,10 @@ mod tests {
         handle_key_event, handle_key_event_with_edit_session, percent_popup_area, EditInputSession,
         RunOutcome,
     };
-    use crate::{app::App, types::AdapterSource};
+    use crate::{
+        app::{App, PaneOrientation},
+        types::AdapterSource,
+    };
 
     fn mock_source() -> AdapterSource {
         AdapterSource {
@@ -1001,6 +1015,104 @@ mod tests {
         assert_eq!(outcome, None);
         let after_l = app.pane_width_percentages();
         assert_eq!(after_l.0, initial.0);
+    }
+
+    #[test]
+    fn ctrl_v_toggles_layout_in_normal_mode() {
+        let mut app = App::new(mock_source(), false);
+        let (add_tx, _) = mpsc::channel();
+        let (transition_tx, _) = mpsc::channel();
+        let (edit_tx, _) = mpsc::channel();
+
+        let outcome = handle_key_event(
+            &mut app,
+            key_with_modifiers(KeyCode::Char('v'), KeyModifiers::CONTROL),
+            &add_tx,
+            &transition_tx,
+            &edit_tx,
+        );
+        assert_eq!(outcome, None);
+        assert_eq!(app.pane_orientation(), PaneOrientation::Vertical);
+    }
+
+    #[test]
+    fn ctrl_v_toggles_layout_in_popup_mode() {
+        let mut app = App::new(mock_source(), false);
+        app.enter_actions_mode();
+        let (add_tx, _) = mpsc::channel();
+        let (transition_tx, _) = mpsc::channel();
+        let (edit_tx, _) = mpsc::channel();
+
+        let outcome = handle_key_event(
+            &mut app,
+            key_with_modifiers(KeyCode::Char('v'), KeyModifiers::CONTROL),
+            &add_tx,
+            &transition_tx,
+            &edit_tx,
+        );
+        assert_eq!(outcome, None);
+        assert_eq!(app.pane_orientation(), PaneOrientation::Vertical);
+    }
+
+    #[test]
+    fn ctrl_v_is_ignored_in_filter_mode() {
+        let mut app = App::new(mock_source(), false);
+        app.filter_mode = true;
+        let (add_tx, _) = mpsc::channel();
+        let (transition_tx, _) = mpsc::channel();
+        let (edit_tx, _) = mpsc::channel();
+
+        let outcome = handle_key_event(
+            &mut app,
+            key_with_modifiers(KeyCode::Char('v'), KeyModifiers::CONTROL),
+            &add_tx,
+            &transition_tx,
+            &edit_tx,
+        );
+        assert_eq!(outcome, None);
+        assert_eq!(app.pane_orientation(), PaneOrientation::Horizontal);
+    }
+
+    #[test]
+    fn ctrl_v_is_ignored_in_comment_input_mode() {
+        let mut app = App::new(mock_source(), false);
+        app.enter_comments_mode();
+        app.start_comment_input();
+        let (add_tx, _) = mpsc::channel();
+        let (transition_tx, _) = mpsc::channel();
+        let (edit_tx, _) = mpsc::channel();
+
+        let outcome = handle_key_event(
+            &mut app,
+            key_with_modifiers(KeyCode::Char('v'), KeyModifiers::CONTROL),
+            &add_tx,
+            &transition_tx,
+            &edit_tx,
+        );
+        assert_eq!(outcome, None);
+        assert_eq!(app.pane_orientation(), PaneOrientation::Horizontal);
+    }
+
+    #[test]
+    fn ctrl_v_is_ignored_in_edit_input_mode() {
+        let mut app = App::new(mock_source(), false);
+        app.start_summary_edit_input();
+        let (add_tx, _) = mpsc::channel();
+        let (transition_tx, _) = mpsc::channel();
+        let (edit_tx, _) = mpsc::channel();
+        let mut edit_session = None;
+
+        let outcome = handle_key_event_with_edit_session(
+            &mut app,
+            &mut edit_session,
+            key_with_modifiers(KeyCode::Char('v'), KeyModifiers::CONTROL),
+            &add_tx,
+            &transition_tx,
+            &edit_tx,
+        );
+        assert_eq!(outcome, None);
+        assert!(app.in_edit_input_mode());
+        assert_eq!(app.pane_orientation(), PaneOrientation::Horizontal);
     }
 
     #[test]

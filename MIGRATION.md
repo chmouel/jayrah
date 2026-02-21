@@ -601,3 +601,100 @@ Exit criteria:
 2026-02-21 10:57 UTC | codex | phaseC-keymap-other-pane-scroll | Added detail-pane scroll state, renderer wiring, and keybindings (`J/K`, `Ctrl+d/u`) in normal mode while preserving actions-popup scrolling behavior; updated footer/help copy and added app/tui regression tests | complete | Confirm workspace status and report implementation details
 2026-02-21 10:57 UTC | codex | phaseC-keymap-other-pane-scroll | Verified with `cargo fmt --all` and `cargo test -p jayrah-tui` (75 passed) | complete | Update remaining TODOs/uncertainties snapshot
 2026-02-21 10:57 UTC | codex | remaining-todos-uncertainties | Updated current state after other-pane keymap/detail-scroll implementation | none | Deferred live-validation follow-up remains tracked in earlier entries; no new TODOs/uncertainties from this change
+2026-02-21 12:05 UTC | codex | phase3-layout-toggle | Started implementing Ctrl+V orientation toggle for issue/detail panes | in_progress | Add app state, key handling, render updates, and tests
+2026-02-21 12:05 UTC | codex | phase3-layout-toggle | Implemented pane orientation state, Ctrl+V toggle, orientation-aware split rendering, and shortcut/help text updates | complete | Run rust fmt/check/tests for validation
+2026-02-21 12:06 UTC | codex | phase3-layout-toggle | Verified Ctrl+V layout toggle with cargo fmt/test (, 
+running 82 tests
+test adapter::tests::maps_comment_defaults ... ok
+test adapter::tests::loads_custom_fields_from_config ... ok
+test adapter::tests::loads_boards_from_config_with_default_description ... ok
+test adapter::tests::maps_detail_issue_fields ... ok
+test adapter::tests::maps_transition_defaults ... ok
+test adapter::tests::maps_list_issue_defaults ... ok
+test app::tests::actions_text_lists_key_shortcuts ... ok
+test app::tests::apply_selected_board_updates_source ... ok
+test app::tests::apply_selected_board_replaces_query_mode_with_board_mode ... ok
+test app::tests::actions_scroll_obeys_bounds ... ok
+test app::tests::boards_text_warns_when_in_query_mode ... ok
+test app::tests::default_pane_orientation_is_horizontal ... ok
+test app::tests::apply_transition_in_mock_mode_updates_issue_status ... ok
+test app::tests::comment_navigation_wraps ... ok
+test app::tests::enter_boards_mode_loads_mock_boards ... ok
+test app::tests::detail_scroll_obeys_bounds ... ok
+test app::tests::detail_scroll_resets_when_selection_changes ... ok
+test app::tests::enter_custom_fields_mode_loads_mock_custom_fields ... ok
+test app::tests::filters_visible_indices_by_summary ... ok
+test app::tests::maybe_request_comments_populates_mock_cache_without_worker_request ... ok
+test app::tests::maybe_request_detail_populates_mock_cache_without_worker_request ... ok
+test app::tests::maybe_request_transitions_populates_mock_cache_without_worker_request ... ok
+test app::tests::non_detail_modes_are_popup_modes ... ok
+test app::tests::pane_resize_bounds_are_enforced ... ok
+test app::tests::preserves_selected_issue_key_across_reload ... ok
+test app::tests::preserves_selected_issue_when_filter_changes ... ok
+test app::tests::start_selected_custom_field_edit_input_sets_custom_target ... ok
+test app::tests::submit_comment_in_mock_mode_appends_new_comment ... ok
+test app::tests::submit_comment_rejects_empty_body ... ok
+test app::tests::submit_components_edit_normalizes_newlines_to_csv_delimiters ... ok
+test app::tests::submit_components_edit_in_mock_mode_updates_detail_cache ... ok
+test app::tests::submit_custom_field_edit_in_mock_mode_sets_status ... ok
+test app::tests::submit_description_edit_in_mock_mode_updates_detail_cache ... ok
+test app::tests::submit_labels_edit_in_mock_mode_updates_detail_cache ... ok
+test app::tests::submit_labels_edit_normalizes_newlines_to_csv_delimiters ... ok
+test app::tests::submit_summary_edit_in_mock_mode_updates_issue ... ok
+test app::tests::submit_summary_edit_normalizes_newlines_to_spaces ... ok
+test app::tests::toggle_pane_orientation_flips_between_horizontal_and_vertical ... ok
+test cli_args::tests::defaults_to_legacy_board_when_no_args ... ok
+test cli_args::tests::parses_choose_mode_flag ... ok
+test cli_args::tests::parses_config_file_flag ... ok
+test cli_args::tests::rejects_board_and_query_together ... ok
+test cli_args::tests::returns_help_action ... ok
+test telemetry::tests::parses_telemetry_bool_flags ... ok
+test telemetry::tests::sanitizes_whitespace_and_control_characters ... ok
+test tui::tests::a_enters_comment_input_mode ... ok
+test tui::tests::adaptive_popup_area_grows_with_content_size ... ok
+test tui::tests::adaptive_popup_area_is_bounded_by_terminal_area ... ok
+test tui::tests::alt_h_and_alt_l_resize_panes ... ok
+test tui::tests::b_enters_boards_mode ... ok
+test tui::tests::ctrl_d_and_ctrl_u_page_actions_help ... ok
+test tui::tests::ctrl_d_and_ctrl_u_page_detail_in_normal_mode ... ok
+test tui::tests::ctrl_s_submits_edit_input_in_mock_mode ... ok
+test tui::tests::ctrl_v_is_ignored_in_edit_input_mode ... ok
+test tui::tests::ctrl_v_is_ignored_in_comment_input_mode ... ok
+test tui::tests::ctrl_v_is_ignored_in_filter_mode ... ok
+test tui::tests::ctrl_v_toggles_layout_in_normal_mode ... ok
+test tui::tests::ctrl_v_toggles_layout_in_popup_mode ... ok
+test tui::tests::description_edit_popup_uses_eighty_percent_of_screen ... ok
+test tui::tests::e_enters_edit_input_mode ... ok
+test tui::tests::edit_popup_area_stays_within_expected_bounds ... ok
+test tui::tests::enter_in_edit_mode_inserts_newline_and_does_not_submit ... ok
+test tui::tests::enter_opens_issue_outside_choose_mode ... ok
+test tui::tests::enter_returns_selected_key_in_choose_mode ... ok
+test tui::tests::j_advances_board_selection_in_boards_mode ... ok
+test tests::writes_selected_key_to_output_file_when_path_provided ... ok
+test tui::tests::j_advances_comment_selection_in_comments_mode ... ok
+test tui::tests::j_advances_custom_field_selection_in_custom_fields_mode ... ok
+test tui::tests::j_advances_transition_selection_in_transitions_mode ... ok
+test tui::tests::l_enters_labels_edit_input_mode ... ok
+test tui::tests::percent_popup_area_uses_requested_percentage ... ok
+test tui::tests::j_and_k_scroll_actions_help_without_moving_issue_selection ... ok
+test tui::tests::q_closes_comments_mode_before_quit ... ok
+test tui::tests::question_mark_enters_actions_mode ... ok
+test tui::tests::summary_edit_input_height_uses_four_lines_when_possible ... ok
+test tui::tests::summary_edit_popup_uses_compact_height_profile ... ok
+test tui::tests::t_enters_transitions_mode ... ok
+test tui::tests::u_enters_custom_fields_mode ... ok
+test utils::tests::compact_error_truncates_long_strings ... ok
+test utils::tests::join_or_dash_formats_values ... ok
+test tui::tests::uppercase_j_and_k_scroll_detail_without_moving_issue_selection ... ok
+test adapter::tests::resolves_board_jql_with_order_by_and_current_user ... ok
+
+test result: ok. 82 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s, 82 passed) | complete | Update remaining TODOs/uncertainties snapshot
+2026-02-21 12:06 UTC | codex | remaining-todos-uncertainties | Updated current state after Ctrl+V layout toggle implementation | none | none
+2026-02-21 12:06 UTC | codex | phase3-layout-toggle | Verified Ctrl+V layout toggle with cargo fmt and jayrah-tui tests (82 passed) | complete | none
+2026-02-21 12:06 UTC | codex | migration-log | Recorded that preceding unformatted test-output lines were accidentally appended; canonical formatted phase3 entries remain authoritative | complete | none
+2026-02-21 12:10 UTC | codex | phase3-vertical-default-size | Started tuning default vertical split to match screenshot (shorter top issues pane, taller detail pane) | in_progress | Refactor pane ratio state per orientation and validate tests
+2026-02-21 12:10 UTC | codex | phase3-vertical-default-size | Refactored app pane ratio state to independent horizontal (60/40) and vertical (30/70) defaults with orientation-scoped resizing | complete | Run rust fmt and jayrah-tui tests
+2026-02-21 12:10 UTC | codex | phase3-vertical-default-size | Verified with cargo fmt and cargo test for jayrah-tui (83 passed) | complete | Update remaining todos and uncertainties
+2026-02-21 12:10 UTC | codex | remaining-todos-uncertainties | Updated current state after vertical default split tuning | none | none
+2026-02-21 12:15 UTC | codex | phase3-vertical-default-size | Confirmed vertical default split remains 30/70 (more space for description) and orientation-specific resizing behavior is active | complete | none
+2026-02-21 12:15 UTC | codex | remaining-todos-uncertainties | Updated current state after vertical default split verification request | none | none
