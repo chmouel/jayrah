@@ -117,9 +117,7 @@ def browse(
         effective_rust_layout = defaults.RUST_TUI_LAYOUT
 
     effective_rust_zoom = (
-        rust_zoom
-        or jayrah_obj.config.get("rust_tui_zoom")
-        or defaults.RUST_TUI_ZOOM
+        rust_zoom or jayrah_obj.config.get("rust_tui_zoom") or defaults.RUST_TUI_ZOOM
     ).lower()
     if effective_rust_zoom not in ("split", "issues", "detail"):
         effective_rust_zoom = defaults.RUST_TUI_ZOOM
