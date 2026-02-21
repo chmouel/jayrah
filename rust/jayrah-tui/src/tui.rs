@@ -87,15 +87,15 @@ fn sync_edit_input_session(app: &App, edit_session: &mut Option<EditInputSession
 
 fn focus_filter_input(app: &mut App) {
     app.search_mode = false;
-    app.search_input.clear();
     app.filter_mode = true;
     if app.has_active_filter() {
         app.status_line = format!(
-            "Filter focused: '{}'. Enter unfocus, Esc clear",
+            "Filter focused: '{}'. Esc/Enter exit, Ctrl-U clear",
             app.filter_query()
         );
     } else {
-        app.status_line = String::from("Filter focused: type to filter, Enter unfocus, Esc clear");
+        app.status_line =
+            String::from("Filter focused: type to filter, Esc/Enter exit, Ctrl-U clear");
     }
 }
 
@@ -105,11 +105,12 @@ fn focus_search_input(app: &mut App) {
     app.search_input = app.last_search_query().to_string();
     if app.has_active_search_query() {
         app.status_line = format!(
-            "Search focused: '{}'. Enter jump, Esc clear",
+            "Search focused: '{}'. Enter search, Esc cancel, Ctrl-U clear",
             app.last_search_query()
         );
     } else {
-        app.status_line = String::from("Search focused: type query, Enter jump, Esc clear");
+        app.status_line =
+            String::from("Search focused: type query, Enter search, Esc cancel, Ctrl-U clear");
     }
 }
 
@@ -346,21 +347,22 @@ fn handle_key_event_with_edit_session(
 
     if app.filter_mode {
         match key.code {
-            KeyCode::Esc => {
-                let selected_key = app.selected_issue_key();
-                app.filter_input.clear();
-                app.normalize_selection_with_preferred_key(selected_key.as_deref());
-                app.status_line = String::from("Filter cleared. Still focused (Enter unfocus)");
-            }
-            KeyCode::Enter => {
+            KeyCode::Esc | KeyCode::Enter => {
                 app.filter_mode = false;
                 app.normalize_selection();
                 if app.has_active_filter() {
-                    app.status_line =
-                        format!("Filter active: '{}'. Press f to focus", app.filter_query());
+                    app.status_line = format!(
+                        "Filter active: '{}'. f edit, F clear",
+                        app.filter_query()
+                    );
                 } else {
-                    app.status_line = String::from("Filter cleared");
+                    app.status_line = String::from("Filter exited");
                 }
+            }
+            KeyCode::Char('u') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                let selected_key = app.selected_issue_key();
+                app.filter_input.clear();
+                app.normalize_selection_with_preferred_key(selected_key.as_deref());
             }
             KeyCode::Backspace => {
                 let selected_key = app.selected_issue_key();
@@ -382,12 +384,20 @@ fn handle_key_event_with_edit_session(
     if app.search_mode {
         match key.code {
             KeyCode::Esc => {
+                app.search_mode = false;
                 app.search_input.clear();
-                app.status_line = String::from("Search cleared. Still focused (Enter jump)");
+                app.status_line = String::from("Search cancelled");
             }
             KeyCode::Enter => {
                 app.search_mode = false;
-                app.submit_search_query();
+                if app.search_input.is_empty() {
+                    app.status_line = String::from("Search exited");
+                } else {
+                    app.submit_search_query();
+                    app.search_input.clear();
+                }
+            }
+            KeyCode::Char('u') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                 app.search_input.clear();
             }
             KeyCode::Backspace => {
@@ -610,6 +620,12 @@ fn handle_key_event_with_edit_session(
         KeyCode::Char('1') => app.toggle_zoom_issues(),
         KeyCode::Char('2') => app.toggle_zoom_detail(),
         KeyCode::Char('f') => focus_filter_input(app),
+        KeyCode::Char('F') => {
+            let selected_key = app.selected_issue_key();
+            app.filter_input.clear();
+            app.normalize_selection_with_preferred_key(selected_key.as_deref());
+            app.status_line = String::from("Filter cleared");
+        }
         KeyCode::Char('/') => focus_search_input(app),
         KeyCode::Char('n') => app.repeat_last_search_forward(),
         KeyCode::Char('N') => app.repeat_last_search_backward(),
@@ -1150,7 +1166,7 @@ fn draw_ui(
         let is_description_target = app.edit_target_label() == "description";
         let is_summary_target = app.edit_target_label() == "summary";
         let edit_popup_area = edit_popup_area(main_area, is_description_target, is_summary_target);
-        frame.render_widget(Clear, edit_popup_area);
+        frame.render_widget(Clear, main_area);
         let issue_key = app
             .selected_issue_key()
             .unwrap_or_else(|| String::from("<no issue>"));
@@ -1238,9 +1254,9 @@ fn draw_ui(
             Span::styled(format!(" {filter_label}"), theme.footer_hint()),
             Span::styled(
                 if app.filter_mode {
-                    " | Enter unfocus | Esc clear"
+                    " | Esc/Enter exit | Ctrl-U clear"
                 } else {
-                    " | f focus"
+                    " | f edit | F clear"
                 },
                 theme.footer_hint(),
             ),
@@ -1249,6 +1265,15 @@ fn draw_ui(
             Paragraph::new(filter_line).style(theme.filter_bar(app.filter_mode)),
             filter_bar_area,
         );
+        if app.filter_mode {
+            // "[FILTER] " prefix is 9 chars, then the input text length
+            let cursor_x = filter_bar_area.x + 9 + app.filter_input.len() as u16;
+            let cursor_y = filter_bar_area.y;
+            frame.set_cursor_position((
+                cursor_x.min(filter_bar_area.right().saturating_sub(1)),
+                cursor_y,
+            ));
+        }
     }
     if let Some(search_bar_area) = search_bar_area {
         let display_search = app.search_input.as_str();
@@ -1260,21 +1285,30 @@ fn draw_ui(
         let search_line = Line::from(vec![
             Span::styled("[SEARCH]", theme.footer_mode()),
             Span::styled(format!(" {search_label}"), theme.footer_hint()),
-            Span::styled(" | Enter jump | Esc clear", theme.footer_hint()),
+            Span::styled(" | Enter search | Esc cancel", theme.footer_hint()),
         ]);
         frame.render_widget(
             Paragraph::new(search_line).style(theme.search_bar(app.search_mode)),
             search_bar_area,
         );
+        if app.search_mode {
+            // "[SEARCH] " prefix is 9 chars, then the input text length
+            let cursor_x = search_bar_area.x + 9 + app.search_input.len() as u16;
+            let cursor_y = search_bar_area.y;
+            frame.set_cursor_position((
+                cursor_x.min(search_bar_area.right().saturating_sub(1)),
+                cursor_y,
+            ));
+        }
     }
     let (footer_hint, include_status) = if app.filter_mode {
         (
-            String::from("type to filter | Enter unfocus | Esc clear | Backspace delete"),
+            String::from("type to filter | Esc/Enter exit | Ctrl-U clear | Backspace delete"),
             false,
         )
     } else if app.search_mode {
         (
-            String::from("type to search visible rows | Enter jump | Esc clear | Backspace delete"),
+            String::from("type query | Enter search | Esc cancel | Ctrl-U clear"),
             false,
         )
     } else if app.in_comment_input_mode() {
@@ -1929,7 +1963,7 @@ mod tests {
     }
 
     #[test]
-    fn esc_clears_filter_and_keeps_focus() {
+    fn esc_exits_filter_mode_and_keeps_text() {
         let mut app = App::new(mock_source(), false);
         app.filter_mode = true;
         app.filter_input = "adapter".to_string();
@@ -1945,9 +1979,9 @@ mod tests {
             &edit_tx,
         );
         assert_eq!(outcome, None);
-        assert!(app.filter_mode);
-        assert!(app.filter_input.is_empty());
-        assert!(app.status_line.contains("Filter cleared"));
+        assert!(!app.filter_mode);
+        assert_eq!(app.filter_input, "adapter");
+        assert!(app.status_line.contains("Filter active"));
     }
 
     #[test]
@@ -2063,7 +2097,7 @@ mod tests {
     }
 
     #[test]
-    fn esc_clears_search_input_and_keeps_mode_without_changing_selection() {
+    fn esc_exits_search_mode_and_discards_input() {
         let mut app = App::new(mock_source(), false);
         app.selected = 2;
         let (add_tx, _) = mpsc::channel();
@@ -2093,9 +2127,93 @@ mod tests {
         );
         assert_eq!(outcome, None);
         assert_eq!(app.selected_issue_key().as_deref(), Some("JAY-103"));
+        assert!(!app.search_mode);
+        assert!(app.search_input.is_empty());
+        assert!(app.status_line.contains("Search cancelled"));
+    }
+
+    #[test]
+    fn ctrl_u_clears_filter_text_and_stays_in_mode() {
+        let mut app = App::new(mock_source(), false);
+        app.filter_mode = true;
+        app.filter_input = "adapter".to_string();
+        let (add_tx, _) = mpsc::channel();
+        let (transition_tx, _) = mpsc::channel();
+        let (edit_tx, _) = mpsc::channel();
+
+        let outcome = handle_key_event(
+            &mut app,
+            key_with_modifiers(KeyCode::Char('u'), KeyModifiers::CONTROL),
+            &add_tx,
+            &transition_tx,
+            &edit_tx,
+        );
+        assert_eq!(outcome, None);
+        assert!(app.filter_mode);
+        assert!(app.filter_input.is_empty());
+    }
+
+    #[test]
+    fn ctrl_u_clears_search_text_and_stays_in_mode() {
+        let mut app = App::new(mock_source(), false);
+        let (add_tx, _) = mpsc::channel();
+        let (transition_tx, _) = mpsc::channel();
+        let (edit_tx, _) = mpsc::channel();
+
+        let _ = handle_key_event(
+            &mut app,
+            key(KeyCode::Char('/')),
+            &add_tx,
+            &transition_tx,
+            &edit_tx,
+        );
+        let _ = handle_key_event(
+            &mut app,
+            key(KeyCode::Char('t')),
+            &add_tx,
+            &transition_tx,
+            &edit_tx,
+        );
+        let _ = handle_key_event(
+            &mut app,
+            key(KeyCode::Char('e')),
+            &add_tx,
+            &transition_tx,
+            &edit_tx,
+        );
+        assert_eq!(app.search_input, "te");
+
+        let outcome = handle_key_event(
+            &mut app,
+            key_with_modifiers(KeyCode::Char('u'), KeyModifiers::CONTROL),
+            &add_tx,
+            &transition_tx,
+            &edit_tx,
+        );
+        assert_eq!(outcome, None);
         assert!(app.search_mode);
         assert!(app.search_input.is_empty());
-        assert!(app.status_line.contains("Search cleared"));
+    }
+
+    #[test]
+    fn uppercase_f_clears_filter_from_normal_mode() {
+        let mut app = App::new(mock_source(), false);
+        app.filter_input = "adapter".to_string();
+        let (add_tx, _) = mpsc::channel();
+        let (transition_tx, _) = mpsc::channel();
+        let (edit_tx, _) = mpsc::channel();
+
+        let outcome = handle_key_event(
+            &mut app,
+            key(KeyCode::Char('F')),
+            &add_tx,
+            &transition_tx,
+            &edit_tx,
+        );
+        assert_eq!(outcome, None);
+        assert!(!app.filter_mode);
+        assert!(app.filter_input.is_empty());
+        assert!(app.status_line.contains("Filter cleared"));
     }
 
     #[test]

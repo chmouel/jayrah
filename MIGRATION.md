@@ -603,7 +603,7 @@ Exit criteria:
 2026-02-21 10:57 UTC | codex | remaining-todos-uncertainties | Updated current state after other-pane keymap/detail-scroll implementation | none | Deferred live-validation follow-up remains tracked in earlier entries; no new TODOs/uncertainties from this change
 2026-02-21 12:05 UTC | codex | phase3-layout-toggle | Started implementing Ctrl+V orientation toggle for issue/detail panes | in_progress | Add app state, key handling, render updates, and tests
 2026-02-21 12:05 UTC | codex | phase3-layout-toggle | Implemented pane orientation state, Ctrl+V toggle, orientation-aware split rendering, and shortcut/help text updates | complete | Run rust fmt/check/tests for validation
-2026-02-21 12:06 UTC | codex | phase3-layout-toggle | Verified Ctrl+V layout toggle with cargo fmt/test (, 
+2026-02-21 12:06 UTC | codex | phase3-layout-toggle | Verified Ctrl+V layout toggle with cargo fmt/test (,
 running 82 tests
 test adapter::tests::maps_comment_defaults ... ok
 test adapter::tests::loads_custom_fields_from_config ... ok
@@ -780,3 +780,5 @@ test result: ok. 82 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fin
 2026-02-21 19:49 UTC | codex | phase3-edit-menu-popup | Added EditMenu pane mode/state/text and unified edit-menu selection/apply flow; switched keybindings in normal/comments/transitions/boards/actions to `e` popup entry; added edit menu mode label/footer/mouse-wheel handling and updated actions help text | complete | Run jayrah-tui build/tests for regression verification
 2026-02-21 19:49 UTC | codex | phase3-edit-menu-popup | Verified with `cargo build` and `cargo test` in `rust/jayrah-tui` (134 passed) after formatting | complete | Remaining TODOs / uncertainties update
 2026-02-21 19:49 UTC | codex | remaining-todos-uncertainties | Updated current state after edit-menu popup consolidation | none | none
+2026-02-21 22:00 UTC | claude | filter-search-ux | Overhauled filter/search key bindings: Esc/Enter exit filter (keep text), Esc cancels search, Enter submits search; added Ctrl-U to clear text in both modes; added Shift-F to clear filter from normal mode; updated all hint text; fixed edit popup visual clutter by clearing main_area | complete | none
+2026-02-21 22:00 UTC | claude | remaining-todos-uncertainties | Updated current state after filter/search UX overhaul | none | none
