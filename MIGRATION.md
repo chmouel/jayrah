@@ -206,3 +206,144 @@ MVP tests should focus on behavior, not styling:
 2026-02-20 17:46 UTC | codex | phase2-docs | Added README fallback semantics for rust backend selection (config-default fallback vs explicit-rust strict failure) | complete | Keep docs in sync with any future backend policy changes
 2026-02-20 17:47 UTC | codex | phase2-hardening | Added regression test to enforce strict failure for explicit global rust selection (`--ui-backend rust`) when rust launcher fails | complete | Keep fallback/strict semantics covered as backend integration evolves
 2026-02-20 17:47 UTC | codex | phase2-hardening | Verified with `uv run ruff check tests/test_commands.py` and `uv run pytest tests/test_commands.py -q` (8 passed) | complete | Proceed to broader end-to-end browse UX validation across both backends
+
+---
+
+## Full Rust TUI Stack Migration Plan (No Python Adapter in Rust Path)
+
+### Goal
+Deliver a fully featured Rust Ratatui TUI that no longer shells out to Python machine endpoints for data/actions.
+
+### Scope (Locked)
+- In scope: TUI stack only (browse and all interactive TUI actions)
+- Out of scope: full product rewrite of create/web/mcp/cache commands
+- Entrypoint: keep `jayrah browse` (Python) as thin launcher during migration
+
+### Decisions (Locked)
+- Cutover style: phased rollout with checkpoints
+- Compatibility: mostly compatible with current config/auth behavior
+- Parity gate: full Textual TUI feature parity before default switch
+- Jira integration: native Rust Jira REST client (no `uv run jayrah cli ...` from Rust)
+
+### Current Baseline
+- Rust TUI browse flow exists and is wired through Python launcher.
+- Rust data path currently depends on Python adapter commands:
+  - `jayrah cli browse-list`
+  - `jayrah cli issue-show`
+  - `jayrah cli open`
+- Advanced Textual features are still Python-side only (comments, edits, transitions, board switch, custom fields).
+
+### Target End State
+- Rust TUI performs all TUI reads/writes directly against Jira APIs using a native Rust client.
+- Python `browse` command only resolves CLI/config and launches Rust binary.
+- No Python adapter subprocess dependency inside Rust runtime path.
+
+### Architecture Additions
+- `rust/jayrah-config`: YAML config loader + defaults + precedence rules
+- `rust/jayrah-jira`: native Jira API client with auth + retries + endpoint/version handling
+- `rust/jayrah-domain`: shared state/models for TUI + client integration
+- `rust/jayrah-tui`: UI/event loop/keymaps/screens/actions using native services
+
+### Compatibility Contract
+- Preserve config file location and schema support:
+  - `~/.config/jayrah/config.yaml`
+  - `general`, `boards`, `custom_fields`, `ui_backend`
+- Preserve default board and `currentUser()` resolution behavior
+- Preserve choose mode contract:
+  - `JAYRAH_TUI_CHOOSE_FILE` output behavior
+- Preserve explicit-rust strict behavior and config-default fallback until rollout phase says otherwise
+
+### Phase Plan
+
+#### Phase A: Native Backend Foundation
+1. Add Rust config module for current YAML schema and precedence.
+2. Implement native Rust Jira client for:
+   - issue search/list
+   - issue detail
+   - open URL composition
+3. Replace `adapter.rs` Python subprocess calls with native client calls.
+4. Keep existing browse/detail/filter/reload/open/choose user behavior stable.
+
+Exit criteria:
+- No Python subprocess calls for list/detail/open from Rust code.
+- `cargo check/test` and launcher compatibility tests pass.
+
+#### Phase B: Full Textual Parity in Rust TUI
+1. Implement comments view/add.
+2. Implement labels/components edit flows.
+3. Implement transition selection/apply flow.
+4. Implement edit title/description flow.
+5. Implement custom field editing flow.
+6. Implement board switch flow in Rust.
+7. Implement actions/help palette parity.
+
+Exit criteria:
+- Parity checklist complete (all current Textual actions available in Rust path).
+- No Python fallback for advanced actions when `--ui rust`.
+
+#### Phase C: Hardening and Rollout
+1. Add telemetry/logging hooks for failures and latency.
+2. Tune responsiveness and async cancellation/debounce paths.
+3. Phased policy:
+   - Stage 1: keep current fallback policy
+   - Stage 2: warn on fallback and surface migration hints
+   - Stage 3: set rust as recommended/default backend path
+
+Exit criteria:
+- Stability and latency targets met under regression/smoke tests.
+- Docs and help updated to reflect final rust-backed TUI behavior.
+
+#### Phase D: Cleanup (TUI scope only)
+1. Remove now-unused machine adapter endpoints (`browse-list`, `issue-show`) after references are gone.
+2. Remove dead Rust adapter subprocess code.
+3. Keep Python browse launcher thin and stable.
+
+Exit criteria:
+- Rust TUI stack has no operational Python adapter dependency.
+- Legacy adapter-only code paths are removed.
+
+### TUI Parity Checklist (Release Gate)
+- [ ] Browse issues
+- [ ] Filter/search issues
+- [ ] Issue detail pane
+- [ ] Reload issues
+- [ ] Open issue in browser
+- [ ] Choose mode return key
+- [ ] View comments
+- [ ] Add comment
+- [ ] Edit labels
+- [ ] Edit components
+- [ ] Transition issue
+- [ ] Edit title/description
+- [ ] Edit custom fields
+- [ ] Board switcher
+- [ ] Actions/help palette parity
+
+### Testing Strategy
+- Rust unit tests:
+  - config parsing/defaults/precedence
+  - auth/header behavior and API version routing
+  - reducer/state transition behavior for all actions
+- Rust integration tests:
+  - Jira API interaction via mocked server fixtures
+  - choose-mode output contract
+  - retry/timeout/error handling
+- Python integration tests:
+  - `jayrah browse --ui rust` launcher semantics
+  - strict vs fallback behavior until final rollout stage
+
+### Risks and Mitigations
+- API v2/v3 edge-case drift:
+  - mitigation: dual-version fixtures and endpoint contract tests
+- Config/auth mismatch with existing user setups:
+  - mitigation: mostly-compatible parser + explicit migration diagnostics
+- Parity regressions:
+  - mitigation: checklist-driven acceptance + focused integration tests
+
+### Immediate Next Actions
+1. Start Phase A Rust crates (`jayrah-config`, `jayrah-jira`, `jayrah-domain`) scaffold.
+2. Port browse/detail/open adapter calls to native client path.
+3. Add tests proving no Rust runtime dependency on Python adapter commands.
+
+2026-02-21 05:31 UTC | codex | Decision | Locked migration direction to full Rust TUI stack (native Rust Jira client, phased rollout, mostly-compatible config/auth, Python browse kept as thin launcher) | complete | Append comprehensive execution plan and begin Phase A foundation
+2026-02-21 05:31 UTC | codex | migration-doc | Added complete end-to-end Full Rust TUI Stack plan with scope, phases, parity gate, tests, risks, and cleanup criteria | complete | Start Phase A implementation in rust workspace and keep logging each step
