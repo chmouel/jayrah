@@ -27,6 +27,7 @@ const TRANSITION_FETCH_DEBOUNCE_MS: u64 = 120;
 const PANE_RESIZE_STEP_PERCENT: u16 = 5;
 const MIN_LEFT_PANE_PERCENT: u16 = 25;
 const MAX_LEFT_PANE_PERCENT: u16 = 75;
+const ACTIONS_DEFAULT_VIEWPORT_HEIGHT: u16 = 20;
 
 #[derive(Debug)]
 pub struct DetailRequest {
@@ -161,6 +162,8 @@ pub struct App {
     custom_fields: Vec<CustomFieldEntry>,
     custom_field_selected: usize,
     pane_mode: DetailPaneMode,
+    actions_scroll: u16,
+    actions_viewport_height: u16,
     left_pane_percent: u16,
     last_selected_key: Option<String>,
     selected_changed_at: Instant,
@@ -203,6 +206,8 @@ impl App {
             custom_fields: Vec::new(),
             custom_field_selected: 0,
             pane_mode: DetailPaneMode::Detail,
+            actions_scroll: 0,
+            actions_viewport_height: ACTIONS_DEFAULT_VIEWPORT_HEIGHT,
             left_pane_percent: 60,
             last_selected_key: None,
             selected_changed_at: Instant::now(),
@@ -302,6 +307,10 @@ impl App {
         self.pane_mode == DetailPaneMode::Actions
     }
 
+    pub fn in_popup_mode(&self) -> bool {
+        self.pane_mode != DetailPaneMode::Detail
+    }
+
     pub fn in_comment_input_mode(&self) -> bool {
         self.comment_input_mode
     }
@@ -341,7 +350,8 @@ impl App {
         self.pane_mode = DetailPaneMode::Comments;
         self.comments_selected = 0;
         self.transition_selected = 0;
-        self.status_line = "Comments mode: n/p to navigate comments, c or Esc to close".to_string();
+        self.status_line =
+            "Comments mode: j/k or n/p navigate comments, c or Esc to close".to_string();
     }
 
     pub fn enter_transitions_mode(&mut self) {
@@ -350,7 +360,8 @@ impl App {
         self.comment_input.clear();
         self.transition_selected = 0;
         self.status_line =
-            "Transitions mode: n/p select transition, Enter apply, t or Esc close".to_string();
+            "Transitions mode: j/k or n/p select transition, Enter apply, t or Esc close"
+                .to_string();
     }
 
     pub fn enter_boards_mode(&mut self) {
@@ -360,7 +371,7 @@ impl App {
         self.load_boards();
         if !self.boards.is_empty() {
             self.status_line =
-                "Boards mode: n/p select board, Enter apply, b or Esc close".to_string();
+                "Boards mode: j/k or n/p select board, Enter apply, b or Esc close".to_string();
         }
     }
 
@@ -374,7 +385,8 @@ impl App {
         self.load_custom_fields();
         if !self.custom_fields.is_empty() {
             self.status_line =
-                "Custom fields mode: n/p select field, Enter edit, u or Esc close".to_string();
+                "Custom fields mode: j/k or n/p select field, Enter edit, u or Esc close"
+                    .to_string();
         }
     }
 
@@ -382,7 +394,9 @@ impl App {
         self.pane_mode = DetailPaneMode::Actions;
         self.comment_input_mode = false;
         self.comment_input.clear();
-        self.status_line = "Actions help: press ? or Esc to close".to_string();
+        self.actions_scroll = 0;
+        self.status_line =
+            "Actions popup: j/k scroll, Ctrl+d/Ctrl+u page, ? or Esc close".to_string();
     }
 
     pub fn enter_detail_mode(&mut self) {
@@ -393,6 +407,34 @@ impl App {
         self.edit_input.clear();
         self.active_custom_field = None;
         self.status_line = "Detail mode".to_string();
+    }
+
+    fn actions_max_scroll(&self) -> u16 {
+        let viewport_height = usize::from(self.actions_viewport_height.max(1));
+        let content_lines = self.actions_text().lines().count();
+        u16::try_from(content_lines.saturating_sub(viewport_height)).unwrap_or(u16::MAX)
+    }
+
+    pub fn actions_scroll(&self) -> u16 {
+        self.actions_scroll.min(self.actions_max_scroll())
+    }
+
+    pub fn actions_half_page_step(&self) -> u16 {
+        (self.actions_viewport_height / 2).max(1)
+    }
+
+    pub fn set_actions_viewport_height(&mut self, viewport_height: u16) {
+        self.actions_viewport_height = viewport_height.max(1);
+        self.actions_scroll = self.actions_scroll.min(self.actions_max_scroll());
+    }
+
+    pub fn scroll_actions_down(&mut self, lines: u16) {
+        let next = self.actions_scroll.saturating_add(lines.max(1));
+        self.actions_scroll = next.min(self.actions_max_scroll());
+    }
+
+    pub fn scroll_actions_up(&mut self, lines: u16) {
+        self.actions_scroll = self.actions_scroll.saturating_sub(lines.max(1));
     }
 
     pub fn start_comment_input(&mut self) {
@@ -1468,7 +1510,7 @@ impl App {
                 let active_index = self.transition_selected.min(transitions.len() - 1);
                 let current = &transitions[active_index];
                 format!(
-                    "Transitions for {}\n\nTransition {}/{}\nName: {}\nTo: {}\nDescription: {}\n\nUse n/p to choose and Enter to apply.",
+                    "Transitions for {}\n\nTransition {}/{}\nName: {}\nTo: {}\nDescription: {}\n\nUse j/k or n/p to choose and Enter to apply.",
                     key,
                     active_index + 1,
                     transitions.len(),
@@ -1517,7 +1559,7 @@ impl App {
             "myissue".to_string()
         };
         let mut out = format!(
-            "Configured Boards\nCurrent: {}\n\nUse n/p to choose and Enter to switch.\n\n",
+            "Configured Boards\nCurrent: {}\n\nUse j/k or n/p to choose and Enter to switch.\n\n",
             current_source
         );
         if self.source.query.is_some() {
@@ -1543,9 +1585,7 @@ impl App {
                 .to_string();
         }
 
-        let mut out =
-            "Configured Custom Fields\n\nUse n/p to choose and Enter to edit selected field.\n\n"
-                .to_string();
+        let mut out = "Configured Custom Fields\n\nUse j/k or n/p to choose and Enter to edit selected field.\n\n".to_string();
         for (index, field) in self.custom_fields.iter().enumerate() {
             let marker = if index == self.custom_field_selected {
                 ">"
@@ -1563,7 +1603,7 @@ impl App {
     pub fn actions_text(&self) -> String {
         let mode = if self.choose_mode { "choose" } else { "normal" };
         format!(
-            "Jayrah Rust TUI Actions ({mode} mode)\n\nNavigation\n  j/k or arrows: move issue selection\n  f or /: filter issues\n  r: reload issues\n\nIssue Actions\n  o: open selected issue in browser\n  e: edit issue summary\n  E: edit issue description\n  l: edit issue labels\n  m: edit issue components\n  u: custom field editor pane\n  b: board switcher pane\n  c: comments pane\n  t: transitions pane\n  ?: actions/help pane\n\nComments Mode\n  n/p: previous/next comment\n  a: compose comment\n  Enter: submit comment draft\n\nTransitions Mode\n  n/p: previous/next transition\n  Enter: apply selected transition\n\nBoards Mode\n  n/p: previous/next board\n  Enter: switch active board\n\nCustom Fields Mode\n  n/p: previous/next field\n  Enter: edit selected custom field\n\nGlobal\n  q: quit (or close active pane)\n  Esc: close active pane/filter"
+            "Jayrah Rust TUI Actions ({mode} mode)\n\nNavigation (detail mode)\n  j/k or arrows: move issue selection\n  f or /: filter issues\n  r: reload issues\n\nIssue Actions\n  o: open selected issue in browser\n  e: edit issue summary\n  E: edit issue description\n  l: edit issue labels\n  m: edit issue components\n  u: custom field editor popup\n  b: board switcher popup\n  c: comments popup\n  t: transitions popup\n  ?: actions/help popup\n\nActions Popup\n  j/k or arrows: scroll help\n  Ctrl+d/Ctrl+u: page down/up\n\nComments Popup\n  j/k or n/p: previous/next comment\n  a: compose comment\n  Enter: submit comment draft\n\nTransitions Popup\n  j/k or n/p: previous/next transition\n  Enter: apply selected transition\n\nBoards Popup\n  j/k or n/p: previous/next board\n  Enter: switch active board\n\nCustom Fields Popup\n  j/k or n/p: previous/next field\n  Enter: edit selected custom field\n\nGlobal\n  q: quit (or close active popup)\n  Esc: close active popup/filter"
         )
     }
 
@@ -1832,13 +1872,43 @@ mod tests {
         app.enter_actions_mode();
 
         let text = app.actions_text();
-        assert!(text.contains("b: board switcher pane"));
-        assert!(text.contains("c: comments pane"));
-        assert!(text.contains("t: transitions pane"));
+        assert!(text.contains("b: board switcher popup"));
+        assert!(text.contains("c: comments popup"));
+        assert!(text.contains("t: transitions popup"));
         assert!(text.contains("l: edit issue labels"));
         assert!(text.contains("m: edit issue components"));
-        assert!(text.contains("u: custom field editor pane"));
-        assert!(text.contains("?: actions/help pane"));
+        assert!(text.contains("u: custom field editor popup"));
+        assert!(text.contains("?: actions/help popup"));
+        assert!(text.contains("Ctrl+d/Ctrl+u: page down/up"));
+    }
+
+    #[test]
+    fn actions_scroll_obeys_bounds() {
+        let mut app = App::new(mock_source(), false);
+        app.enter_actions_mode();
+        app.set_actions_viewport_height(4);
+
+        app.scroll_actions_down(500);
+        let after_down = app.actions_scroll();
+        assert!(after_down > 0);
+
+        app.scroll_actions_up(2);
+        assert_eq!(app.actions_scroll(), after_down - 2);
+
+        app.scroll_actions_up(500);
+        assert_eq!(app.actions_scroll(), 0);
+    }
+
+    #[test]
+    fn non_detail_modes_are_popup_modes() {
+        let mut app = App::new(mock_source(), false);
+        assert!(!app.in_popup_mode());
+
+        app.enter_boards_mode();
+        assert!(app.in_popup_mode());
+
+        app.enter_detail_mode();
+        assert!(!app.in_popup_mode());
     }
 
     #[test]

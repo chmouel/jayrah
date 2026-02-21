@@ -1,17 +1,20 @@
 # MIGRATION: Python -> Rust Ratatui TUI
 
 ## Rewrite Status
+
 - overall_phase: Phase 0
 - last_updated: 2026-02-20
 - owner: TBD
 
 ## Required Step Log (append-only)
+
 All rewrite contributors must append a log entry for each meaningful step. Do not rewrite or delete historical entries.
 
 Required format:
 `YYYY-MM-DD HH:MM UTC | actor | area | action | result | next`
 
 ## Step Log Entries
+
 2026-02-20 00:00 UTC | codex | migration-doc | Initialized root migration doc and logging scaffold | complete | Continue with AGENTS rewrite governance update
 2026-02-20 00:05 UTC | codex | repo-governance | Added mandatory rewrite workflow rules in AGENTS.md | complete | Finalize migration document move
 2026-02-20 00:07 UTC | codex | docs-cleanup | Removed old misc migration file after moving plan to root MIGRATION.md | complete | Ready for Phase 0 implementation
@@ -21,18 +24,23 @@ Required format:
 # Rust + Ratatui TUI Migration Plan (MVP)
 
 ## Goal
+
 Ship a lean, highly responsive Rust TUI for browsing Jira issues, while keeping the current Python app working during migration.
 
 ## Scope: TUI Only
+
 This plan intentionally excludes web UI, MCP server, and non-TUI command redesign.
 
 ## Current TUI Feature Inventory (Python/Textual)
+
 Current implementation lives in:
+
 - `jayrah/ui/tui/app.py`
 - `jayrah/ui/tui/actions.py`
 - `jayrah/ui/tui/views.py`
 
 Core browse flow today:
+
 - issue table with keyboard navigation
 - detail preview panel with async loading and cache
 - fuzzy filter modal
@@ -42,6 +50,7 @@ Core browse flow today:
 - choose mode (`--choose`) with selected issue return
 
 Additional modals/actions today:
+
 - comments (view/add)
 - labels/components edit
 - transitions
@@ -50,7 +59,9 @@ Additional modals/actions today:
 - actions palette
 
 ## MVP Definition (What We Build First)
+
 MVP includes only the minimum high-value browsing loop:
+
 1. Load issues for one board/query
 2. Fast list navigation (`j/k`, arrows)
 3. Detail pane for selected issue
@@ -60,37 +71,47 @@ MVP includes only the minimum high-value browsing loop:
 7. Optional choose mode (return selected ticket key)
 
 Not in MVP:
+
 - comments, transitions, edit flows, custom field edit, board switcher modal
 - command palette parity
 - full theming parity with Textual CSS
 
 ## Architecture Decision for MVP
+
 Use a **hybrid migration** to move fast:
+
 - Frontend/UI: Rust + Ratatui + Crossterm
 - Data backend for MVP: Python CLI adapter subprocess calls (reuse existing Jira/auth/config behavior)
 
 Rationale:
+
 - avoids rewriting auth/config/Jira edge cases immediately
 - lets us focus on responsiveness and interaction quality
 - keeps risk low and iteration fast
 
 ## Proposed Rust Layout
+
 Create a Rust workspace under `rust/`:
+
 - `rust/jayrah-tui/` (ratatui app)
 - `rust/jayrah-adapter/` (calls existing Python CLI commands, parses JSON/CSV)
 - `rust/jayrah-model/` (shared structs + app state)
 
 ## Backend Adapter Contract (MVP)
+
 Add stable machine-readable commands in Python (if missing) and treat them as contract:
+
 - list issues for board/query (JSON)
 - fetch issue details by key (JSON)
 - open issue URL by key (or return URL)
 
 Guideline:
+
 - adapter commands must be deterministic and schema-stable
 - stderr for logs, stdout for machine data only
 
 ## Performance Targets
+
 - key navigation latency: < 16 ms perceived (no blocking on render loop)
 - first issue list render: < 1 s on warm cache
 - detail pane update on selection: immediate placeholder + async fetch
@@ -99,54 +120,68 @@ Guideline:
 ## Execution Phases
 
 ### Phase 0: Contract and Scaffold
+
 - create Rust workspace and crates
 - define JSON schemas for list/detail payloads
 - add/verify Python CLI machine endpoints for TUI needs
 
 Exit criteria:
+
 - Rust app can fetch and print issues via adapter
 
 ### Phase 1: Browsing MVP UI
+
 - two-pane ratatui layout (table + detail)
 - keyboard navigation and selection state
 - async fetch pipeline with cancellation/debounce for rapid cursor moves
 - reload and filter actions
 
 Exit criteria:
+
 - daily browse flow works end-to-end without Textual
 
 ### Phase 2: CLI Integration
+
 - expose new entrypoint (example: `jayrah browse --ui rust`)
 - keep Textual path available as fallback
 - add feature flag/config toggle for default UI
 
 Exit criteria:
+
 - users can switch between old/new TUI safely
 
 ### Phase 3: Post-MVP Features
+
 - comments, transitions, edits, custom fields, board switcher
 - progressively replace adapter with native Rust Jira client if desired
 
 Exit criteria:
+
 - decide whether to keep hybrid backend or complete full Rust client rewrite
 
 ## State Model (Ratatui)
+
 Single source of truth:
+
 - `AppState { issues, filtered_indices, selected_idx, detail_cache, loading_flags, mode }`
 
 Event loop model:
+
 - input events -> reducer/state transition
 - async worker results -> message queue -> state update
 - render from immutable snapshot per tick
 
 ## Testing Strategy
+
 MVP tests should focus on behavior, not styling:
+
 - adapter parsing tests (JSON/CSV fixtures)
 - reducer/state transition tests (selection, filtering, reload)
 - snapshot tests for key screen states
 - one end-to-end smoke test with mocked adapter responses
 
 ## Risks and Mitigations
+
 - Risk: subprocess adapter latency
   - Mitigation: cache detail payloads, debounce detail fetches, prefetch nearby rows
 - Risk: schema drift between Python output and Rust parser
@@ -155,6 +190,7 @@ MVP tests should focus on behavior, not styling:
   - Mitigation: strict MVP boundary and phased deprecation decision
 
 ## Immediate Next Tasks
+
 1. Add machine-friendly Python command(s) for `browse list` and `issue show` if output is not stable enough.
 2. Scaffold `rust/jayrah-tui` with event loop, static mock data screen, and keymap.
 3. Wire adapter call for real issue list and render table rows.
@@ -212,20 +248,24 @@ MVP tests should focus on behavior, not styling:
 ## Full Rust TUI Stack Migration Plan (No Python Adapter in Rust Path)
 
 ### Goal
+
 Deliver a fully featured Rust Ratatui TUI that no longer shells out to Python machine endpoints for data/actions.
 
 ### Scope (Locked)
+
 - In scope: TUI stack only (browse and all interactive TUI actions)
 - Out of scope: full product rewrite of create/web/mcp/cache commands
 - Entrypoint: keep `jayrah browse` (Python) as thin launcher during migration
 
 ### Decisions (Locked)
+
 - Cutover style: phased rollout with checkpoints
 - Compatibility: mostly compatible with current config/auth behavior
 - Parity gate: full Textual TUI feature parity before default switch
 - Jira integration: native Rust Jira REST client (no `uv run jayrah cli ...` from Rust)
 
 ### Current Baseline
+
 - Rust TUI browse flow exists and is wired through Python launcher.
 - Rust data path currently depends on Python adapter commands:
   - `jayrah cli browse-list`
@@ -234,17 +274,20 @@ Deliver a fully featured Rust Ratatui TUI that no longer shells out to Python ma
 - Advanced Textual features are still Python-side only (comments, edits, transitions, board switch, custom fields).
 
 ### Target End State
+
 - Rust TUI performs all TUI reads/writes directly against Jira APIs using a native Rust client.
 - Python `browse` command only resolves CLI/config and launches Rust binary.
 - No Python adapter subprocess dependency inside Rust runtime path.
 
 ### Architecture Additions
+
 - `rust/jayrah-config`: YAML config loader + defaults + precedence rules
 - `rust/jayrah-jira`: native Jira API client with auth + retries + endpoint/version handling
 - `rust/jayrah-domain`: shared state/models for TUI + client integration
 - `rust/jayrah-tui`: UI/event loop/keymaps/screens/actions using native services
 
 ### Compatibility Contract
+
 - Preserve config file location and schema support:
   - `~/.config/jayrah/config.yaml`
   - `general`, `boards`, `custom_fields`, `ui_backend`
@@ -256,6 +299,7 @@ Deliver a fully featured Rust Ratatui TUI that no longer shells out to Python ma
 ### Phase Plan
 
 #### Phase A: Native Backend Foundation
+
 1. Add Rust config module for current YAML schema and precedence.
 2. Implement native Rust Jira client for:
    - issue search/list
@@ -265,10 +309,12 @@ Deliver a fully featured Rust Ratatui TUI that no longer shells out to Python ma
 4. Keep existing browse/detail/filter/reload/open/choose user behavior stable.
 
 Exit criteria:
+
 - No Python subprocess calls for list/detail/open from Rust code.
 - `cargo check/test` and launcher compatibility tests pass.
 
 #### Phase B: Full Textual Parity in Rust TUI
+
 1. Implement comments view/add.
 2. Implement labels/components edit flows.
 3. Implement transition selection/apply flow.
@@ -278,10 +324,12 @@ Exit criteria:
 7. Implement actions/help palette parity.
 
 Exit criteria:
+
 - Parity checklist complete (all current Textual actions available in Rust path).
 - No Python fallback for advanced actions when `--ui rust`.
 
 #### Phase C: Hardening and Rollout
+
 1. Add telemetry/logging hooks for failures and latency.
 2. Tune responsiveness and async cancellation/debounce paths.
 3. Phased policy:
@@ -293,19 +341,23 @@ Exit criteria:
      Entry criteria: 14-day observation window with no P0/P1 rust TUI regressions, fallback rate under 5% for config-default rust launches, and release docs/help updated with final backend guidance.
 
 Exit criteria:
+
 - Stability and latency targets met under regression/smoke tests.
 - Docs and help updated to reflect final rust-backed TUI behavior.
 
 #### Phase D: Cleanup (TUI scope only)
+
 1. Remove now-unused machine adapter endpoints (`browse-list`, `issue-show`) after references are gone.
 2. Remove dead Rust adapter subprocess code.
 3. Keep Python browse launcher thin and stable.
 
 Exit criteria:
+
 - Rust TUI stack has no operational Python adapter dependency.
 - Legacy adapter-only code paths are removed.
 
 ### TUI Parity Checklist (Release Gate)
+
 - [x] Browse issues
 - [x] Filter/search issues
 - [x] Issue detail pane
@@ -323,6 +375,7 @@ Exit criteria:
 - [x] Actions/help palette parity
 
 ### Testing Strategy
+
 - Rust unit tests:
   - config parsing/defaults/precedence
   - auth/header behavior and API version routing
@@ -336,6 +389,7 @@ Exit criteria:
   - strict vs fallback behavior until final rollout stage
 
 ### Risks and Mitigations
+
 - API v2/v3 edge-case drift:
   - mitigation: dual-version fixtures and endpoint contract tests
 - Config/auth mismatch with existing user setups:
@@ -344,6 +398,7 @@ Exit criteria:
   - mitigation: checklist-driven acceptance + focused integration tests
 
 ### Immediate Next Actions
+
 1. Start Phase A Rust crates (`jayrah-config`, `jayrah-jira`, `jayrah-domain`) scaffold.
 2. Port browse/detail/open adapter calls to native client path.
 3. Add tests proving no Rust runtime dependency on Python adapter commands.
@@ -357,6 +412,7 @@ Exit criteria:
 2026-02-21 05:46 UTC | codex | phaseA-native-backend | Verified Python launcher compatibility with `uv run pytest tests/test_rust_tui_launcher.py tests/test_commands.py -q` (13 passed) after Rust adapter swap | complete | Begin next parity increment for native comment/transition/edit flows
 
 ## Remaining TODOs / Uncertainties (Append-Only)
+
 - 2026-02-21 05:49 UTC | todo | Implement full Phase B Rust parity flows: comments view/add, transitions, labels/components edits, title/description edits, custom fields, board switcher, actions/help parity.
 - 2026-02-21 05:49 UTC | uncertainty | Rust config/client path does not yet resolve `pass::` or `passage::` secrets; behavior parity with Python secret resolution is pending.
 - 2026-02-21 05:49 UTC | uncertainty | Final fallback policy progression (Stage 2/3) still needs explicit acceptance criteria tied to parity/stability thresholds.
@@ -366,6 +422,7 @@ Exit criteria:
 2026-02-21 05:52 UTC | codex | phaseB-comments-view | Started first Phase B parity slice to add native Rust comments viewing flow in ratatui UI | in_progress | Add Jira comment APIs, async worker path, and comments-pane keymap/rendering
 2026-02-21 05:55 UTC | codex | phaseB-comments-view | Added native Jira comment list/create client methods, Rust adapter comment mapping, comments worker pipeline, and comments pane mode (`c` open, `n/p` navigate, `c`/`Esc`/`q` close pane) | complete | Run workspace formatting/check/tests and refresh migration TODO snapshot
 2026-02-21 05:56 UTC | codex | phaseB-comments-view | Verified with `cargo fmt --all`, `cargo check --workspace`, and `cargo test --workspace` (29 tests passed) | complete | Continue Phase B with add-comment input flow and remaining edit/transition parity
+
 - 2026-02-21 05:56 UTC | todo | Phase B parity remaining: add comment submission UI flow, labels/components edits, transitions, title/description edits, custom field editing, board switcher, and actions/help palette parity.
 - 2026-02-21 05:56 UTC | todo | TUI parity checklist progress: View comments is now implemented in Rust path; keep checklist gate updates aligned as each remaining feature lands.
 - 2026-02-21 05:56 UTC | uncertainty | Jira API v3 comment-create payload compatibility is implemented with ADF body format but still needs validation against a live Jira Cloud instance.
@@ -491,3 +548,8 @@ Exit criteria:
 2026-02-21 07:18 UTC | codex | phaseC-cli-help-alias | Re-verified positional help alias after formatting with `cargo fmt --all` and `cargo test -p jayrah-tui` (52 passed) | complete | Continue deferred live-validation rerun once valid issue/env values are available
 - 2026-02-21 07:18 UTC | todo | Deferred: rerun guarded live-validation test later with a valid accessible issue key and required transition/custom-field env values.
 - 2026-02-21 07:18 UTC | uncertainty | none
+2026-02-21 07:33 UTC | codex | Decision | Updated scope from fixed 80% popup size to adaptive popup dimensions based on content and available terminal area, with mode-specific key behavior (help scroll vs selection navigation) | complete | Implement adaptive popup renderer and keymap updates in jayrah-tui
+2026-02-21 07:33 UTC | codex | phaseC-adaptive-popups | Implemented adaptive centered popup overlays for non-default panes while keeping default issue detail in right pane; wired help popup scrolling (`j/k`, `Ctrl+d`, `Ctrl+u`) and changed boards/transitions/comments/custom-fields to use `j/k` and `n/p` for selection | complete | Update footer/help copy and add regression tests for popup sizing and key behavior
+2026-02-21 07:33 UTC | codex | phaseC-adaptive-popups | Verified with `cargo test -p jayrah-tui` (61 passed, 0 failed) including new app/tui tests for adaptive popup bounds/growth and mode-specific key handling | complete | Continue deferred live-validation rerun once valid issue/env values are available
+- 2026-02-21 07:33 UTC | todo | none (for adaptive popup work; deferred live-validation follow-up remains tracked in earlier entries)
+- 2026-02-21 07:33 UTC | uncertainty | none
