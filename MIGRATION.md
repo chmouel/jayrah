@@ -473,3 +473,8 @@ Exit criteria:
 2026-02-21 07:12 UTC | codex | Decision | Deferred live Jira validation blocker (invalid/inaccessible validation issue key) to unblock ongoing migration work | complete | Keep live-validation harness in place and resume once a valid writable issue key/env set is available
 - 2026-02-21 07:12 UTC | todo | Deferred: rerun guarded live-validation test later with a valid accessible issue key and required transition/custom-field env values.
 - 2026-02-21 07:12 UTC | uncertainty | none
+2026-02-21 07:13 UTC | codex | phaseC-rust-cli-config-file | Started Rust CLI parity update to support explicit config path override flag for jayrah-tui | in_progress | Add `--config-file/-c` parsing/help and wire runtime override to `JAYRAH_CONFIG_FILE`
+2026-02-21 07:14 UTC | codex | phaseC-rust-cli-config-file | Added `--config-file/-c` to rust/jayrah-tui CLI parser/help, with runtime wiring that sets `JAYRAH_CONFIG_FILE` before app initialization; added parser regression test | complete | Validate cargo fmt/check/tests and help output
+2026-02-21 07:14 UTC | codex | phaseC-rust-cli-config-file | Verified with `cargo fmt --all`, `cargo check --workspace`, `cargo test --workspace` (62 passed, 1 ignored), and `cargo run -p jayrah-tui -- --help` | complete | Continue with deferred live Jira validation when valid writable issue/env set is available
+- 2026-02-21 07:14 UTC | todo | Deferred: rerun guarded live-validation test later with a valid accessible issue key and required transition/custom-field env values.
+- 2026-02-21 07:14 UTC | uncertainty | none

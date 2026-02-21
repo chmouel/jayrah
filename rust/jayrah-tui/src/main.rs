@@ -35,6 +35,10 @@ fn main() -> Result<()> {
         CliAction::Run(config) => config,
     };
 
+    if let Some(config_file) = run_config.config_file.as_deref() {
+        env::set_var("JAYRAH_CONFIG_FILE", config_file);
+    }
+
     let mut terminal = setup_terminal()?;
     let run_result = run_app(
         &mut terminal,

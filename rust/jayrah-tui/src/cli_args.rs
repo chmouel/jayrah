@@ -8,6 +8,7 @@ use crate::types::AdapterSource;
 pub struct RunConfig {
     pub source: AdapterSource,
     pub choose_mode: bool,
+    pub config_file: Option<String>,
 }
 
 #[derive(Debug)]
@@ -23,10 +24,13 @@ pub fn parse_cli_action() -> Result<CliAction> {
 pub fn print_help() {
     println!("jayrah-tui (phase 1 preview)");
     println!("Usage:");
-    println!("  cargo run -p jayrah-tui -- [--board <name>] [--query <jql>] [--mock] [--choose]");
+    println!(
+        "  cargo run -p jayrah-tui -- [--board <name>] [--query <jql>] [--config-file <path>] [--mock] [--choose]"
+    );
     println!("Options:");
     println!("  --board <name>   Load issues from a configured board");
     println!("  --query <jql>    Load issues from a raw JQL query");
+    println!("  -c, --config-file <path>   Override config path (sets JAYRAH_CONFIG_FILE)");
     println!("  --mock           Skip adapter calls and use built-in mock issues");
     println!("  --choose         Print selected issue key when Enter confirms selection");
 }
@@ -39,6 +43,7 @@ where
     let mut query = None;
     let mut mock_only = false;
     let mut choose_mode = false;
+    let mut config_file = None;
 
     let mut args = args.into_iter();
     while let Some(arg) = args.next() {
@@ -53,6 +58,12 @@ where
                 query = Some(
                     args.next()
                         .ok_or_else(|| anyhow!("--query requires a value"))?,
+                );
+            }
+            "--config-file" | "-c" => {
+                config_file = Some(
+                    args.next()
+                        .ok_or_else(|| anyhow!("--config-file requires a value"))?,
                 );
             }
             "--mock" => {
@@ -84,6 +95,7 @@ where
             mock_only,
         },
         choose_mode,
+        config_file,
     }))
 }
 
@@ -101,6 +113,7 @@ mod tests {
         assert_eq!(source.source.board.as_deref(), Some("myissue"));
         assert!(!source.source.mock_only);
         assert!(!source.choose_mode);
+        assert_eq!(source.config_file, None);
     }
 
     #[test]
@@ -130,5 +143,19 @@ mod tests {
         .expect_err("expected error");
 
         assert!(error.to_string().contains("either --board or --query"));
+    }
+
+    #[test]
+    fn parses_config_file_flag() {
+        let action = parse_args(vec![
+            "--config-file".to_string(),
+            "/tmp/jayrah.yaml".to_string(),
+        ])
+        .expect("action");
+        let CliAction::Run(config) = action else {
+            panic!("expected run action");
+        };
+
+        assert_eq!(config.config_file.as_deref(), Some("/tmp/jayrah.yaml"));
     }
 }
