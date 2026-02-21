@@ -1,4 +1,4 @@
-"""Rust Ratatui launcher helpers for browse integration."""
+"""Rust Ratatouille launcher helpers for browse integration."""
 
 from __future__ import annotations
 
