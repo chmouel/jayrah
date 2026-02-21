@@ -65,7 +65,8 @@ struct EditInputSession {
 
 fn build_edit_textarea(value: &str) -> TextArea<'static> {
     let theme = Theme::solarized_warm();
-    let mut textarea = TextArea::from(value.split('\n'));
+    let normalized = value.replace("\r\n", "\n").replace('\r', "\n");
+    let mut textarea = TextArea::from(normalized.split('\n'));
     textarea.set_style(theme.popup());
     textarea.set_cursor_style(theme.table_selected());
     textarea.set_cursor_line_style(theme.filter_bar(true));
@@ -351,10 +352,8 @@ fn handle_key_event_with_edit_session(
                 app.filter_mode = false;
                 app.normalize_selection();
                 if app.has_active_filter() {
-                    app.status_line = format!(
-                        "Filter active: '{}'. f edit, F clear",
-                        app.filter_query()
-                    );
+                    app.status_line =
+                        format!("Filter active: '{}'. f edit, F clear", app.filter_query());
                 } else {
                     app.status_line = String::from("Filter exited");
                 }
@@ -1113,7 +1112,7 @@ fn draw_ui(
         }
     }
 
-    if app.in_popup_mode() {
+    if app.in_popup_mode() && !app.in_edit_input_mode() {
         let popup_title = app.right_pane_title();
         let popup_text = app.right_pane_text();
         let popup_area = adaptive_popup_area(main_area, popup_title, popup_text.as_str());
@@ -1166,7 +1165,7 @@ fn draw_ui(
         let is_description_target = app.edit_target_label() == "description";
         let is_summary_target = app.edit_target_label() == "summary";
         let edit_popup_area = edit_popup_area(main_area, is_description_target, is_summary_target);
-        frame.render_widget(Clear, main_area);
+        frame.render_widget(Clear, edit_popup_area);
         let issue_key = app
             .selected_issue_key()
             .unwrap_or_else(|| String::from("<no issue>"));
@@ -1186,6 +1185,7 @@ fn draw_ui(
                     .direction(Direction::Vertical)
                     .constraints([Constraint::Length(input_height), Constraint::Length(1)])
                     .split(inner);
+                frame.render_widget(Clear, sections[0]);
                 if let Some(session) = edit_session {
                     frame.render_widget(&session.textarea, sections[0]);
                 } else {
@@ -1199,10 +1199,13 @@ fn draw_ui(
                 let controls = Paragraph::new("Ctrl+s save  Esc cancel")
                     .style(theme.edit_help())
                     .wrap(Wrap { trim: true });
+                frame.render_widget(Clear, sections[1]);
                 frame.render_widget(controls, sections[1]);
             } else if let Some(session) = edit_session {
+                frame.render_widget(Clear, inner);
                 frame.render_widget(&session.textarea, inner);
             } else {
+                frame.render_widget(Clear, inner);
                 frame.render_widget(
                     Paragraph::new(app.edit_input())
                         .style(theme.popup())
@@ -1392,10 +1395,12 @@ mod tests {
     use crossterm::event::{
         KeyCode, KeyEvent, KeyEventKind, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
     };
-    use ratatui::{layout::Rect, widgets::ScrollbarState};
+    use ratatui::{
+        backend::TestBackend, buffer::Buffer, layout::Rect, widgets::ScrollbarState, Terminal,
+    };
 
     use super::{
-        adaptive_popup_area, build_detail_lines, build_edit_textarea, edit_input_height,
+        adaptive_popup_area, build_detail_lines, build_edit_textarea, draw_ui, edit_input_height,
         edit_popup_area, handle_key_event, handle_key_event_with_edit_session, handle_mouse_event,
         percent_popup_area, vertical_scrollbar_state, EditInputSession, MouseHitAreas, RunOutcome,
     };
@@ -1447,6 +1452,21 @@ mod tests {
             row,
             modifiers: KeyModifiers::empty(),
         }
+    }
+
+    fn buffer_contains_text(buffer: &Buffer, needle: &str) -> bool {
+        for y in 0..buffer.area.height {
+            let mut row = String::new();
+            for x in 0..buffer.area.width {
+                if let Some(cell) = buffer.cell((x, y)) {
+                    row.push_str(cell.symbol());
+                }
+            }
+            if row.contains(needle) {
+                return true;
+            }
+        }
+        false
     }
 
     #[test]
@@ -2899,6 +2919,38 @@ mod tests {
         assert_eq!(edit_input_height(6, true), 4);
         assert_eq!(edit_input_height(2, true), 1);
         assert_eq!(edit_input_height(6, false), 5);
+    }
+
+    #[test]
+    fn build_edit_textarea_normalizes_carriage_returns() {
+        let textarea = build_edit_textarea("alpha\r\nbeta\rgamma");
+        let lines = textarea.lines();
+        assert_eq!(lines[0], "alpha");
+        assert_eq!(lines[1], "beta");
+        assert_eq!(lines[2], "gamma");
+    }
+
+    #[test]
+    fn edit_input_overlay_hides_popup_copy_and_keeps_panes_visible() {
+        let backend = TestBackend::new(120, 40);
+        let mut terminal = Terminal::new(backend).expect("terminal");
+        let mut app = App::new(mock_source(), false);
+        app.enter_edit_menu_mode();
+        app.start_description_edit_input();
+        let edit_session = EditInputSession {
+            textarea: build_edit_textarea(app.edit_input()),
+        };
+
+        terminal
+            .draw(|frame| {
+                let _ = draw_ui(frame, &mut app, Some(&edit_session));
+            })
+            .expect("draw edit overlay");
+
+        let buffer = terminal.backend().buffer();
+        assert!(buffer_contains_text(buffer, "Issues (mock) (1)"));
+        assert!(buffer_contains_text(buffer, "Edit description"));
+        assert!(!buffer_contains_text(buffer, "Edit Issue Fields"));
     }
 
     #[test]

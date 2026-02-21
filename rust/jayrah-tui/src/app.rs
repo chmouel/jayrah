@@ -866,7 +866,7 @@ impl App {
         if field != EditField::CustomField {
             self.active_custom_field = None;
         }
-        self.edit_input = match field {
+        let initial_input = match field {
             EditField::Summary => issue_summary,
             EditField::Description => self
                 .detail_cache
@@ -885,6 +885,7 @@ impl App {
                 .unwrap_or_default(),
             EditField::CustomField => String::new(),
         };
+        self.edit_input = Self::normalize_edit_input_seed(initial_input);
         self.status_line = format!(
             "Editing {}: Ctrl+s save, Esc cancel",
             self.edit_target_label()
@@ -908,6 +909,10 @@ impl App {
             EditField::Labels | EditField::Components => value.replace(['\r', '\n'], ","),
             EditField::Description | EditField::CustomField => value,
         }
+    }
+
+    fn normalize_edit_input_seed(value: String) -> String {
+        value.replace("\r\n", "\n").replace('\r', "\n")
     }
 
     pub fn next_comment(&mut self) {
@@ -2680,6 +2685,24 @@ mod tests {
 
         let detail = app.detail_text_for_selected();
         assert!(detail.contains("Updated description"));
+    }
+
+    #[test]
+    fn start_description_edit_input_normalizes_crlf_and_carriage_returns() {
+        let mut app = App::new(mock_source(), false);
+        let (detail_tx, _) = mpsc::channel();
+
+        app.maybe_request_detail(&detail_tx);
+        let key = app.selected_issue_key().expect("selected issue key");
+        let detail = app
+            .detail_cache
+            .get_mut(&key)
+            .expect("detail cache entry for selected issue");
+        detail.description = "line one\r\nline two\rline three".to_string();
+
+        app.start_description_edit_input();
+
+        assert_eq!(app.edit_input, "line one\nline two\nline three");
     }
 
     #[test]
