@@ -99,11 +99,11 @@ fn handle_key_event(
     if key.modifiers.contains(KeyModifiers::ALT) {
         match key.code {
             KeyCode::Char('h') => {
-                app.grow_left_pane();
+                app.grow_right_pane();
                 return None;
             }
             KeyCode::Char('l') => {
-                app.grow_right_pane();
+                app.grow_left_pane();
                 return None;
             }
             _ => {}
