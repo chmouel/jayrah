@@ -142,12 +142,27 @@ pub enum PaneZoom {
     Detail,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum SearchDirection {
+    Forward,
+    Backward,
+}
+
+fn issue_matches_query(issue: &Issue, query: &str) -> bool {
+    issue.key.to_lowercase().contains(query)
+        || issue.summary.to_lowercase().contains(query)
+        || issue.status.to_lowercase().contains(query)
+        || issue.assignee.to_lowercase().contains(query)
+}
+
 #[derive(Debug)]
 pub struct App {
     pub(crate) issues: Vec<Issue>,
     pub(crate) selected: usize,
     pub(crate) filter_mode: bool,
     pub(crate) filter_input: String,
+    pub(crate) search_mode: bool,
+    pub(crate) search_input: String,
     reload_count: usize,
     pub(crate) status_line: String,
     pub(crate) source: AdapterSource,
@@ -186,6 +201,7 @@ pub struct App {
     pane_zoom: PaneZoom,
     horizontal_first_pane_percent: u16,
     vertical_first_pane_percent: u16,
+    last_search_query: String,
     last_selected_key: Option<String>,
     selected_changed_at: Instant,
 }
@@ -197,6 +213,8 @@ impl App {
             selected: 0,
             filter_mode: false,
             filter_input: String::new(),
+            search_mode: false,
+            search_input: String::new(),
             reload_count: 0,
             status_line: String::new(),
             source,
@@ -235,6 +253,7 @@ impl App {
             pane_zoom: PaneZoom::None,
             horizontal_first_pane_percent: HORIZONTAL_FIRST_PANE_DEFAULT_PERCENT,
             vertical_first_pane_percent: VERTICAL_FIRST_PANE_DEFAULT_PERCENT,
+            last_search_query: String::new(),
             last_selected_key: None,
             selected_changed_at: Instant::now(),
         };
@@ -253,11 +272,7 @@ impl App {
             .iter()
             .enumerate()
             .filter_map(|(idx, issue)| {
-                let matches = issue.key.to_lowercase().contains(&filter)
-                    || issue.summary.to_lowercase().contains(&filter)
-                    || issue.status.to_lowercase().contains(&filter)
-                    || issue.assignee.to_lowercase().contains(&filter);
-                if matches {
+                if issue_matches_query(issue, &filter) {
                     Some(idx)
                 } else {
                     None
@@ -272,6 +287,143 @@ impl App {
 
     pub fn filter_query(&self) -> &str {
         self.filter_input.trim()
+    }
+
+    pub fn has_active_search_query(&self) -> bool {
+        !self.last_search_query().is_empty()
+    }
+
+    pub fn search_query(&self) -> &str {
+        self.search_input.trim()
+    }
+
+    pub fn last_search_query(&self) -> &str {
+        self.last_search_query.trim()
+    }
+
+    fn visible_match_positions(&self, query: &str) -> Vec<usize> {
+        let query = query.trim().to_lowercase();
+        if query.is_empty() {
+            return Vec::new();
+        }
+
+        self.visible_indices()
+            .iter()
+            .enumerate()
+            .filter_map(|(position, issue_index)| {
+                let issue = self.issues.get(*issue_index)?;
+                if issue_matches_query(issue, &query) {
+                    Some(position)
+                } else {
+                    None
+                }
+            })
+            .collect()
+    }
+
+    fn jump_to_search_match(
+        &mut self,
+        query: &str,
+        direction: SearchDirection,
+        include_current: bool,
+    ) -> bool {
+        let visible_len = self.visible_indices().len();
+        if visible_len == 0 {
+            return false;
+        }
+
+        let matches = self.visible_match_positions(query);
+        if matches.is_empty() {
+            return false;
+        }
+
+        let current = self.selected.min(visible_len.saturating_sub(1));
+        let fallback_forward = matches.first().copied().unwrap_or(current);
+        let fallback_backward = matches.last().copied().unwrap_or(current);
+        let target = match direction {
+            SearchDirection::Forward => {
+                if include_current {
+                    matches
+                        .iter()
+                        .copied()
+                        .find(|position| *position >= current)
+                        .unwrap_or(fallback_forward)
+                } else {
+                    matches
+                        .iter()
+                        .copied()
+                        .find(|position| *position > current)
+                        .unwrap_or(fallback_forward)
+                }
+            }
+            SearchDirection::Backward => {
+                if include_current {
+                    matches
+                        .iter()
+                        .copied()
+                        .rev()
+                        .find(|position| *position <= current)
+                        .unwrap_or(fallback_backward)
+                } else {
+                    matches
+                        .iter()
+                        .copied()
+                        .rev()
+                        .find(|position| *position < current)
+                        .unwrap_or(fallback_backward)
+                }
+            }
+        };
+
+        self.selected = target;
+        true
+    }
+
+    pub fn submit_search_query(&mut self) {
+        self.last_search_query = self.search_query().to_string();
+        if self.last_search_query.is_empty() {
+            self.status_line = "Search query is empty".to_string();
+            return;
+        }
+
+        let query = self.last_search_query.clone();
+        if self.jump_to_search_match(query.as_str(), SearchDirection::Forward, true) {
+            if let Some(key) = self.selected_issue_key() {
+                self.status_line = format!("Search '{}': {key}", query);
+            } else {
+                self.status_line = format!("Search '{}': match selected", query);
+            }
+        } else {
+            self.status_line = format!("Search '{}' found no matches", query);
+        }
+    }
+
+    pub fn repeat_last_search_forward(&mut self) {
+        self.repeat_last_search(SearchDirection::Forward);
+    }
+
+    pub fn repeat_last_search_backward(&mut self) {
+        self.repeat_last_search(SearchDirection::Backward);
+    }
+
+    fn repeat_last_search(&mut self, direction: SearchDirection) {
+        if self.last_search_query().is_empty() {
+            self.status_line = "No previous search. Press / to search".to_string();
+            return;
+        }
+
+        let query = self.last_search_query().to_string();
+        if self.jump_to_search_match(query.as_str(), direction, false) {
+            if let Some(key) = self.selected_issue_key() {
+                let label = match direction {
+                    SearchDirection::Forward => "next",
+                    SearchDirection::Backward => "prev",
+                };
+                self.status_line = format!("Search {label} '{}': {key}", query);
+            }
+        } else {
+            self.status_line = format!("Search '{}' found no matches", query);
+        }
     }
 
     pub fn normalize_selection(&mut self) {
@@ -1679,7 +1831,7 @@ impl App {
     pub fn actions_text(&self) -> String {
         let mode = if self.choose_mode { "choose" } else { "normal" };
         format!(
-            "Jayrah Rust TUI Actions ({mode} mode)\n\nNavigation (detail mode)\n  j/k or arrows: move issue selection (j/k scroll detail when detail pane is zoomed)\n  J/K: scroll detail pane\n  Ctrl+d/Ctrl+u: page detail pane down/up\n  Ctrl+v: toggle horizontal/vertical layout\n  Alt+h/Alt+l: resize first/second pane\n  1: toggle issues pane zoom\n  2: toggle detail pane zoom\n  f or /: filter issues\n  r: reload issues\n\nIssue Actions\n  o: open selected issue in browser\n  e: edit issue summary\n  E: edit issue description\n  l: edit issue labels\n  m: edit issue components\n  u: custom field editor popup\n  b: board switcher popup\n  c: comments popup\n  t: transitions popup\n  ?: actions/help popup\n\nActions Popup\n  j/k or arrows: scroll help\n  Ctrl+d/Ctrl+u: page down/up\n\nComments Popup\n  j/k or n/p: previous/next comment\n  a: compose comment\n  Enter: submit comment draft\n\nTransitions Popup\n  j/k or n/p: previous/next transition\n  Enter: apply selected transition\n\nBoards Popup\n  j/k or n/p: previous/next board\n  Enter: switch active board\n\nCustom Fields Popup\n  j/k or n/p: previous/next field\n  Enter: edit selected custom field\n\nGlobal\n  q: quit (or close active popup)\n  Esc: close active popup/filter"
+            "Jayrah Rust TUI Actions ({mode} mode)\n\nNavigation (detail mode)\n  j/k or arrows: move issue selection (j/k scroll detail when detail pane is zoomed)\n  J/K: scroll detail pane\n  Ctrl+d/Ctrl+u: page detail pane down/up\n  Ctrl+v: toggle horizontal/vertical layout\n  Alt+h/Alt+l: resize first/second pane\n  1: toggle issues pane zoom\n  2: toggle detail pane zoom\n  f: filter issues\n  /: search visible issues\n  n/N: next/previous search match\n  r: reload issues\n\nIssue Actions\n  o: open selected issue in browser\n  e: edit issue summary\n  E: edit issue description\n  l: edit issue labels\n  m: edit issue components\n  u: custom field editor popup\n  b: board switcher popup\n  c: comments popup\n  t: transitions popup\n  ?: actions/help popup\n\nActions Popup\n  j/k or arrows: scroll help\n  Ctrl+d/Ctrl+u: page down/up\n\nComments Popup\n  j/k or n/p: previous/next comment\n  a: compose comment\n  Enter: submit comment draft\n\nTransitions Popup\n  j/k or n/p: previous/next transition\n  Enter: apply selected transition\n\nBoards Popup\n  j/k or n/p: previous/next board\n  Enter: switch active board\n\nCustom Fields Popup\n  j/k or n/p: previous/next field\n  Enter: edit selected custom field\n\nGlobal\n  q: quit (or close active popup)\n  Esc: close active popup/filter/search"
         )
     }
 
@@ -1868,6 +2020,49 @@ mod tests {
     }
 
     #[test]
+    fn submit_search_query_selects_first_match_from_current_position() {
+        let mut app = App::new(mock_source(), false);
+        app.selected = 1;
+        app.search_input = "measure".to_string();
+
+        app.submit_search_query();
+
+        assert_eq!(app.selected_issue_key().as_deref(), Some("JAY-104"));
+        assert!(app.status_line.contains("Search 'measure'"));
+        assert_eq!(app.last_search_query(), "measure");
+    }
+
+    #[test]
+    fn repeat_search_wraps_forward_and_backward() {
+        let mut app = App::new(mock_source(), false);
+        app.search_input = "jay".to_string();
+        app.submit_search_query();
+        assert_eq!(app.selected_issue_key().as_deref(), Some("JAY-101"));
+
+        app.repeat_last_search_forward();
+        assert_eq!(app.selected_issue_key().as_deref(), Some("JAY-102"));
+
+        app.repeat_last_search_backward();
+        assert_eq!(app.selected_issue_key().as_deref(), Some("JAY-101"));
+
+        app.repeat_last_search_backward();
+        assert_eq!(app.selected_issue_key().as_deref(), Some("JAY-104"));
+    }
+
+    #[test]
+    fn submit_search_uses_visible_rows_after_filter() {
+        let mut app = App::new(mock_source(), false);
+        app.filter_input = "adapter".to_string();
+        app.normalize_selection();
+        app.search_input = "jay-103".to_string();
+
+        app.submit_search_query();
+
+        assert_eq!(app.selected_issue_key().as_deref(), Some("JAY-102"));
+        assert!(app.status_line.contains("found no matches"));
+    }
+
+    #[test]
     fn maybe_request_detail_populates_mock_cache_without_worker_request() {
         let mut app = App::new(mock_source(), false);
         let (tx, rx) = mpsc::channel();
@@ -2015,6 +2210,9 @@ mod tests {
         assert!(text.contains("Alt+h/Alt+l: resize first/second pane"));
         assert!(text.contains("1: toggle issues pane zoom"));
         assert!(text.contains("2: toggle detail pane zoom"));
+        assert!(text.contains("f: filter issues"));
+        assert!(text.contains("/: search visible issues"));
+        assert!(text.contains("n/N: next/previous search match"));
         assert!(text.contains("b: board switcher popup"));
         assert!(text.contains("c: comments popup"));
         assert!(text.contains("t: transitions popup"));

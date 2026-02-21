@@ -67,6 +67,8 @@ fn sync_edit_input_session(app: &App, edit_session: &mut Option<EditInputSession
 }
 
 fn focus_filter_input(app: &mut App) {
+    app.search_mode = false;
+    app.search_input.clear();
     app.filter_mode = true;
     if app.has_active_filter() {
         app.status_line = format!(
@@ -75,6 +77,20 @@ fn focus_filter_input(app: &mut App) {
         );
     } else {
         app.status_line = String::from("Filter focused: type to filter, Enter unfocus, Esc clear");
+    }
+}
+
+fn focus_search_input(app: &mut App) {
+    app.filter_mode = false;
+    app.search_mode = true;
+    app.search_input = app.last_search_query().to_string();
+    if app.has_active_search_query() {
+        app.status_line = format!(
+            "Search focused: '{}'. Enter jump, Esc cancel",
+            app.last_search_query()
+        );
+    } else {
+        app.status_line = String::from("Search focused: type query, Enter jump, Esc cancel");
     }
 }
 
@@ -193,10 +209,8 @@ fn handle_key_event_with_edit_session(
                 app.filter_mode = false;
                 app.normalize_selection();
                 if app.has_active_filter() {
-                    app.status_line = format!(
-                        "Filter active: '{}'. Press f or / to focus",
-                        app.filter_query()
-                    );
+                    app.status_line =
+                        format!("Filter active: '{}'. Press f to focus", app.filter_query());
                 } else {
                     app.status_line = String::from("Filter cleared");
                 }
@@ -211,6 +225,31 @@ fn handle_key_event_with_edit_session(
                     let selected_key = app.selected_issue_key();
                     app.filter_input.push(c);
                     app.normalize_selection_with_preferred_key(selected_key.as_deref());
+                }
+            }
+            _ => {}
+        }
+        return None;
+    }
+
+    if app.search_mode {
+        match key.code {
+            KeyCode::Esc => {
+                app.search_mode = false;
+                app.search_input.clear();
+                app.status_line = String::from("Search canceled");
+            }
+            KeyCode::Enter => {
+                app.search_mode = false;
+                app.submit_search_query();
+                app.search_input.clear();
+            }
+            KeyCode::Backspace => {
+                app.search_input.pop();
+            }
+            KeyCode::Char(c) => {
+                if !key.modifiers.contains(KeyModifiers::CONTROL) {
+                    app.search_input.push(c);
                 }
             }
             _ => {}
@@ -285,7 +324,7 @@ fn handle_key_event_with_edit_session(
             KeyCode::Char('u') => app.enter_custom_fields_mode(),
             KeyCode::Char('?') => app.enter_actions_mode(),
             KeyCode::Char('r') => app.reload_issues(),
-            KeyCode::Char('f') | KeyCode::Char('/') => {
+            KeyCode::Char('f') => {
                 focus_filter_input(app);
             }
             KeyCode::Char('o') => app.open_selected_issue(),
@@ -321,7 +360,7 @@ fn handle_key_event_with_edit_session(
             KeyCode::Char('t') => app.enter_transitions_mode(),
             KeyCode::Char('r') => app.reload_issues(),
             KeyCode::Char('o') => app.open_selected_issue(),
-            KeyCode::Char('f') | KeyCode::Char('/') => {
+            KeyCode::Char('f') => {
                 focus_filter_input(app);
             }
             _ => {}
@@ -344,7 +383,7 @@ fn handle_key_event_with_edit_session(
             KeyCode::Char('?') => app.enter_actions_mode(),
             KeyCode::Char('r') => app.reload_issues(),
             KeyCode::Char('o') => app.open_selected_issue(),
-            KeyCode::Char('f') | KeyCode::Char('/') => {
+            KeyCode::Char('f') => {
                 focus_filter_input(app);
             }
             KeyCode::Enter => app.apply_selected_board(),
@@ -364,7 +403,7 @@ fn handle_key_event_with_edit_session(
             KeyCode::Char('?') => app.enter_actions_mode(),
             KeyCode::Char('r') => app.reload_issues(),
             KeyCode::Char('o') => app.open_selected_issue(),
-            KeyCode::Char('f') | KeyCode::Char('/') => {
+            KeyCode::Char('f') => {
                 focus_filter_input(app);
             }
             KeyCode::Enter => app.start_selected_custom_field_edit_input(),
@@ -386,7 +425,7 @@ fn handle_key_event_with_edit_session(
             KeyCode::Char('c') => app.enter_comments_mode(),
             KeyCode::Char('?') => app.enter_actions_mode(),
             KeyCode::Char('r') => app.reload_issues(),
-            KeyCode::Char('f') | KeyCode::Char('/') => {
+            KeyCode::Char('f') => {
                 focus_filter_input(app);
             }
             KeyCode::Char('o') => app.open_selected_issue(),
@@ -422,9 +461,10 @@ fn handle_key_event_with_edit_session(
         KeyCode::Char('r') => app.reload_issues(),
         KeyCode::Char('1') => app.toggle_zoom_issues(),
         KeyCode::Char('2') => app.toggle_zoom_detail(),
-        KeyCode::Char('f') | KeyCode::Char('/') => {
-            focus_filter_input(app);
-        }
+        KeyCode::Char('f') => focus_filter_input(app),
+        KeyCode::Char('/') => focus_search_input(app),
+        KeyCode::Char('n') => app.repeat_last_search_forward(),
+        KeyCode::Char('N') => app.repeat_last_search_backward(),
         KeyCode::Char('o') => app.open_selected_issue(),
         KeyCode::Enter => {
             if app.choose_mode {
@@ -562,24 +602,37 @@ fn edit_input_height(inner_height: u16, is_summary_target: bool) -> u16 {
 
 fn draw_ui(frame: &mut Frame, app: &mut App, edit_session: Option<&EditInputSession>) {
     let show_filter_bar = app.filter_mode || app.has_active_filter();
-    let root_constraints = if show_filter_bar {
-        vec![
-            Constraint::Length(1),
-            Constraint::Min(0),
-            Constraint::Length(1),
-        ]
-    } else {
-        vec![Constraint::Min(0), Constraint::Length(1)]
-    };
+    let show_search_bar = app.search_mode;
+    let mut root_constraints = Vec::new();
+    if show_filter_bar {
+        root_constraints.push(Constraint::Length(1));
+    }
+    if show_search_bar {
+        root_constraints.push(Constraint::Length(1));
+    }
+    root_constraints.push(Constraint::Min(0));
+    root_constraints.push(Constraint::Length(1));
     let root_chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints(root_constraints)
         .split(frame.area());
-    let (filter_bar_area, main_area, footer_area) = if show_filter_bar {
-        (Some(root_chunks[0]), root_chunks[1], root_chunks[2])
+    let mut chunk_index = 0usize;
+    let filter_bar_area = if show_filter_bar {
+        let area = Some(root_chunks[chunk_index]);
+        chunk_index += 1;
+        area
     } else {
-        (None, root_chunks[0], root_chunks[1])
+        None
     };
+    let search_bar_area = if show_search_bar {
+        let area = Some(root_chunks[chunk_index]);
+        chunk_index += 1;
+        area
+    } else {
+        None
+    };
+    let main_area = root_chunks[chunk_index];
+    let footer_area = root_chunks[chunk_index + 1];
 
     let (first_pane_percent, second_pane_percent) = app.pane_width_percentages();
     let main_direction = match app.pane_orientation() {
@@ -736,6 +789,8 @@ fn draw_ui(frame: &mut Frame, app: &mut App, edit_session: Option<&EditInputSess
 
     let mode = if app.filter_mode {
         "FILTER"
+    } else if app.search_mode {
+        "SEARCH"
     } else if app.in_comment_input_mode() {
         "COMMENT-INPUT"
     } else if app.in_edit_input_mode() {
@@ -769,13 +824,28 @@ fn draw_ui(frame: &mut Frame, app: &mut App, edit_session: Option<&EditInputSess
         let filter_bar = if app.filter_mode {
             format!("[FILTER] {} | Enter unfocus | Esc clear", filter_label)
         } else {
-            format!("[FILTER] {} | f or / focus", filter_label)
+            format!("[FILTER] {} | f focus", filter_label)
         };
         frame.render_widget(Paragraph::new(filter_bar), filter_bar_area);
+    }
+    if let Some(search_bar_area) = search_bar_area {
+        let display_search = app.search_input.as_str();
+        let search_label = if display_search.is_empty() {
+            "<empty>"
+        } else {
+            display_search
+        };
+        let search_bar = format!("[SEARCH] {} | Enter jump | Esc cancel", search_label);
+        frame.render_widget(Paragraph::new(search_bar), search_bar_area);
     }
     let footer = if app.filter_mode {
         format!(
             "[{}] type to filter | Enter unfocus | Esc clear | Backspace delete",
+            mode
+        )
+    } else if app.search_mode {
+        format!(
+            "[{}] type to search visible rows | Enter jump | Esc cancel | Backspace delete",
             mode
         )
     } else if app.in_comment_input_mode() {
@@ -819,12 +889,12 @@ fn draw_ui(frame: &mut Frame, app: &mut App, edit_session: Option<&EditInputSess
         )
     } else if app.choose_mode {
         format!(
-            "[{}] j/k zoom | Enter choose | f filter | 1/2 zoom | Ctrl+v layout | ? help | q quit | {}",
+            "[{}] j/k zoom | Enter choose | f filter | / search | n/N repeat | 1/2 zoom | Ctrl+v layout | ? help | q quit | {}",
             mode, app.status_line
         )
     } else {
         format!(
-            "[{}] j/k scroll | f filter | r reload | o open | 1/2 zoom | Ctrl+v layout | ? help | q quit | {}",
+            "[{}] j/k scroll | f filter | / search | n/N repeat | r reload | o open | 1/2 zoom | Ctrl+v layout | ? help | q quit | {}",
             mode, app.status_line
         )
     };
@@ -1221,6 +1291,203 @@ mod tests {
         assert!(app.filter_mode);
         assert_eq!(app.filter_input, "adapter");
         assert!(app.status_line.contains("Filter focused"));
+    }
+
+    #[test]
+    fn slash_enters_search_mode_in_detail_mode() {
+        let mut app = App::new(mock_source(), false);
+        app.filter_input = "adapter".to_string();
+        let (add_tx, _) = mpsc::channel();
+        let (transition_tx, _) = mpsc::channel();
+        let (edit_tx, _) = mpsc::channel();
+
+        let outcome = handle_key_event(
+            &mut app,
+            key(KeyCode::Char('/')),
+            &add_tx,
+            &transition_tx,
+            &edit_tx,
+        );
+        assert_eq!(outcome, None);
+        assert!(app.search_mode);
+        assert!(!app.filter_mode);
+        assert_eq!(app.search_input, "");
+        assert!(app.status_line.contains("Search focused"));
+    }
+
+    #[test]
+    fn enter_submits_search_and_jumps_selection() {
+        let mut app = App::new(mock_source(), false);
+        let (add_tx, _) = mpsc::channel();
+        let (transition_tx, _) = mpsc::channel();
+        let (edit_tx, _) = mpsc::channel();
+
+        let _ = handle_key_event(
+            &mut app,
+            key(KeyCode::Char('/')),
+            &add_tx,
+            &transition_tx,
+            &edit_tx,
+        );
+        let _ = handle_key_event(
+            &mut app,
+            key(KeyCode::Char('m')),
+            &add_tx,
+            &transition_tx,
+            &edit_tx,
+        );
+        let _ = handle_key_event(
+            &mut app,
+            key(KeyCode::Char('e')),
+            &add_tx,
+            &transition_tx,
+            &edit_tx,
+        );
+        let _ = handle_key_event(
+            &mut app,
+            key(KeyCode::Char('a')),
+            &add_tx,
+            &transition_tx,
+            &edit_tx,
+        );
+        let _ = handle_key_event(
+            &mut app,
+            key(KeyCode::Char('s')),
+            &add_tx,
+            &transition_tx,
+            &edit_tx,
+        );
+        let _ = handle_key_event(
+            &mut app,
+            key(KeyCode::Char('u')),
+            &add_tx,
+            &transition_tx,
+            &edit_tx,
+        );
+        let _ = handle_key_event(
+            &mut app,
+            key(KeyCode::Char('r')),
+            &add_tx,
+            &transition_tx,
+            &edit_tx,
+        );
+        let outcome = handle_key_event(
+            &mut app,
+            key(KeyCode::Enter),
+            &add_tx,
+            &transition_tx,
+            &edit_tx,
+        );
+        assert_eq!(outcome, None);
+        assert!(!app.search_mode);
+        assert_eq!(app.selected_issue_key().as_deref(), Some("JAY-104"));
+        assert!(app.status_line.contains("Search 'measur'"));
+    }
+
+    #[test]
+    fn esc_cancels_search_mode_without_changing_selection() {
+        let mut app = App::new(mock_source(), false);
+        app.selected = 2;
+        let (add_tx, _) = mpsc::channel();
+        let (transition_tx, _) = mpsc::channel();
+        let (edit_tx, _) = mpsc::channel();
+
+        let _ = handle_key_event(
+            &mut app,
+            key(KeyCode::Char('/')),
+            &add_tx,
+            &transition_tx,
+            &edit_tx,
+        );
+        let _ = handle_key_event(
+            &mut app,
+            key(KeyCode::Char('j')),
+            &add_tx,
+            &transition_tx,
+            &edit_tx,
+        );
+        let outcome = handle_key_event(
+            &mut app,
+            key(KeyCode::Esc),
+            &add_tx,
+            &transition_tx,
+            &edit_tx,
+        );
+        assert_eq!(outcome, None);
+        assert_eq!(app.selected_issue_key().as_deref(), Some("JAY-103"));
+        assert!(!app.search_mode);
+        assert_eq!(app.status_line, "Search canceled");
+    }
+
+    #[test]
+    fn n_and_uppercase_n_repeat_last_search() {
+        let mut app = App::new(mock_source(), false);
+        let (add_tx, _) = mpsc::channel();
+        let (transition_tx, _) = mpsc::channel();
+        let (edit_tx, _) = mpsc::channel();
+
+        app.search_input = "jay".to_string();
+        app.submit_search_query();
+        assert_eq!(app.selected_issue_key().as_deref(), Some("JAY-101"));
+
+        let outcome = handle_key_event(
+            &mut app,
+            key(KeyCode::Char('n')),
+            &add_tx,
+            &transition_tx,
+            &edit_tx,
+        );
+        assert_eq!(outcome, None);
+        assert_eq!(app.selected_issue_key().as_deref(), Some("JAY-102"));
+
+        let outcome = handle_key_event(
+            &mut app,
+            key(KeyCode::Char('N')),
+            &add_tx,
+            &transition_tx,
+            &edit_tx,
+        );
+        assert_eq!(outcome, None);
+        assert_eq!(app.selected_issue_key().as_deref(), Some("JAY-101"));
+    }
+
+    #[test]
+    fn slash_is_ignored_in_comments_mode() {
+        let mut app = App::new(mock_source(), false);
+        app.enter_comments_mode();
+        let (add_tx, _) = mpsc::channel();
+        let (transition_tx, _) = mpsc::channel();
+        let (edit_tx, _) = mpsc::channel();
+
+        let outcome = handle_key_event(
+            &mut app,
+            key(KeyCode::Char('/')),
+            &add_tx,
+            &transition_tx,
+            &edit_tx,
+        );
+        assert_eq!(outcome, None);
+        assert!(!app.search_mode);
+        assert!(app.in_comments_mode());
+    }
+
+    #[test]
+    fn ctrl_v_is_ignored_in_search_mode() {
+        let mut app = App::new(mock_source(), false);
+        app.search_mode = true;
+        let (add_tx, _) = mpsc::channel();
+        let (transition_tx, _) = mpsc::channel();
+        let (edit_tx, _) = mpsc::channel();
+
+        let outcome = handle_key_event(
+            &mut app,
+            key_with_modifiers(KeyCode::Char('v'), KeyModifiers::CONTROL),
+            &add_tx,
+            &transition_tx,
+            &edit_tx,
+        );
+        assert_eq!(outcome, None);
+        assert_eq!(app.pane_orientation(), PaneOrientation::Horizontal);
     }
 
     #[test]
