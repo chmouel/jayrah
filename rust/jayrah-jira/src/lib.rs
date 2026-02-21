@@ -4,7 +4,7 @@ use anyhow::{anyhow, bail, Context, Result};
 use jayrah_config::JayrahConfig;
 use reqwest::blocking::{Client, RequestBuilder};
 use serde::Deserialize;
-use serde_json::Value;
+use serde_json::{json, Value};
 
 const REQUEST_TIMEOUT_SECS: u64 = 30;
 
@@ -34,6 +34,14 @@ pub struct DetailIssue {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+pub struct IssueComment {
+    pub id: String,
+    pub author: Option<String>,
+    pub created: Option<String>,
+    pub body: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 enum AuthMode {
     Basic { user: String, password: String },
     Bearer { token: String },
@@ -52,6 +60,12 @@ struct SearchPayload {
     issues: Vec<IssuePayload>,
     #[serde(default)]
     total: usize,
+}
+
+#[derive(Default, Deserialize)]
+struct CommentsPayload {
+    #[serde(default)]
+    comments: Vec<CommentPayload>,
 }
 
 #[derive(Deserialize)]
@@ -92,6 +106,14 @@ struct UserLike {
     name: Option<String>,
     #[serde(rename = "emailAddress")]
     email_address: Option<String>,
+}
+
+#[derive(Default, Deserialize)]
+struct CommentPayload {
+    id: Option<String>,
+    author: Option<UserLike>,
+    created: Option<String>,
+    body: Option<Value>,
 }
 
 impl JiraClient {
@@ -181,6 +203,59 @@ impl JiraClient {
         Ok(into_detail_issue(payload))
     }
 
+    pub fn get_issue_comments(&self, key: &str) -> Result<Vec<IssueComment>> {
+        let endpoint = format!("{}/issue/{}/comment", self.base_url, key);
+        let response = self
+            .with_auth(self.http.get(endpoint))
+            .send()
+            .with_context(|| format!("failed to fetch comments for {}", key))?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let body = response.text().unwrap_or_default();
+            bail!(
+                "jira comment list request failed: status={} body={}",
+                status,
+                body
+            );
+        }
+
+        let payload: CommentsPayload = response
+            .json()
+            .with_context(|| "failed to decode Jira comment list response")?;
+        Ok(payload
+            .comments
+            .into_iter()
+            .map(into_issue_comment)
+            .collect())
+    }
+
+    pub fn add_issue_comment(&self, key: &str, body: &str) -> Result<()> {
+        let trimmed = body.trim();
+        if trimmed.is_empty() {
+            bail!("comment body cannot be empty");
+        }
+
+        let endpoint = format!("{}/issue/{}/comment", self.base_url, key);
+        let response = self
+            .with_auth(self.http.post(endpoint))
+            .json(&self.comment_body_payload(trimmed))
+            .send()
+            .with_context(|| format!("failed to add comment for {}", key))?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let body = response.text().unwrap_or_default();
+            bail!(
+                "jira comment create request failed: status={} body={}",
+                status,
+                body
+            );
+        }
+
+        Ok(())
+    }
+
     fn search_issues_page(
         &self,
         jql: &str,
@@ -228,6 +303,29 @@ impl JiraClient {
         match &self.auth_mode {
             AuthMode::Basic { user, password } => request.basic_auth(user, Some(password)),
             AuthMode::Bearer { token } => request.bearer_auth(token),
+        }
+    }
+
+    fn comment_body_payload(&self, text: &str) -> Value {
+        if self.api_version == "3" {
+            json!({
+                "body": {
+                    "type": "doc",
+                    "version": 1,
+                    "content": [
+                        {
+                            "type": "paragraph",
+                            "content": [
+                                {"type": "text", "text": text}
+                            ]
+                        }
+                    ]
+                }
+            })
+        } else {
+            json!({
+                "body": text
+            })
         }
     }
 }
@@ -293,6 +391,18 @@ fn into_detail_issue(payload: IssuePayload) -> DetailIssue {
             .filter_map(name_like)
             .collect::<Vec<_>>(),
         description: normalize_description(fields.description),
+    }
+}
+
+fn into_issue_comment(payload: CommentPayload) -> IssueComment {
+    IssueComment {
+        id: payload
+            .id
+            .and_then(non_empty)
+            .unwrap_or_else(|| "unknown".to_string()),
+        author: payload.author.and_then(display_name_like),
+        created: payload.created.and_then(non_empty),
+        body: normalize_description(payload.body),
     }
 }
 
@@ -383,7 +493,7 @@ fn extract_adf_text(node: &Value, out: &mut String) {
 mod tests {
     use serde_json::json;
 
-    use super::{normalize_description, JiraClient};
+    use super::{into_issue_comment, normalize_description, CommentPayload, JiraClient};
 
     #[test]
     fn chooses_correct_search_endpoint_for_api_versions() {
@@ -428,5 +538,61 @@ mod tests {
         });
 
         assert_eq!(normalize_description(Some(doc)), "Hello\nWorld");
+    }
+
+    #[test]
+    fn maps_comment_payload_defaults() {
+        let comment = into_issue_comment(CommentPayload {
+            id: None,
+            author: None,
+            created: None,
+            body: None,
+        });
+
+        assert_eq!(comment.id, "unknown");
+        assert_eq!(comment.author, None);
+        assert_eq!(comment.created, None);
+        assert_eq!(comment.body, "");
+    }
+
+    #[test]
+    fn builds_comment_payload_shape_by_api_version() {
+        let version_2 = "2".to_string();
+        let version_3 = "3".to_string();
+
+        let client_2 = JiraClient {
+            api_version: version_2,
+            base_url: "https://jira.example.com/rest/api/2".to_string(),
+            http: reqwest::blocking::Client::new(),
+            auth_mode: super::AuthMode::Bearer {
+                token: "x".to_string(),
+            },
+        };
+        let client_3 = JiraClient {
+            api_version: version_3,
+            base_url: "https://jira.example.com/rest/api/3".to_string(),
+            http: reqwest::blocking::Client::new(),
+            auth_mode: super::AuthMode::Bearer {
+                token: "x".to_string(),
+            },
+        };
+
+        assert_eq!(
+            client_2.comment_body_payload("hello"),
+            json!({"body": "hello"})
+        );
+        assert_eq!(
+            client_3.comment_body_payload("hello"),
+            json!({
+                "body": {
+                    "type": "doc",
+                    "version": 1,
+                    "content": [{
+                        "type": "paragraph",
+                        "content": [{"type": "text", "text": "hello"}]
+                    }]
+                }
+            })
+        );
     }
 }

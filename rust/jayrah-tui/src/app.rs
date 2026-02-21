@@ -6,12 +6,13 @@ use std::{
 
 use crate::{
     adapter::{load_issues_from_adapter, open_issue_in_browser},
-    mock::{mock_detail_from_issue, mock_issues},
-    types::{AdapterSource, Issue, IssueDetail},
+    mock::{mock_comments_for_issue, mock_detail_from_issue, mock_issues},
+    types::{AdapterSource, Issue, IssueComment, IssueDetail},
     utils::{compact_error, join_or_dash},
 };
 
 const DETAIL_FETCH_DEBOUNCE_MS: u64 = 120;
+const COMMENT_FETCH_DEBOUNCE_MS: u64 = 120;
 
 #[derive(Debug)]
 pub struct DetailRequest {
@@ -22,6 +23,23 @@ pub struct DetailRequest {
 pub struct DetailResult {
     pub key: String,
     pub result: std::result::Result<IssueDetail, String>,
+}
+
+#[derive(Debug)]
+pub struct CommentRequest {
+    pub key: String,
+}
+
+#[derive(Debug)]
+pub struct CommentResult {
+    pub key: String,
+    pub result: std::result::Result<Vec<IssueComment>, String>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum DetailPaneMode {
+    Detail,
+    Comments,
 }
 
 #[derive(Debug)]
@@ -38,6 +56,11 @@ pub struct App {
     detail_cache: HashMap<String, IssueDetail>,
     detail_errors: HashMap<String, String>,
     detail_loading_key: Option<String>,
+    comments_cache: HashMap<String, Vec<IssueComment>>,
+    comments_errors: HashMap<String, String>,
+    comments_loading_key: Option<String>,
+    comments_selected: usize,
+    pane_mode: DetailPaneMode,
     last_selected_key: Option<String>,
     selected_changed_at: Instant,
 }
@@ -57,6 +80,11 @@ impl App {
             detail_cache: HashMap::new(),
             detail_errors: HashMap::new(),
             detail_loading_key: None,
+            comments_cache: HashMap::new(),
+            comments_errors: HashMap::new(),
+            comments_loading_key: None,
+            comments_selected: 0,
+            pane_mode: DetailPaneMode::Detail,
             last_selected_key: None,
             selected_changed_at: Instant::now(),
         };
@@ -135,6 +163,53 @@ impl App {
         };
     }
 
+    pub fn in_comments_mode(&self) -> bool {
+        self.pane_mode == DetailPaneMode::Comments
+    }
+
+    pub fn enter_comments_mode(&mut self) {
+        self.pane_mode = DetailPaneMode::Comments;
+        self.comments_selected = 0;
+        self.status_line = "Comments mode: n/p to navigate comments, c or Esc to close".to_string();
+    }
+
+    pub fn enter_detail_mode(&mut self) {
+        self.pane_mode = DetailPaneMode::Detail;
+        self.status_line = "Detail mode".to_string();
+    }
+
+    pub fn next_comment(&mut self) {
+        let Some(key) = self.selected_issue_key() else {
+            return;
+        };
+        let Some(comments) = self.comments_cache.get(&key) else {
+            return;
+        };
+        if comments.is_empty() {
+            return;
+        }
+
+        self.comments_selected = (self.comments_selected + 1) % comments.len();
+    }
+
+    pub fn prev_comment(&mut self) {
+        let Some(key) = self.selected_issue_key() else {
+            return;
+        };
+        let Some(comments) = self.comments_cache.get(&key) else {
+            return;
+        };
+        if comments.is_empty() {
+            return;
+        }
+
+        self.comments_selected = if self.comments_selected == 0 {
+            comments.len() - 1
+        } else {
+            self.comments_selected - 1
+        };
+    }
+
     pub fn selected_issue(&self) -> Option<&Issue> {
         let visible = self.visible_indices();
         let issue_index = visible.get(self.selected)?;
@@ -151,6 +226,10 @@ impl App {
         self.detail_cache.clear();
         self.detail_errors.clear();
         self.detail_loading_key = None;
+        self.comments_cache.clear();
+        self.comments_errors.clear();
+        self.comments_loading_key = None;
+        self.comments_selected = 0;
 
         if self.source.mock_only {
             self.issues = mock_issues(self.reload_count);
@@ -189,6 +268,7 @@ impl App {
         if current != self.last_selected_key {
             self.last_selected_key = current;
             self.selected_changed_at = Instant::now();
+            self.comments_selected = 0;
         }
     }
 
@@ -228,6 +308,45 @@ impl App {
         }
     }
 
+    pub fn maybe_request_comments(&mut self, request_tx: &Sender<CommentRequest>) {
+        self.sync_selected_tracking();
+
+        if self.pane_mode != DetailPaneMode::Comments {
+            return;
+        }
+
+        let Some(key) = self.selected_issue_key() else {
+            return;
+        };
+
+        if self.comments_cache.contains_key(&key) {
+            return;
+        }
+
+        if !self.using_adapter {
+            self.comments_cache
+                .insert(key.clone(), mock_comments_for_issue(&key));
+            return;
+        }
+
+        if self.comments_errors.contains_key(&key) {
+            return;
+        }
+
+        if self.comments_loading_key.as_deref() == Some(key.as_str()) {
+            return;
+        }
+
+        if self.selected_changed_at.elapsed() < Duration::from_millis(COMMENT_FETCH_DEBOUNCE_MS) {
+            return;
+        }
+
+        if request_tx.send(CommentRequest { key: key.clone() }).is_ok() {
+            self.comments_loading_key = Some(key.clone());
+            self.status_line = format!("Loading comments for {key}...");
+        }
+    }
+
     pub fn ingest_detail_result(&mut self, message: DetailResult) {
         match message.result {
             Ok(detail) => {
@@ -249,6 +368,35 @@ impl App {
                 if self.selected_issue_key().as_deref() == Some(message.key.as_str()) {
                     self.status_line = format!(
                         "Failed to load detail for {} ({})",
+                        message.key,
+                        compact_error(&error)
+                    );
+                }
+            }
+        }
+    }
+
+    pub fn ingest_comment_result(&mut self, message: CommentResult) {
+        match message.result {
+            Ok(comments) => {
+                self.comments_cache.insert(message.key.clone(), comments);
+                self.comments_errors.remove(&message.key);
+                if self.comments_loading_key.as_deref() == Some(message.key.as_str()) {
+                    self.comments_loading_key = None;
+                }
+                if self.selected_issue_key().as_deref() == Some(message.key.as_str()) {
+                    self.status_line = format!("Loaded comments for {}", message.key);
+                }
+            }
+            Err(error) => {
+                self.comments_errors
+                    .insert(message.key.clone(), error.clone());
+                if self.comments_loading_key.as_deref() == Some(message.key.as_str()) {
+                    self.comments_loading_key = None;
+                }
+                if self.selected_issue_key().as_deref() == Some(message.key.as_str()) {
+                    self.status_line = format!(
+                        "Failed to load comments for {} ({})",
                         message.key,
                         compact_error(&error)
                     );
@@ -319,6 +467,75 @@ impl App {
             issue.summary,
             self.source.describe(),
         )
+    }
+
+    pub fn comments_text_for_selected(&self) -> String {
+        let Some(issue) = self.selected_issue() else {
+            return "No issue selected".to_string();
+        };
+
+        let key = issue.key.as_str();
+        if let Some(comments) = self.comments_cache.get(key) {
+            if comments.is_empty() {
+                return format!("Comments for {key}\n\nNo comments found.");
+            }
+
+            let active_index = self.comments_selected.min(comments.len() - 1);
+            let current = &comments[active_index];
+            let body = if current.body.is_empty() {
+                "<no comment body>"
+            } else {
+                current.body.as_str()
+            };
+
+            return format!(
+                "Comments for {}\n\nComment {}/{}\nAuthor: {}\nCreated: {}\n\n{}",
+                key,
+                active_index + 1,
+                comments.len(),
+                current.author,
+                current.created,
+                body,
+            );
+        }
+
+        if let Some(error) = self.comments_errors.get(key) {
+            return format!(
+                "Comments for {}\n\nFailed to load comments\n{}",
+                key,
+                compact_error(error),
+            );
+        }
+
+        if self.comments_loading_key.as_deref() == Some(key) {
+            return format!(
+                "Loading comments for {}...\n\nSummary\n{}\n\nSource\n{}",
+                issue.key,
+                issue.summary,
+                self.source.describe(),
+            );
+        }
+
+        format!(
+            "Comments for {}\n\nPress c to load comments for this issue.",
+            issue.key
+        )
+    }
+
+    pub fn right_pane_text(&self) -> String {
+        if self.pane_mode == DetailPaneMode::Comments {
+            self.comments_text_for_selected()
+        } else {
+            self.detail_text_for_selected()
+        }
+    }
+
+    pub fn right_pane_title(&self) -> &'static str {
+        if self.pane_mode == DetailPaneMode::Comments {
+            "Comments"
+        } else {
+            "Detail"
+        }
     }
 
     pub fn open_selected_issue(&mut self) {
@@ -412,5 +629,36 @@ mod tests {
             app.selected_issue_key().as_deref(),
             Some(selected_key.as_str())
         );
+    }
+
+    #[test]
+    fn maybe_request_comments_populates_mock_cache_without_worker_request() {
+        let mut app = App::new(mock_source(), false);
+        let (tx, rx) = mpsc::channel();
+
+        app.enter_comments_mode();
+        app.maybe_request_comments(&tx);
+
+        assert!(rx.try_recv().is_err());
+        let comments = app.comments_text_for_selected();
+        assert!(comments.contains("Comment 1/2"));
+        assert!(comments.contains("mock-user-1"));
+    }
+
+    #[test]
+    fn comment_navigation_wraps() {
+        let mut app = App::new(mock_source(), false);
+        let (tx, _) = mpsc::channel();
+
+        app.enter_comments_mode();
+        app.maybe_request_comments(&tx);
+        app.next_comment();
+        assert!(app.comments_text_for_selected().contains("Comment 2/2"));
+
+        app.next_comment();
+        assert!(app.comments_text_for_selected().contains("Comment 1/2"));
+
+        app.prev_comment();
+        assert!(app.comments_text_for_selected().contains("Comment 2/2"));
     }
 }

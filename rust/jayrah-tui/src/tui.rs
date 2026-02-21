@@ -10,7 +10,10 @@ use ratatui::{
     Frame, Terminal,
 };
 
-use crate::{app::App, worker::start_detail_worker};
+use crate::{
+    app::App,
+    worker::{start_comment_worker, start_detail_worker},
+};
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum RunOutcome {
@@ -23,13 +26,18 @@ pub fn run_app(
     mut app: App,
 ) -> Result<RunOutcome> {
     let (detail_request_tx, detail_result_rx) = start_detail_worker();
+    let (comment_request_tx, comment_result_rx) = start_comment_worker();
 
     loop {
         while let Ok(message) = detail_result_rx.try_recv() {
             app.ingest_detail_result(message);
         }
+        while let Ok(message) = comment_result_rx.try_recv() {
+            app.ingest_comment_result(message);
+        }
 
         app.maybe_request_detail(&detail_request_tx);
+        app.maybe_request_comments(&comment_request_tx);
         terminal.draw(|frame| draw_ui(frame, &app))?;
 
         if event::poll(Duration::from_millis(100))? {
@@ -73,10 +81,35 @@ fn handle_key_event(app: &mut App, key: KeyEvent) -> Option<RunOutcome> {
         return None;
     }
 
+    if app.in_comments_mode() {
+        match key.code {
+            KeyCode::Char('q') | KeyCode::Esc | KeyCode::Char('c') => app.enter_detail_mode(),
+            KeyCode::Char('j') | KeyCode::Down => app.next(),
+            KeyCode::Char('k') | KeyCode::Up => app.prev(),
+            KeyCode::Char('n') => app.next_comment(),
+            KeyCode::Char('p') => app.prev_comment(),
+            KeyCode::Char('r') => app.reload_issues(),
+            KeyCode::Char('f') | KeyCode::Char('/') => {
+                app.filter_mode = true;
+                app.status_line = String::from("Filter mode: type to filter, Enter to apply");
+            }
+            KeyCode::Char('o') => app.open_selected_issue(),
+            KeyCode::Enter => {
+                if app.choose_mode {
+                    return Some(RunOutcome::Chosen(app.selected_issue_key()));
+                }
+                app.open_selected_issue();
+            }
+            _ => {}
+        }
+        return None;
+    }
+
     match key.code {
         KeyCode::Char('q') | KeyCode::Esc => return Some(RunOutcome::Quit),
         KeyCode::Char('j') | KeyCode::Down => app.next(),
         KeyCode::Char('k') | KeyCode::Up => app.prev(),
+        KeyCode::Char('c') => app.enter_comments_mode(),
         KeyCode::Char('r') => app.reload_issues(),
         KeyCode::Char('f') | KeyCode::Char('/') => {
             app.filter_mode = true;
@@ -148,13 +181,19 @@ fn draw_ui(frame: &mut Frame, app: &App) {
 
     frame.render_stateful_widget(table, main_chunks[0], &mut state);
 
-    let detail = Paragraph::new(app.detail_text_for_selected())
-        .block(Block::default().title("Detail").borders(Borders::ALL))
+    let detail = Paragraph::new(app.right_pane_text())
+        .block(
+            Block::default()
+                .title(app.right_pane_title())
+                .borders(Borders::ALL),
+        )
         .wrap(Wrap { trim: false });
     frame.render_widget(detail, main_chunks[1]);
 
     let mode = if app.filter_mode {
         "FILTER"
+    } else if app.in_comments_mode() {
+        "COMMENTS"
     } else if app.choose_mode {
         "CHOOSE"
     } else {
@@ -165,14 +204,19 @@ fn draw_ui(frame: &mut Frame, app: &App) {
             "[{}] filter: {}  | Enter/Esc apply  Backspace delete",
             mode, app.filter_input
         )
+    } else if app.in_comments_mode() {
+        format!(
+            "[{}] j/k move issues | n/p move comments | c close | r reload | o open | {}",
+            mode, app.status_line
+        )
     } else if app.choose_mode {
         format!(
-            "[{}] j/k or arrows move | Enter choose | f filter | o open | q quit | {}",
+            "[{}] j/k move | Enter choose | c comments | f filter | o open | q quit | {}",
             mode, app.status_line
         )
     } else {
         format!(
-            "[{}] j/k or arrows move | f filter | r reload | o open | q quit | {}",
+            "[{}] j/k move | c comments | f filter | r reload | o open | q quit | {}",
             mode, app.status_line
         )
     };
@@ -224,5 +268,16 @@ mod tests {
         assert!(app
             .status_line
             .contains("Open disabled while using mock data"));
+    }
+
+    #[test]
+    fn q_closes_comments_mode_before_quit() {
+        let mut app = App::new(mock_source(), false);
+        app.enter_comments_mode();
+
+        let outcome = handle_key_event(&mut app, key(KeyCode::Char('q')));
+
+        assert_eq!(outcome, None);
+        assert!(!app.in_comments_mode());
     }
 }

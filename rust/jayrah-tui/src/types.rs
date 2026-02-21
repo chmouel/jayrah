@@ -24,6 +24,14 @@ pub struct IssueDetail {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+pub struct IssueComment {
+    pub id: String,
+    pub author: String,
+    pub created: String,
+    pub body: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AdapterSource {
     pub board: Option<String>,
     pub query: Option<String>,

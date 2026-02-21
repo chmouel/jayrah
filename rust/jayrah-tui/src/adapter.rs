@@ -1,8 +1,8 @@
 use anyhow::{anyhow, Result};
 use jayrah_config::{resolve_current_user_jql, JayrahConfig};
-use jayrah_jira::{DetailIssue, JiraClient, ListIssue};
+use jayrah_jira::{DetailIssue, IssueComment as JiraIssueComment, JiraClient, ListIssue};
 
-use crate::types::{AdapterSource, Issue, IssueDetail};
+use crate::types::{AdapterSource, Issue, IssueComment, IssueDetail};
 
 const SEARCH_PAGE_SIZE: usize = 200;
 const SEARCH_FIELDS: [&str; 9] = [
@@ -36,6 +36,12 @@ pub fn open_issue_in_browser(key: &str) -> Result<()> {
     let url = config.issue_url(key)?;
     webbrowser::open(&url)?;
     Ok(())
+}
+
+pub fn load_issue_comments_from_adapter(key: &str) -> Result<Vec<IssueComment>> {
+    let (_, client) = load_runtime()?;
+    let comments = client.get_issue_comments(key)?;
+    Ok(comments.into_iter().map(map_issue_comment).collect())
 }
 
 fn load_runtime() -> Result<(JayrahConfig, JiraClient)> {
@@ -95,12 +101,25 @@ fn map_issue_detail(issue: DetailIssue) -> IssueDetail {
     }
 }
 
+fn map_issue_comment(comment: JiraIssueComment) -> IssueComment {
+    IssueComment {
+        id: comment.id,
+        author: comment.author.unwrap_or_else(|| "Unknown".to_string()),
+        created: comment.created.unwrap_or_else(|| "Unknown".to_string()),
+        body: if comment.body.is_empty() {
+            "<no comment body>".to_string()
+        } else {
+            comment.body
+        },
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use jayrah_config::{BoardConfig, JayrahConfig};
-    use jayrah_jira::{DetailIssue, ListIssue};
+    use jayrah_jira::{DetailIssue, IssueComment as JiraIssueComment, ListIssue};
 
-    use super::{map_issue, map_issue_detail, resolve_source_jql};
+    use super::{map_issue, map_issue_comment, map_issue_detail, resolve_source_jql};
     use crate::types::AdapterSource;
 
     #[test]
@@ -140,6 +159,20 @@ mod tests {
         assert_eq!(issue.components, vec!["core"]);
         assert_eq!(issue.fix_versions, vec!["1.0"]);
         assert_eq!(issue.description, "detail");
+    }
+
+    #[test]
+    fn maps_comment_defaults() {
+        let comment = map_issue_comment(JiraIssueComment {
+            id: "1000".to_string(),
+            author: None,
+            created: None,
+            body: String::new(),
+        });
+
+        assert_eq!(comment.author, "Unknown");
+        assert_eq!(comment.created, "Unknown");
+        assert_eq!(comment.body, "<no comment body>");
     }
 
     #[test]

@@ -1,4 +1,4 @@
-use crate::types::{Issue, IssueDetail};
+use crate::types::{Issue, IssueComment, IssueDetail};
 
 pub fn mock_issues(reload_count: usize) -> Vec<Issue> {
     let suffix = if reload_count == 0 {
@@ -51,4 +51,21 @@ pub fn mock_detail_from_issue(issue: &Issue) -> IssueDetail {
         fix_versions: Vec::new(),
         description: "Mock detail payload used while adapter data is unavailable.".to_string(),
     }
+}
+
+pub fn mock_comments_for_issue(issue_key: &str) -> Vec<IssueComment> {
+    vec![
+        IssueComment {
+            id: format!("{issue_key}-comment-1"),
+            author: "mock-user-1".to_string(),
+            created: "2026-02-21T00:00:00Z".to_string(),
+            body: "First mock comment for previewing the comments pane.".to_string(),
+        },
+        IssueComment {
+            id: format!("{issue_key}-comment-2"),
+            author: "mock-user-2".to_string(),
+            created: "2026-02-21T00:30:00Z".to_string(),
+            body: "Second mock comment with extra detail for navigation testing.".to_string(),
+        },
+    ]
 }
