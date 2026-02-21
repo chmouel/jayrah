@@ -12,7 +12,7 @@ use ratatui::{
 
 use crate::{
     app::App,
-    worker::{start_comment_worker, start_detail_worker},
+    worker::{start_add_comment_worker, start_comment_worker, start_detail_worker},
 };
 
 #[derive(Debug, PartialEq, Eq)]
@@ -27,6 +27,7 @@ pub fn run_app(
 ) -> Result<RunOutcome> {
     let (detail_request_tx, detail_result_rx) = start_detail_worker();
     let (comment_request_tx, comment_result_rx) = start_comment_worker();
+    let (add_comment_request_tx, add_comment_result_rx) = start_add_comment_worker();
 
     loop {
         while let Ok(message) = detail_result_rx.try_recv() {
@@ -34,6 +35,9 @@ pub fn run_app(
         }
         while let Ok(message) = comment_result_rx.try_recv() {
             app.ingest_comment_result(message);
+        }
+        while let Ok(message) = add_comment_result_rx.try_recv() {
+            app.ingest_add_comment_result(message);
         }
 
         app.maybe_request_detail(&detail_request_tx);
@@ -49,14 +53,18 @@ pub fn run_app(
                 continue;
             }
 
-            if let Some(outcome) = handle_key_event(&mut app, key) {
+            if let Some(outcome) = handle_key_event(&mut app, key, &add_comment_request_tx) {
                 return Ok(outcome);
             }
         }
     }
 }
 
-fn handle_key_event(app: &mut App, key: KeyEvent) -> Option<RunOutcome> {
+fn handle_key_event(
+    app: &mut App,
+    key: KeyEvent,
+    add_comment_request_tx: &std::sync::mpsc::Sender<crate::app::AddCommentRequest>,
+) -> Option<RunOutcome> {
     if app.filter_mode {
         match key.code {
             KeyCode::Esc | KeyCode::Enter => {
@@ -81,6 +89,21 @@ fn handle_key_event(app: &mut App, key: KeyEvent) -> Option<RunOutcome> {
         return None;
     }
 
+    if app.in_comment_input_mode() {
+        match key.code {
+            KeyCode::Esc => app.cancel_comment_input(),
+            KeyCode::Enter => app.submit_comment_input(add_comment_request_tx),
+            KeyCode::Backspace => app.pop_comment_input_char(),
+            KeyCode::Char(c) => {
+                if !key.modifiers.contains(KeyModifiers::CONTROL) {
+                    app.push_comment_input_char(c);
+                }
+            }
+            _ => {}
+        }
+        return None;
+    }
+
     if app.in_comments_mode() {
         match key.code {
             KeyCode::Char('q') | KeyCode::Esc | KeyCode::Char('c') => app.enter_detail_mode(),
@@ -88,6 +111,7 @@ fn handle_key_event(app: &mut App, key: KeyEvent) -> Option<RunOutcome> {
             KeyCode::Char('k') | KeyCode::Up => app.prev(),
             KeyCode::Char('n') => app.next_comment(),
             KeyCode::Char('p') => app.prev_comment(),
+            KeyCode::Char('a') => app.start_comment_input(),
             KeyCode::Char('r') => app.reload_issues(),
             KeyCode::Char('f') | KeyCode::Char('/') => {
                 app.filter_mode = true;
@@ -192,6 +216,8 @@ fn draw_ui(frame: &mut Frame, app: &App) {
 
     let mode = if app.filter_mode {
         "FILTER"
+    } else if app.in_comment_input_mode() {
+        "COMMENT-INPUT"
     } else if app.in_comments_mode() {
         "COMMENTS"
     } else if app.choose_mode {
@@ -204,9 +230,16 @@ fn draw_ui(frame: &mut Frame, app: &App) {
             "[{}] filter: {}  | Enter/Esc apply  Backspace delete",
             mode, app.filter_input
         )
+    } else if app.in_comment_input_mode() {
+        format!(
+            "[{}] draft: {} | Enter submit | Esc cancel | {}",
+            mode,
+            app.comment_input(),
+            app.status_line
+        )
     } else if app.in_comments_mode() {
         format!(
-            "[{}] j/k move issues | n/p move comments | c close | r reload | o open | {}",
+            "[{}] j/k move issues | n/p move comments | a add | c close | r reload | o open | {}",
             mode, app.status_line
         )
     } else if app.choose_mode {
@@ -225,6 +258,8 @@ fn draw_ui(frame: &mut Frame, app: &App) {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::mpsc;
+
     use crossterm::event::KeyEventState;
     use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 
@@ -251,8 +286,9 @@ mod tests {
     #[test]
     fn enter_returns_selected_key_in_choose_mode() {
         let mut app = App::new(mock_source(), true);
+        let (add_tx, _) = mpsc::channel();
 
-        let outcome = handle_key_event(&mut app, key(KeyCode::Enter));
+        let outcome = handle_key_event(&mut app, key(KeyCode::Enter), &add_tx);
         assert_eq!(
             outcome,
             Some(RunOutcome::Chosen(Some("JAY-101".to_string())))
@@ -262,8 +298,9 @@ mod tests {
     #[test]
     fn enter_opens_issue_outside_choose_mode() {
         let mut app = App::new(mock_source(), false);
+        let (add_tx, _) = mpsc::channel();
 
-        let outcome = handle_key_event(&mut app, key(KeyCode::Enter));
+        let outcome = handle_key_event(&mut app, key(KeyCode::Enter), &add_tx);
         assert_eq!(outcome, None);
         assert!(app
             .status_line
@@ -274,10 +311,23 @@ mod tests {
     fn q_closes_comments_mode_before_quit() {
         let mut app = App::new(mock_source(), false);
         app.enter_comments_mode();
+        let (add_tx, _) = mpsc::channel();
 
-        let outcome = handle_key_event(&mut app, key(KeyCode::Char('q')));
+        let outcome = handle_key_event(&mut app, key(KeyCode::Char('q')), &add_tx);
 
         assert_eq!(outcome, None);
         assert!(!app.in_comments_mode());
+    }
+
+    #[test]
+    fn a_enters_comment_input_mode() {
+        let mut app = App::new(mock_source(), false);
+        app.enter_comments_mode();
+        let (add_tx, _) = mpsc::channel();
+
+        let outcome = handle_key_event(&mut app, key(KeyCode::Char('a')), &add_tx);
+
+        assert_eq!(outcome, None);
+        assert!(app.in_comment_input_mode());
     }
 }

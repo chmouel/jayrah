@@ -368,3 +368,11 @@ Exit criteria:
 - 2026-02-21 05:56 UTC | uncertainty | Jira API v3 comment-create payload compatibility is implemented with ADF body format but still needs validation against a live Jira Cloud instance.
 - 2026-02-21 05:56 UTC | uncertainty | Rust config/client path does not yet resolve `pass::` or `passage::` secrets; behavior parity with Python secret resolution remains pending.
 - 2026-02-21 05:56 UTC | uncertainty | Final fallback policy progression (Stage 2/3) still needs explicit acceptance criteria tied to parity/stability thresholds.
+2026-02-21 05:58 UTC | codex | phaseB-comments-add | Started Phase B add-comment parity slice for native Rust TUI comments workflow | in_progress | Add compose-mode input, async submit worker, adapter bridge, and cache refresh behavior
+2026-02-21 06:01 UTC | codex | phaseB-comments-add | Added comment compose/submit flow in Rust TUI (`a` compose, Enter submit, Esc cancel) with async submit worker and post-submit comment list refresh | complete | Run workspace formatting/check/tests and refresh migration TODO snapshot
+2026-02-21 06:02 UTC | codex | phaseB-comments-add | Verified with `cargo fmt --all`, `cargo check --workspace`, and `cargo test --workspace` (32 tests passed) | complete | Continue Phase B with transitions/edits/board switch/actions parity slices
+- 2026-02-21 06:02 UTC | todo | Phase B parity remaining: labels/components edits, transitions, title/description edits, custom field editing, board switcher, and actions/help palette parity.
+- 2026-02-21 06:02 UTC | todo | TUI parity checklist progress: View comments and Add comment are implemented in Rust path; keep checklist gate entries synchronized as remaining actions land.
+- 2026-02-21 06:02 UTC | uncertainty | Jira API v3 comment-create payload compatibility still needs validation against a live Jira Cloud instance.
+- 2026-02-21 06:02 UTC | uncertainty | Rust config/client path does not yet resolve `pass::` or `passage::` secrets; behavior parity with Python secret resolution remains pending.
+- 2026-02-21 06:02 UTC | uncertainty | Final fallback policy progression (Stage 2/3) still needs explicit acceptance criteria tied to parity/stability thresholds.

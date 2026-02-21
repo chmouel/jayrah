@@ -44,6 +44,11 @@ pub fn load_issue_comments_from_adapter(key: &str) -> Result<Vec<IssueComment>> 
     Ok(comments.into_iter().map(map_issue_comment).collect())
 }
 
+pub fn add_issue_comment_from_adapter(key: &str, body: &str) -> Result<()> {
+    let (_, client) = load_runtime()?;
+    client.add_issue_comment(key, body)
+}
+
 fn load_runtime() -> Result<(JayrahConfig, JiraClient)> {
     let config = JayrahConfig::load_default()?;
     let client = JiraClient::from_config(&config)?;

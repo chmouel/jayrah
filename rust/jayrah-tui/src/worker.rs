@@ -4,8 +4,14 @@ use std::{
 };
 
 use crate::{
-    adapter::{load_issue_comments_from_adapter, load_issue_detail_from_adapter},
-    app::{CommentRequest, CommentResult, DetailRequest, DetailResult},
+    adapter::{
+        add_issue_comment_from_adapter, load_issue_comments_from_adapter,
+        load_issue_detail_from_adapter,
+    },
+    app::{
+        AddCommentRequest, AddCommentResult, CommentRequest, CommentResult, DetailRequest,
+        DetailResult,
+    },
 };
 
 pub fn start_detail_worker() -> (Sender<DetailRequest>, Receiver<DetailResult>) {
@@ -53,6 +59,30 @@ pub fn start_comment_worker() -> (Sender<CommentRequest>, Receiver<CommentResult
 
             if result_tx
                 .send(CommentResult {
+                    key: request.key,
+                    result,
+                })
+                .is_err()
+            {
+                break;
+            }
+        }
+    });
+
+    (request_tx, result_rx)
+}
+
+pub fn start_add_comment_worker() -> (Sender<AddCommentRequest>, Receiver<AddCommentResult>) {
+    let (request_tx, request_rx) = mpsc::channel::<AddCommentRequest>();
+    let (result_tx, result_rx) = mpsc::channel::<AddCommentResult>();
+
+    thread::spawn(move || {
+        while let Ok(request) = request_rx.recv() {
+            let result = add_issue_comment_from_adapter(&request.key, &request.body)
+                .map_err(|error| error.to_string());
+
+            if result_tx
+                .send(AddCommentResult {
                     key: request.key,
                     result,
                 })

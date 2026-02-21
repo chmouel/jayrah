@@ -36,6 +36,18 @@ pub struct CommentResult {
     pub result: std::result::Result<Vec<IssueComment>, String>,
 }
 
+#[derive(Debug)]
+pub struct AddCommentRequest {
+    pub key: String,
+    pub body: String,
+}
+
+#[derive(Debug)]
+pub struct AddCommentResult {
+    pub key: String,
+    pub result: std::result::Result<(), String>,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum DetailPaneMode {
     Detail,
@@ -60,6 +72,9 @@ pub struct App {
     comments_errors: HashMap<String, String>,
     comments_loading_key: Option<String>,
     comments_selected: usize,
+    comment_input_mode: bool,
+    comment_input: String,
+    comment_submit_in_flight: bool,
     pane_mode: DetailPaneMode,
     last_selected_key: Option<String>,
     selected_changed_at: Instant,
@@ -84,6 +99,9 @@ impl App {
             comments_errors: HashMap::new(),
             comments_loading_key: None,
             comments_selected: 0,
+            comment_input_mode: false,
+            comment_input: String::new(),
+            comment_submit_in_flight: false,
             pane_mode: DetailPaneMode::Detail,
             last_selected_key: None,
             selected_changed_at: Instant::now(),
@@ -167,6 +185,14 @@ impl App {
         self.pane_mode == DetailPaneMode::Comments
     }
 
+    pub fn in_comment_input_mode(&self) -> bool {
+        self.comment_input_mode
+    }
+
+    pub fn comment_input(&self) -> &str {
+        self.comment_input.as_str()
+    }
+
     pub fn enter_comments_mode(&mut self) {
         self.pane_mode = DetailPaneMode::Comments;
         self.comments_selected = 0;
@@ -175,7 +201,36 @@ impl App {
 
     pub fn enter_detail_mode(&mut self) {
         self.pane_mode = DetailPaneMode::Detail;
+        self.comment_input_mode = false;
+        self.comment_input.clear();
         self.status_line = "Detail mode".to_string();
+    }
+
+    pub fn start_comment_input(&mut self) {
+        if !self.in_comments_mode() {
+            return;
+        }
+        if self.comment_submit_in_flight {
+            self.status_line = "Comment submission in progress...".to_string();
+            return;
+        }
+
+        self.comment_input_mode = true;
+        self.status_line = "Comment input: type message, Enter submit, Esc cancel".to_string();
+    }
+
+    pub fn cancel_comment_input(&mut self) {
+        self.comment_input_mode = false;
+        self.comment_input.clear();
+        self.status_line = "Comment draft canceled".to_string();
+    }
+
+    pub fn push_comment_input_char(&mut self, value: char) {
+        self.comment_input.push(value);
+    }
+
+    pub fn pop_comment_input_char(&mut self) {
+        self.comment_input.pop();
     }
 
     pub fn next_comment(&mut self) {
@@ -230,6 +285,9 @@ impl App {
         self.comments_errors.clear();
         self.comments_loading_key = None;
         self.comments_selected = 0;
+        self.comment_input_mode = false;
+        self.comment_input.clear();
+        self.comment_submit_in_flight = false;
 
         if self.source.mock_only {
             self.issues = mock_issues(self.reload_count);
@@ -269,6 +327,8 @@ impl App {
             self.last_selected_key = current;
             self.selected_changed_at = Instant::now();
             self.comments_selected = 0;
+            self.comment_input_mode = false;
+            self.comment_input.clear();
         }
     }
 
@@ -347,6 +407,58 @@ impl App {
         }
     }
 
+    pub fn submit_comment_input(&mut self, submit_tx: &Sender<AddCommentRequest>) {
+        let Some(key) = self.selected_issue_key() else {
+            self.status_line = "No issue selected".to_string();
+            return;
+        };
+
+        let body = self.comment_input.trim().to_string();
+        if body.is_empty() {
+            self.status_line = "Comment cannot be empty".to_string();
+            return;
+        }
+
+        if self.comment_submit_in_flight {
+            self.status_line = "Comment submission in progress...".to_string();
+            return;
+        }
+
+        if !self.using_adapter {
+            let comments = self
+                .comments_cache
+                .entry(key.clone())
+                .or_insert_with(|| mock_comments_for_issue(&key));
+            let next_index = comments.len() + 1;
+            comments.push(IssueComment {
+                id: format!("{key}-local-{next_index}"),
+                author: "you".to_string(),
+                created: "local".to_string(),
+                body,
+            });
+            self.comments_selected = comments.len().saturating_sub(1);
+            self.comment_input_mode = false;
+            self.comment_input.clear();
+            self.status_line = format!("Added mock comment to {key}");
+            return;
+        }
+
+        if submit_tx
+            .send(AddCommentRequest {
+                key: key.clone(),
+                body,
+            })
+            .is_ok()
+        {
+            self.comment_submit_in_flight = true;
+            self.comment_input_mode = false;
+            self.comment_input.clear();
+            self.status_line = format!("Submitting comment for {key}...");
+        } else {
+            self.status_line = format!("Failed to queue comment submission for {key}");
+        }
+    }
+
     pub fn ingest_detail_result(&mut self, message: DetailResult) {
         match message.result {
             Ok(detail) => {
@@ -397,6 +509,32 @@ impl App {
                 if self.selected_issue_key().as_deref() == Some(message.key.as_str()) {
                     self.status_line = format!(
                         "Failed to load comments for {} ({})",
+                        message.key,
+                        compact_error(&error)
+                    );
+                }
+            }
+        }
+    }
+
+    pub fn ingest_add_comment_result(&mut self, message: AddCommentResult) {
+        self.comment_submit_in_flight = false;
+        match message.result {
+            Ok(()) => {
+                self.comments_cache.remove(&message.key);
+                self.comments_errors.remove(&message.key);
+                if self.comments_loading_key.as_deref() == Some(message.key.as_str()) {
+                    self.comments_loading_key = None;
+                }
+                self.comments_selected = 0;
+                if self.selected_issue_key().as_deref() == Some(message.key.as_str()) {
+                    self.status_line = format!("Added comment to {}", message.key);
+                }
+            }
+            Err(error) => {
+                if self.selected_issue_key().as_deref() == Some(message.key.as_str()) {
+                    self.status_line = format!(
+                        "Failed to add comment to {} ({})",
                         message.key,
                         compact_error(&error)
                     );
@@ -475,51 +613,62 @@ impl App {
         };
 
         let key = issue.key.as_str();
-        if let Some(comments) = self.comments_cache.get(key) {
+        let mut text = if let Some(comments) = self.comments_cache.get(key) {
             if comments.is_empty() {
-                return format!("Comments for {key}\n\nNo comments found.");
-            }
-
-            let active_index = self.comments_selected.min(comments.len() - 1);
-            let current = &comments[active_index];
-            let body = if current.body.is_empty() {
-                "<no comment body>"
+                format!("Comments for {key}\n\nNo comments found.")
             } else {
-                current.body.as_str()
-            };
+                let active_index = self.comments_selected.min(comments.len() - 1);
+                let current = &comments[active_index];
+                let body = if current.body.is_empty() {
+                    "<no comment body>"
+                } else {
+                    current.body.as_str()
+                };
 
-            return format!(
-                "Comments for {}\n\nComment {}/{}\nAuthor: {}\nCreated: {}\n\n{}",
-                key,
-                active_index + 1,
-                comments.len(),
-                current.author,
-                current.created,
-                body,
-            );
-        }
-
-        if let Some(error) = self.comments_errors.get(key) {
-            return format!(
+                format!(
+                    "Comments for {}\n\nComment {}/{}\nAuthor: {}\nCreated: {}\n\n{}",
+                    key,
+                    active_index + 1,
+                    comments.len(),
+                    current.author,
+                    current.created,
+                    body,
+                )
+            }
+        } else if let Some(error) = self.comments_errors.get(key) {
+            format!(
                 "Comments for {}\n\nFailed to load comments\n{}",
                 key,
                 compact_error(error),
-            );
-        }
-
-        if self.comments_loading_key.as_deref() == Some(key) {
-            return format!(
+            )
+        } else if self.comments_loading_key.as_deref() == Some(key) {
+            format!(
                 "Loading comments for {}...\n\nSummary\n{}\n\nSource\n{}",
                 issue.key,
                 issue.summary,
                 self.source.describe(),
-            );
+            )
+        } else {
+            format!(
+                "Comments for {}\n\nPress c to load comments for this issue.",
+                issue.key
+            )
+        };
+
+        if self.comment_submit_in_flight {
+            text.push_str("\n\nSubmitting comment...");
         }
 
-        format!(
-            "Comments for {}\n\nPress c to load comments for this issue.",
-            issue.key
-        )
+        if self.comment_input_mode {
+            let draft = if self.comment_input.is_empty() {
+                "<empty>"
+            } else {
+                self.comment_input.as_str()
+            };
+            text.push_str(&format!("\n\n---\nDraft Comment\n{draft}"));
+        }
+
+        text
     }
 
     pub fn right_pane_text(&self) -> String {
@@ -660,5 +809,38 @@ mod tests {
 
         app.prev_comment();
         assert!(app.comments_text_for_selected().contains("Comment 2/2"));
+    }
+
+    #[test]
+    fn submit_comment_in_mock_mode_appends_new_comment() {
+        let mut app = App::new(mock_source(), false);
+        let (list_tx, _) = mpsc::channel();
+        let (submit_tx, _) = mpsc::channel();
+
+        app.enter_comments_mode();
+        app.maybe_request_comments(&list_tx);
+        app.start_comment_input();
+        for ch in "hello from test".chars() {
+            app.push_comment_input_char(ch);
+        }
+        app.submit_comment_input(&submit_tx);
+
+        let text = app.comments_text_for_selected();
+        assert!(text.contains("hello from test"));
+        assert!(text.contains("Comment 3/3"));
+        assert!(!app.in_comment_input_mode());
+    }
+
+    #[test]
+    fn submit_comment_rejects_empty_body() {
+        let mut app = App::new(mock_source(), false);
+        let (submit_tx, _) = mpsc::channel();
+
+        app.enter_comments_mode();
+        app.start_comment_input();
+        app.submit_comment_input(&submit_tx);
+
+        assert_eq!(app.status_line, "Comment cannot be empty");
+        assert!(app.in_comment_input_mode());
     }
 }
