@@ -66,6 +66,18 @@ fn sync_edit_input_session(app: &App, edit_session: &mut Option<EditInputSession
     }
 }
 
+fn focus_filter_input(app: &mut App) {
+    app.filter_mode = true;
+    if app.has_active_filter() {
+        app.status_line = format!(
+            "Filter focused: '{}'. Enter unfocus, Esc clear",
+            app.filter_query()
+        );
+    } else {
+        app.status_line = String::from("Filter focused: type to filter, Enter unfocus, Esc clear");
+    }
+}
+
 pub fn run_app(
     terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
     mut app: App,
@@ -170,10 +182,24 @@ fn handle_key_event_with_edit_session(
 
     if app.filter_mode {
         match key.code {
-            KeyCode::Esc | KeyCode::Enter => {
+            KeyCode::Esc => {
+                let selected_key = app.selected_issue_key();
+                app.filter_input.clear();
+                app.filter_mode = false;
+                app.normalize_selection_with_preferred_key(selected_key.as_deref());
+                app.status_line = String::from("Filter cleared");
+            }
+            KeyCode::Enter => {
                 app.filter_mode = false;
                 app.normalize_selection();
-                app.status_line = format!("Filter applied: '{}'", app.filter_input);
+                if app.has_active_filter() {
+                    app.status_line = format!(
+                        "Filter active: '{}'. Press f or / to focus",
+                        app.filter_query()
+                    );
+                } else {
+                    app.status_line = String::from("Filter cleared");
+                }
             }
             KeyCode::Backspace => {
                 let selected_key = app.selected_issue_key();
@@ -260,8 +286,7 @@ fn handle_key_event_with_edit_session(
             KeyCode::Char('?') => app.enter_actions_mode(),
             KeyCode::Char('r') => app.reload_issues(),
             KeyCode::Char('f') | KeyCode::Char('/') => {
-                app.filter_mode = true;
-                app.status_line = String::from("Filter mode: type to filter, Enter to apply");
+                focus_filter_input(app);
             }
             KeyCode::Char('o') => app.open_selected_issue(),
             KeyCode::Enter => {
@@ -297,8 +322,7 @@ fn handle_key_event_with_edit_session(
             KeyCode::Char('r') => app.reload_issues(),
             KeyCode::Char('o') => app.open_selected_issue(),
             KeyCode::Char('f') | KeyCode::Char('/') => {
-                app.filter_mode = true;
-                app.status_line = String::from("Filter mode: type to filter, Enter to apply");
+                focus_filter_input(app);
             }
             _ => {}
         }
@@ -321,8 +345,7 @@ fn handle_key_event_with_edit_session(
             KeyCode::Char('r') => app.reload_issues(),
             KeyCode::Char('o') => app.open_selected_issue(),
             KeyCode::Char('f') | KeyCode::Char('/') => {
-                app.filter_mode = true;
-                app.status_line = String::from("Filter mode: type to filter, Enter to apply");
+                focus_filter_input(app);
             }
             KeyCode::Enter => app.apply_selected_board(),
             _ => {}
@@ -342,8 +365,7 @@ fn handle_key_event_with_edit_session(
             KeyCode::Char('r') => app.reload_issues(),
             KeyCode::Char('o') => app.open_selected_issue(),
             KeyCode::Char('f') | KeyCode::Char('/') => {
-                app.filter_mode = true;
-                app.status_line = String::from("Filter mode: type to filter, Enter to apply");
+                focus_filter_input(app);
             }
             KeyCode::Enter => app.start_selected_custom_field_edit_input(),
             _ => {}
@@ -365,8 +387,7 @@ fn handle_key_event_with_edit_session(
             KeyCode::Char('?') => app.enter_actions_mode(),
             KeyCode::Char('r') => app.reload_issues(),
             KeyCode::Char('f') | KeyCode::Char('/') => {
-                app.filter_mode = true;
-                app.status_line = String::from("Filter mode: type to filter, Enter to apply");
+                focus_filter_input(app);
             }
             KeyCode::Char('o') => app.open_selected_issue(),
             KeyCode::Enter => app.apply_selected_transition(apply_transition_request_tx),
@@ -402,8 +423,7 @@ fn handle_key_event_with_edit_session(
         KeyCode::Char('1') => app.toggle_zoom_issues(),
         KeyCode::Char('2') => app.toggle_zoom_detail(),
         KeyCode::Char('f') | KeyCode::Char('/') => {
-            app.filter_mode = true;
-            app.status_line = String::from("Filter mode: type to filter, Enter to apply");
+            focus_filter_input(app);
         }
         KeyCode::Char('o') => app.open_selected_issue(),
         KeyCode::Enter => {
@@ -541,10 +561,25 @@ fn edit_input_height(inner_height: u16, is_summary_target: bool) -> u16 {
 }
 
 fn draw_ui(frame: &mut Frame, app: &mut App, edit_session: Option<&EditInputSession>) {
+    let show_filter_bar = app.filter_mode || app.has_active_filter();
+    let root_constraints = if show_filter_bar {
+        vec![
+            Constraint::Length(1),
+            Constraint::Min(0),
+            Constraint::Length(1),
+        ]
+    } else {
+        vec![Constraint::Min(0), Constraint::Length(1)]
+    };
     let root_chunks = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([Constraint::Min(0), Constraint::Length(1)])
+        .constraints(root_constraints)
         .split(frame.area());
+    let (filter_bar_area, main_area, footer_area) = if show_filter_bar {
+        (Some(root_chunks[0]), root_chunks[1], root_chunks[2])
+    } else {
+        (None, root_chunks[0], root_chunks[1])
+    };
 
     let (first_pane_percent, second_pane_percent) = app.pane_width_percentages();
     let main_direction = match app.pane_orientation() {
@@ -557,7 +592,7 @@ fn draw_ui(frame: &mut Frame, app: &mut App, edit_session: Option<&EditInputSess
             Constraint::Percentage(first_pane_percent),
             Constraint::Percentage(second_pane_percent),
         ])
-        .split(root_chunks[0]);
+        .split(main_area);
     let pane_zoom = app.pane_zoom();
 
     let visible = app.visible_indices();
@@ -608,7 +643,7 @@ fn draw_ui(frame: &mut Frame, app: &mut App, edit_session: Option<&EditInputSess
 
     if pane_zoom != PaneZoom::Detail {
         let issues_area = if pane_zoom == PaneZoom::Issues {
-            root_chunks[0]
+            main_area
         } else {
             main_chunks[0]
         };
@@ -617,7 +652,7 @@ fn draw_ui(frame: &mut Frame, app: &mut App, edit_session: Option<&EditInputSess
 
     if pane_zoom != PaneZoom::Issues {
         let detail_area = if pane_zoom == PaneZoom::Detail {
-            root_chunks[0]
+            main_area
         } else {
             main_chunks[1]
         };
@@ -639,7 +674,7 @@ fn draw_ui(frame: &mut Frame, app: &mut App, edit_session: Option<&EditInputSess
     if app.in_popup_mode() {
         let popup_title = app.right_pane_title();
         let popup_text = app.right_pane_text();
-        let popup_area = adaptive_popup_area(root_chunks[0], popup_title, popup_text.as_str());
+        let popup_area = adaptive_popup_area(main_area, popup_title, popup_text.as_str());
 
         if app.in_actions_mode() {
             let popup_viewport_height = popup_area.height.saturating_sub(2);
@@ -659,8 +694,7 @@ fn draw_ui(frame: &mut Frame, app: &mut App, edit_session: Option<&EditInputSess
     if app.in_edit_input_mode() {
         let is_description_target = app.edit_target_label() == "description";
         let is_summary_target = app.edit_target_label() == "summary";
-        let edit_popup_area =
-            edit_popup_area(root_chunks[0], is_description_target, is_summary_target);
+        let edit_popup_area = edit_popup_area(main_area, is_description_target, is_summary_target);
         frame.render_widget(Clear, edit_popup_area);
         let issue_key = app
             .selected_issue_key()
@@ -721,10 +755,28 @@ fn draw_ui(frame: &mut Frame, app: &mut App, edit_session: Option<&EditInputSess
     } else {
         "NORMAL"
     };
+    if let Some(filter_bar_area) = filter_bar_area {
+        let display_filter = if app.filter_mode {
+            app.filter_input.as_str()
+        } else {
+            app.filter_query()
+        };
+        let filter_label = if display_filter.is_empty() {
+            "<empty>"
+        } else {
+            display_filter
+        };
+        let filter_bar = if app.filter_mode {
+            format!("[FILTER] {} | Enter unfocus | Esc clear", filter_label)
+        } else {
+            format!("[FILTER] {} | f or / focus", filter_label)
+        };
+        frame.render_widget(Paragraph::new(filter_bar), filter_bar_area);
+    }
     let footer = if app.filter_mode {
         format!(
-            "[{}] filter: {}  | Enter/Esc apply  Backspace delete",
-            mode, app.filter_input
+            "[{}] type to filter | Enter unfocus | Esc clear | Backspace delete",
+            mode
         )
     } else if app.in_comment_input_mode() {
         format!(
@@ -776,7 +828,7 @@ fn draw_ui(frame: &mut Frame, app: &mut App, edit_session: Option<&EditInputSess
             mode, app.status_line
         )
     };
-    frame.render_widget(Paragraph::new(footer), root_chunks[1]);
+    frame.render_widget(Paragraph::new(footer), footer_area);
 }
 
 #[cfg(test)]
@@ -1104,6 +1156,71 @@ mod tests {
         );
         assert_eq!(outcome, None);
         assert_eq!(app.pane_orientation(), PaneOrientation::Horizontal);
+    }
+
+    #[test]
+    fn enter_unfocuses_filter_and_keeps_input() {
+        let mut app = App::new(mock_source(), false);
+        app.filter_mode = true;
+        app.filter_input = "adapter".to_string();
+        let (add_tx, _) = mpsc::channel();
+        let (transition_tx, _) = mpsc::channel();
+        let (edit_tx, _) = mpsc::channel();
+
+        let outcome = handle_key_event(
+            &mut app,
+            key(KeyCode::Enter),
+            &add_tx,
+            &transition_tx,
+            &edit_tx,
+        );
+        assert_eq!(outcome, None);
+        assert!(!app.filter_mode);
+        assert_eq!(app.filter_input, "adapter");
+        assert!(app.status_line.contains("Filter active"));
+    }
+
+    #[test]
+    fn esc_clears_filter_and_unfocuses() {
+        let mut app = App::new(mock_source(), false);
+        app.filter_mode = true;
+        app.filter_input = "adapter".to_string();
+        let (add_tx, _) = mpsc::channel();
+        let (transition_tx, _) = mpsc::channel();
+        let (edit_tx, _) = mpsc::channel();
+
+        let outcome = handle_key_event(
+            &mut app,
+            key(KeyCode::Esc),
+            &add_tx,
+            &transition_tx,
+            &edit_tx,
+        );
+        assert_eq!(outcome, None);
+        assert!(!app.filter_mode);
+        assert!(app.filter_input.is_empty());
+        assert_eq!(app.status_line, "Filter cleared");
+    }
+
+    #[test]
+    fn f_refocuses_when_filter_is_active() {
+        let mut app = App::new(mock_source(), false);
+        app.filter_input = "adapter".to_string();
+        let (add_tx, _) = mpsc::channel();
+        let (transition_tx, _) = mpsc::channel();
+        let (edit_tx, _) = mpsc::channel();
+
+        let outcome = handle_key_event(
+            &mut app,
+            key(KeyCode::Char('f')),
+            &add_tx,
+            &transition_tx,
+            &edit_tx,
+        );
+        assert_eq!(outcome, None);
+        assert!(app.filter_mode);
+        assert_eq!(app.filter_input, "adapter");
+        assert!(app.status_line.contains("Filter focused"));
     }
 
     #[test]

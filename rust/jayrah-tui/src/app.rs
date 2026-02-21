@@ -244,7 +244,7 @@ impl App {
     }
 
     pub fn visible_indices(&self) -> Vec<usize> {
-        let filter = self.filter_input.trim().to_lowercase();
+        let filter = self.filter_query().to_lowercase();
         if filter.is_empty() {
             return (0..self.issues.len()).collect();
         }
@@ -264,6 +264,14 @@ impl App {
                 }
             })
             .collect()
+    }
+
+    pub fn has_active_filter(&self) -> bool {
+        !self.filter_query().is_empty()
+    }
+
+    pub fn filter_query(&self) -> &str {
+        self.filter_input.trim()
     }
 
     pub fn normalize_selection(&mut self) {
