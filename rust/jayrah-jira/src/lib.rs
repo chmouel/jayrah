@@ -338,6 +338,51 @@ impl JiraClient {
         Ok(())
     }
 
+    pub fn update_issue_summary(&self, key: &str, summary: &str) -> Result<()> {
+        let trimmed = summary.trim();
+        if trimmed.is_empty() {
+            bail!("summary cannot be empty");
+        }
+
+        self.update_issue_fields(key, json!({ "summary": trimmed }))
+    }
+
+    pub fn update_issue_description(&self, key: &str, description: &str) -> Result<()> {
+        self.update_issue_fields(
+            key,
+            json!({ "description": self.description_field_payload(description) }),
+        )
+    }
+
+    pub fn update_issue_labels(&self, key: &str, labels: &[String]) -> Result<()> {
+        self.update_issue_fields(key, json!({ "labels": self.labels_field_payload(labels) }))
+    }
+
+    pub fn update_issue_components(&self, key: &str, components: &[String]) -> Result<()> {
+        self.update_issue_fields(
+            key,
+            json!({ "components": self.components_field_payload(components) }),
+        )
+    }
+
+    pub fn update_issue_custom_field(
+        &self,
+        key: &str,
+        field_id: &str,
+        field_type: &str,
+        raw_value: &str,
+    ) -> Result<()> {
+        let field_id = field_id.trim();
+        if field_id.is_empty() {
+            bail!("custom field id cannot be empty");
+        }
+
+        let parsed = self.parse_custom_field_value(field_type, raw_value)?;
+        let mut map = serde_json::Map::new();
+        map.insert(field_id.to_string(), parsed);
+        self.update_issue_fields(key, Value::Object(map))
+    }
+
     fn search_issues_page(
         &self,
         jql: &str,
@@ -390,25 +435,112 @@ impl JiraClient {
 
     fn comment_body_payload(&self, text: &str) -> Value {
         if self.api_version == "3" {
-            json!({
-                "body": {
-                    "type": "doc",
-                    "version": 1,
-                    "content": [
-                        {
-                            "type": "paragraph",
-                            "content": [
-                                {"type": "text", "text": text}
-                            ]
-                        }
-                    ]
-                }
-            })
+            json!({ "body": self.adf_text_payload(text) })
         } else {
             json!({
                 "body": text
             })
         }
+    }
+
+    fn description_field_payload(&self, text: &str) -> Value {
+        if self.api_version == "3" {
+            self.adf_text_payload(text)
+        } else {
+            Value::String(text.to_string())
+        }
+    }
+
+    fn adf_text_payload(&self, text: &str) -> Value {
+        json!({
+            "type": "doc",
+            "version": 1,
+            "content": [
+                {
+                    "type": "paragraph",
+                    "content": [
+                        {"type": "text", "text": text}
+                    ]
+                }
+            ]
+        })
+    }
+
+    fn labels_field_payload(&self, labels: &[String]) -> Vec<Value> {
+        labels
+            .iter()
+            .map(|label| label.trim())
+            .filter(|label| !label.is_empty())
+            .map(|label| Value::String(label.to_string()))
+            .collect::<Vec<_>>()
+    }
+
+    fn components_field_payload(&self, components: &[String]) -> Vec<Value> {
+        components
+            .iter()
+            .map(|name| name.trim())
+            .filter(|name| !name.is_empty())
+            .map(|name| json!({ "name": name }))
+            .collect::<Vec<_>>()
+    }
+
+    fn parse_custom_field_value(&self, field_type: &str, raw_value: &str) -> Result<Value> {
+        let normalized = field_type.trim().to_ascii_lowercase();
+        let raw = raw_value.trim();
+
+        match normalized.as_str() {
+            "number" => {
+                if raw.is_empty() {
+                    bail!("custom number field requires a value");
+                }
+                if raw.contains('.') {
+                    let number: f64 = raw
+                        .parse()
+                        .with_context(|| format!("invalid number value '{}'", raw))?;
+                    Ok(json!(number))
+                } else {
+                    let number: i64 = raw
+                        .parse()
+                        .with_context(|| format!("invalid number value '{}'", raw))?;
+                    Ok(json!(number))
+                }
+            }
+            "url" => {
+                if raw.is_empty() {
+                    return Ok(Value::String(String::new()));
+                }
+                if raw.starts_with("http://")
+                    || raw.starts_with("https://")
+                    || raw.starts_with("ftp://")
+                {
+                    Ok(Value::String(raw.to_string()))
+                } else {
+                    bail!("invalid url value '{}'", raw);
+                }
+            }
+            _ => Ok(Value::String(raw.to_string())),
+        }
+    }
+
+    fn update_issue_fields(&self, key: &str, fields: Value) -> Result<()> {
+        let endpoint = format!("{}/issue/{}", self.base_url, key);
+        let response = self
+            .with_auth(self.http.put(endpoint))
+            .json(&json!({ "fields": fields }))
+            .send()
+            .with_context(|| format!("failed to update issue {}", key))?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let body = response.text().unwrap_or_default();
+            bail!(
+                "jira issue update request failed: status={} body={}",
+                status,
+                body
+            );
+        }
+
+        Ok(())
     }
 }
 
@@ -696,6 +828,47 @@ mod tests {
                 }
             })
         );
+
+        assert_eq!(client_2.description_field_payload("hello"), json!("hello"));
+        assert_eq!(
+            client_3.description_field_payload("hello"),
+            json!({
+                "type": "doc",
+                "version": 1,
+                "content": [{
+                    "type": "paragraph",
+                    "content": [{"type": "text", "text": "hello"}]
+                }]
+            })
+        );
+
+        let labels = vec!["one".to_string(), "  ".to_string(), "two".to_string()];
+        assert_eq!(
+            client_2.labels_field_payload(&labels),
+            vec![json!("one"), json!("two")]
+        );
+
+        let components = vec!["core".to_string(), " ".to_string(), "ui".to_string()];
+        assert_eq!(
+            client_2.components_field_payload(&components),
+            vec![json!({"name": "core"}), json!({"name": "ui"})]
+        );
+
+        assert_eq!(
+            client_2
+                .parse_custom_field_value("number", "13")
+                .expect("number"),
+            json!(13)
+        );
+        assert_eq!(
+            client_2
+                .parse_custom_field_value("url", "https://example.com")
+                .expect("url"),
+            json!("https://example.com")
+        );
+        assert!(client_2
+            .parse_custom_field_value("url", "example.com")
+            .is_err());
     }
 
     #[test]

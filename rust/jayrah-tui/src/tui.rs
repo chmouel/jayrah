@@ -14,7 +14,7 @@ use crate::{
     app::App,
     worker::{
         start_add_comment_worker, start_apply_transition_worker, start_comment_worker,
-        start_detail_worker, start_transition_worker,
+        start_detail_worker, start_edit_issue_worker, start_transition_worker,
     },
 };
 
@@ -33,6 +33,7 @@ pub fn run_app(
     let (add_comment_request_tx, add_comment_result_rx) = start_add_comment_worker();
     let (transition_request_tx, transition_result_rx) = start_transition_worker();
     let (apply_transition_request_tx, apply_transition_result_rx) = start_apply_transition_worker();
+    let (edit_issue_request_tx, edit_issue_result_rx) = start_edit_issue_worker();
 
     loop {
         while let Ok(message) = detail_result_rx.try_recv() {
@@ -49,6 +50,9 @@ pub fn run_app(
         }
         while let Ok(message) = apply_transition_result_rx.try_recv() {
             app.ingest_apply_transition_result(message);
+        }
+        while let Ok(message) = edit_issue_result_rx.try_recv() {
+            app.ingest_edit_issue_result(message);
         }
 
         app.maybe_request_detail(&detail_request_tx);
@@ -70,6 +74,7 @@ pub fn run_app(
                 key,
                 &add_comment_request_tx,
                 &apply_transition_request_tx,
+                &edit_issue_request_tx,
             ) {
                 return Ok(outcome);
             }
@@ -82,6 +87,7 @@ fn handle_key_event(
     key: KeyEvent,
     add_comment_request_tx: &std::sync::mpsc::Sender<crate::app::AddCommentRequest>,
     apply_transition_request_tx: &std::sync::mpsc::Sender<crate::app::ApplyTransitionRequest>,
+    edit_issue_request_tx: &std::sync::mpsc::Sender<crate::app::EditIssueRequest>,
 ) -> Option<RunOutcome> {
     if app.filter_mode {
         match key.code {
@@ -122,6 +128,21 @@ fn handle_key_event(
         return None;
     }
 
+    if app.in_edit_input_mode() {
+        match key.code {
+            KeyCode::Esc => app.cancel_edit_input(),
+            KeyCode::Enter => app.submit_edit_input(edit_issue_request_tx),
+            KeyCode::Backspace => app.pop_edit_input_char(),
+            KeyCode::Char(c) => {
+                if !key.modifiers.contains(KeyModifiers::CONTROL) {
+                    app.push_edit_input_char(c);
+                }
+            }
+            _ => {}
+        }
+        return None;
+    }
+
     if app.in_comments_mode() {
         match key.code {
             KeyCode::Char('q') | KeyCode::Esc | KeyCode::Char('c') => app.enter_detail_mode(),
@@ -130,6 +151,11 @@ fn handle_key_event(
             KeyCode::Char('n') => app.next_comment(),
             KeyCode::Char('p') => app.prev_comment(),
             KeyCode::Char('a') => app.start_comment_input(),
+            KeyCode::Char('e') => app.start_summary_edit_input(),
+            KeyCode::Char('E') => app.start_description_edit_input(),
+            KeyCode::Char('l') => app.start_labels_edit_input(),
+            KeyCode::Char('m') => app.start_components_edit_input(),
+            KeyCode::Char('u') => app.enter_custom_fields_mode(),
             KeyCode::Char('?') => app.enter_actions_mode(),
             KeyCode::Char('r') => app.reload_issues(),
             KeyCode::Char('f') | KeyCode::Char('/') => {
@@ -153,6 +179,12 @@ fn handle_key_event(
             KeyCode::Char('q') | KeyCode::Esc | KeyCode::Char('?') => app.enter_detail_mode(),
             KeyCode::Char('j') | KeyCode::Down => app.next(),
             KeyCode::Char('k') | KeyCode::Up => app.prev(),
+            KeyCode::Char('e') => app.start_summary_edit_input(),
+            KeyCode::Char('E') => app.start_description_edit_input(),
+            KeyCode::Char('l') => app.start_labels_edit_input(),
+            KeyCode::Char('m') => app.start_components_edit_input(),
+            KeyCode::Char('u') => app.enter_custom_fields_mode(),
+            KeyCode::Char('b') => app.enter_boards_mode(),
             KeyCode::Char('c') => app.enter_comments_mode(),
             KeyCode::Char('t') => app.enter_transitions_mode(),
             KeyCode::Char('r') => app.reload_issues(),
@@ -166,6 +198,56 @@ fn handle_key_event(
         return None;
     }
 
+    if app.in_boards_mode() {
+        match key.code {
+            KeyCode::Char('q') | KeyCode::Esc | KeyCode::Char('b') => app.enter_detail_mode(),
+            KeyCode::Char('j') | KeyCode::Down => app.next(),
+            KeyCode::Char('k') | KeyCode::Up => app.prev(),
+            KeyCode::Char('n') => app.next_board(),
+            KeyCode::Char('p') => app.prev_board(),
+            KeyCode::Char('e') => app.start_summary_edit_input(),
+            KeyCode::Char('E') => app.start_description_edit_input(),
+            KeyCode::Char('l') => app.start_labels_edit_input(),
+            KeyCode::Char('m') => app.start_components_edit_input(),
+            KeyCode::Char('u') => app.enter_custom_fields_mode(),
+            KeyCode::Char('c') => app.enter_comments_mode(),
+            KeyCode::Char('t') => app.enter_transitions_mode(),
+            KeyCode::Char('?') => app.enter_actions_mode(),
+            KeyCode::Char('r') => app.reload_issues(),
+            KeyCode::Char('o') => app.open_selected_issue(),
+            KeyCode::Char('f') | KeyCode::Char('/') => {
+                app.filter_mode = true;
+                app.status_line = String::from("Filter mode: type to filter, Enter to apply");
+            }
+            KeyCode::Enter => app.apply_selected_board(),
+            _ => {}
+        }
+        return None;
+    }
+
+    if app.in_custom_fields_mode() {
+        match key.code {
+            KeyCode::Char('q') | KeyCode::Esc | KeyCode::Char('u') => app.enter_detail_mode(),
+            KeyCode::Char('j') | KeyCode::Down => app.next(),
+            KeyCode::Char('k') | KeyCode::Up => app.prev(),
+            KeyCode::Char('n') => app.next_custom_field(),
+            KeyCode::Char('p') => app.prev_custom_field(),
+            KeyCode::Char('b') => app.enter_boards_mode(),
+            KeyCode::Char('c') => app.enter_comments_mode(),
+            KeyCode::Char('t') => app.enter_transitions_mode(),
+            KeyCode::Char('?') => app.enter_actions_mode(),
+            KeyCode::Char('r') => app.reload_issues(),
+            KeyCode::Char('o') => app.open_selected_issue(),
+            KeyCode::Char('f') | KeyCode::Char('/') => {
+                app.filter_mode = true;
+                app.status_line = String::from("Filter mode: type to filter, Enter to apply");
+            }
+            KeyCode::Enter => app.start_selected_custom_field_edit_input(),
+            _ => {}
+        }
+        return None;
+    }
+
     if app.in_transitions_mode() {
         match key.code {
             KeyCode::Char('q') | KeyCode::Esc | KeyCode::Char('t') => app.enter_detail_mode(),
@@ -173,6 +255,11 @@ fn handle_key_event(
             KeyCode::Char('k') | KeyCode::Up => app.prev(),
             KeyCode::Char('n') => app.next_transition(),
             KeyCode::Char('p') => app.prev_transition(),
+            KeyCode::Char('e') => app.start_summary_edit_input(),
+            KeyCode::Char('E') => app.start_description_edit_input(),
+            KeyCode::Char('l') => app.start_labels_edit_input(),
+            KeyCode::Char('m') => app.start_components_edit_input(),
+            KeyCode::Char('u') => app.enter_custom_fields_mode(),
             KeyCode::Char('c') => app.enter_comments_mode(),
             KeyCode::Char('?') => app.enter_actions_mode(),
             KeyCode::Char('r') => app.reload_issues(),
@@ -191,6 +278,12 @@ fn handle_key_event(
         KeyCode::Char('q') | KeyCode::Esc => return Some(RunOutcome::Quit),
         KeyCode::Char('j') | KeyCode::Down => app.next(),
         KeyCode::Char('k') | KeyCode::Up => app.prev(),
+        KeyCode::Char('e') => app.start_summary_edit_input(),
+        KeyCode::Char('E') => app.start_description_edit_input(),
+        KeyCode::Char('l') => app.start_labels_edit_input(),
+        KeyCode::Char('m') => app.start_components_edit_input(),
+        KeyCode::Char('u') => app.enter_custom_fields_mode(),
+        KeyCode::Char('b') => app.enter_boards_mode(),
         KeyCode::Char('c') => app.enter_comments_mode(),
         KeyCode::Char('t') => app.enter_transitions_mode(),
         KeyCode::Char('?') => app.enter_actions_mode(),
@@ -278,8 +371,14 @@ fn draw_ui(frame: &mut Frame, app: &App) {
         "FILTER"
     } else if app.in_comment_input_mode() {
         "COMMENT-INPUT"
+    } else if app.in_edit_input_mode() {
+        "EDIT-INPUT"
     } else if app.in_actions_mode() {
         "ACTIONS"
+    } else if app.in_custom_fields_mode() {
+        "CUSTOM-FIELDS"
+    } else if app.in_boards_mode() {
+        "BOARDS"
     } else if app.in_transitions_mode() {
         "TRANSITIONS"
     } else if app.in_comments_mode() {
@@ -301,29 +400,47 @@ fn draw_ui(frame: &mut Frame, app: &App) {
             app.comment_input(),
             app.status_line
         )
+    } else if app.in_edit_input_mode() {
+        format!(
+            "[{}] target: {} | value: {} | Enter submit | Esc cancel | {}",
+            mode,
+            app.edit_target_display(),
+            app.edit_input(),
+            app.status_line
+        )
     } else if app.in_actions_mode() {
         format!(
-            "[{}] ? close | c comments | t transitions | j/k move issues | f filter | r reload | {}",
+            "[{}] ? close | e/E/l/m edit | u custom | b boards | c comments | t transitions | j/k move issues | f filter | r reload | {}",
+            mode, app.status_line
+        )
+    } else if app.in_custom_fields_mode() {
+        format!(
+            "[{}] j/k move issues | n/p pick field | Enter edit | u close | r reload | o open | {}",
+            mode, app.status_line
+        )
+    } else if app.in_boards_mode() {
+        format!(
+            "[{}] j/k move issues | n/p pick board | Enter switch | u custom | b close | r reload | o open | {}",
             mode, app.status_line
         )
     } else if app.in_transitions_mode() {
         format!(
-            "[{}] j/k move issues | n/p pick transition | Enter apply | t close | r reload | o open | {}",
+            "[{}] j/k move issues | n/p pick transition | Enter apply | e/E/l/m edit | u custom | t close | r reload | o open | {}",
             mode, app.status_line
         )
     } else if app.in_comments_mode() {
         format!(
-            "[{}] j/k move issues | n/p move comments | a add | c close | r reload | o open | {}",
+            "[{}] j/k move issues | n/p move comments | a add | e/E/l/m edit | u custom | c close | r reload | o open | {}",
             mode, app.status_line
         )
     } else if app.choose_mode {
         format!(
-            "[{}] j/k move | Enter choose | c comments | t transitions | ? help | f filter | o open | q quit | {}",
+            "[{}] j/k move | Enter choose | e/E/l/m edit | u custom | b boards | c comments | t transitions | ? help | f filter | o open | q quit | {}",
             mode, app.status_line
         )
     } else {
         format!(
-            "[{}] j/k move | c comments | t transitions | ? help | f filter | r reload | o open | q quit | {}",
+            "[{}] j/k move | e/E/l/m edit | u custom | b boards | c comments | t transitions | ? help | f filter | r reload | o open | q quit | {}",
             mode, app.status_line
         )
     };
@@ -362,8 +479,15 @@ mod tests {
         let mut app = App::new(mock_source(), true);
         let (add_tx, _) = mpsc::channel();
         let (transition_tx, _) = mpsc::channel();
+        let (edit_tx, _) = mpsc::channel();
 
-        let outcome = handle_key_event(&mut app, key(KeyCode::Enter), &add_tx, &transition_tx);
+        let outcome = handle_key_event(
+            &mut app,
+            key(KeyCode::Enter),
+            &add_tx,
+            &transition_tx,
+            &edit_tx,
+        );
         assert_eq!(
             outcome,
             Some(RunOutcome::Chosen(Some("JAY-101".to_string())))
@@ -375,8 +499,15 @@ mod tests {
         let mut app = App::new(mock_source(), false);
         let (add_tx, _) = mpsc::channel();
         let (transition_tx, _) = mpsc::channel();
+        let (edit_tx, _) = mpsc::channel();
 
-        let outcome = handle_key_event(&mut app, key(KeyCode::Enter), &add_tx, &transition_tx);
+        let outcome = handle_key_event(
+            &mut app,
+            key(KeyCode::Enter),
+            &add_tx,
+            &transition_tx,
+            &edit_tx,
+        );
         assert_eq!(outcome, None);
         assert!(app
             .status_line
@@ -389,8 +520,15 @@ mod tests {
         app.enter_comments_mode();
         let (add_tx, _) = mpsc::channel();
         let (transition_tx, _) = mpsc::channel();
+        let (edit_tx, _) = mpsc::channel();
 
-        let outcome = handle_key_event(&mut app, key(KeyCode::Char('q')), &add_tx, &transition_tx);
+        let outcome = handle_key_event(
+            &mut app,
+            key(KeyCode::Char('q')),
+            &add_tx,
+            &transition_tx,
+            &edit_tx,
+        );
 
         assert_eq!(outcome, None);
         assert!(!app.in_comments_mode());
@@ -402,8 +540,15 @@ mod tests {
         app.enter_comments_mode();
         let (add_tx, _) = mpsc::channel();
         let (transition_tx, _) = mpsc::channel();
+        let (edit_tx, _) = mpsc::channel();
 
-        let outcome = handle_key_event(&mut app, key(KeyCode::Char('a')), &add_tx, &transition_tx);
+        let outcome = handle_key_event(
+            &mut app,
+            key(KeyCode::Char('a')),
+            &add_tx,
+            &transition_tx,
+            &edit_tx,
+        );
 
         assert_eq!(outcome, None);
         assert!(app.in_comment_input_mode());
@@ -414,8 +559,15 @@ mod tests {
         let mut app = App::new(mock_source(), false);
         let (add_tx, _) = mpsc::channel();
         let (transition_tx, _) = mpsc::channel();
+        let (edit_tx, _) = mpsc::channel();
 
-        let outcome = handle_key_event(&mut app, key(KeyCode::Char('t')), &add_tx, &transition_tx);
+        let outcome = handle_key_event(
+            &mut app,
+            key(KeyCode::Char('t')),
+            &add_tx,
+            &transition_tx,
+            &edit_tx,
+        );
 
         assert_eq!(outcome, None);
         assert!(app.in_transitions_mode());
@@ -426,10 +578,95 @@ mod tests {
         let mut app = App::new(mock_source(), false);
         let (add_tx, _) = mpsc::channel();
         let (transition_tx, _) = mpsc::channel();
+        let (edit_tx, _) = mpsc::channel();
 
-        let outcome = handle_key_event(&mut app, key(KeyCode::Char('?')), &add_tx, &transition_tx);
+        let outcome = handle_key_event(
+            &mut app,
+            key(KeyCode::Char('?')),
+            &add_tx,
+            &transition_tx,
+            &edit_tx,
+        );
 
         assert_eq!(outcome, None);
         assert!(app.in_actions_mode());
+    }
+
+    #[test]
+    fn b_enters_boards_mode() {
+        let mut app = App::new(mock_source(), false);
+        let (add_tx, _) = mpsc::channel();
+        let (transition_tx, _) = mpsc::channel();
+        let (edit_tx, _) = mpsc::channel();
+
+        let outcome = handle_key_event(
+            &mut app,
+            key(KeyCode::Char('b')),
+            &add_tx,
+            &transition_tx,
+            &edit_tx,
+        );
+
+        assert_eq!(outcome, None);
+        assert!(app.in_boards_mode());
+    }
+
+    #[test]
+    fn e_enters_edit_input_mode() {
+        let mut app = App::new(mock_source(), false);
+        let (add_tx, _) = mpsc::channel();
+        let (transition_tx, _) = mpsc::channel();
+        let (edit_tx, _) = mpsc::channel();
+
+        let outcome = handle_key_event(
+            &mut app,
+            key(KeyCode::Char('e')),
+            &add_tx,
+            &transition_tx,
+            &edit_tx,
+        );
+
+        assert_eq!(outcome, None);
+        assert!(app.in_edit_input_mode());
+        assert_eq!(app.edit_target_label(), "summary");
+    }
+
+    #[test]
+    fn l_enters_labels_edit_input_mode() {
+        let mut app = App::new(mock_source(), false);
+        let (add_tx, _) = mpsc::channel();
+        let (transition_tx, _) = mpsc::channel();
+        let (edit_tx, _) = mpsc::channel();
+
+        let outcome = handle_key_event(
+            &mut app,
+            key(KeyCode::Char('l')),
+            &add_tx,
+            &transition_tx,
+            &edit_tx,
+        );
+
+        assert_eq!(outcome, None);
+        assert!(app.in_edit_input_mode());
+        assert_eq!(app.edit_target_label(), "labels");
+    }
+
+    #[test]
+    fn u_enters_custom_fields_mode() {
+        let mut app = App::new(mock_source(), false);
+        let (add_tx, _) = mpsc::channel();
+        let (transition_tx, _) = mpsc::channel();
+        let (edit_tx, _) = mpsc::channel();
+
+        let outcome = handle_key_event(
+            &mut app,
+            key(KeyCode::Char('u')),
+            &add_tx,
+            &transition_tx,
+            &edit_tx,
+        );
+
+        assert_eq!(outcome, None);
+        assert!(app.in_custom_fields_mode());
     }
 }

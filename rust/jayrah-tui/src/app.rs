@@ -5,11 +5,18 @@ use std::{
 };
 
 use crate::{
-    adapter::{load_issues_from_adapter, open_issue_in_browser},
-    mock::{
-        mock_comments_for_issue, mock_detail_from_issue, mock_issues, mock_transitions_for_issue,
+    adapter::{
+        load_boards_from_adapter, load_custom_fields_from_adapter, load_issues_from_adapter,
+        open_issue_in_browser,
     },
-    types::{AdapterSource, Issue, IssueComment, IssueDetail, IssueTransition},
+    mock::{
+        mock_boards, mock_comments_for_issue, mock_custom_fields, mock_detail_from_issue,
+        mock_issues, mock_transitions_for_issue,
+    },
+    types::{
+        AdapterSource, BoardEntry, CustomFieldEntry, Issue, IssueComment, IssueDetail,
+        IssueTransition,
+    },
     utils::{compact_error, join_or_dash},
 };
 
@@ -79,10 +86,38 @@ pub struct ApplyTransitionResult {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum EditField {
+    Summary,
+    Description,
+    Labels,
+    Components,
+    CustomField,
+}
+
+#[derive(Debug)]
+pub struct EditIssueRequest {
+    pub key: String,
+    pub field: EditField,
+    pub value: String,
+    pub custom_field: Option<CustomFieldEntry>,
+}
+
+#[derive(Debug)]
+pub struct EditIssueResult {
+    pub key: String,
+    pub field: EditField,
+    pub value: String,
+    pub custom_field: Option<CustomFieldEntry>,
+    pub result: std::result::Result<(), String>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum DetailPaneMode {
     Detail,
     Comments,
     Transitions,
+    Boards,
+    CustomFields,
     Actions,
 }
 
@@ -107,11 +142,20 @@ pub struct App {
     comment_input_mode: bool,
     comment_input: String,
     comment_submit_in_flight: bool,
+    edit_input_mode: bool,
+    edit_input: String,
+    edit_target: EditField,
+    active_custom_field: Option<CustomFieldEntry>,
+    edit_submit_in_flight: bool,
     transitions_cache: HashMap<String, Vec<IssueTransition>>,
     transitions_errors: HashMap<String, String>,
     transitions_loading_key: Option<String>,
     transition_selected: usize,
     transition_apply_in_flight: bool,
+    boards: Vec<BoardEntry>,
+    board_selected: usize,
+    custom_fields: Vec<CustomFieldEntry>,
+    custom_field_selected: usize,
     pane_mode: DetailPaneMode,
     last_selected_key: Option<String>,
     selected_changed_at: Instant,
@@ -139,11 +183,20 @@ impl App {
             comment_input_mode: false,
             comment_input: String::new(),
             comment_submit_in_flight: false,
+            edit_input_mode: false,
+            edit_input: String::new(),
+            edit_target: EditField::Summary,
+            active_custom_field: None,
+            edit_submit_in_flight: false,
             transitions_cache: HashMap::new(),
             transitions_errors: HashMap::new(),
             transitions_loading_key: None,
             transition_selected: 0,
             transition_apply_in_flight: false,
+            boards: Vec::new(),
+            board_selected: 0,
+            custom_fields: Vec::new(),
+            custom_field_selected: 0,
             pane_mode: DetailPaneMode::Detail,
             last_selected_key: None,
             selected_changed_at: Instant::now(),
@@ -231,6 +284,14 @@ impl App {
         self.pane_mode == DetailPaneMode::Transitions
     }
 
+    pub fn in_boards_mode(&self) -> bool {
+        self.pane_mode == DetailPaneMode::Boards
+    }
+
+    pub fn in_custom_fields_mode(&self) -> bool {
+        self.pane_mode == DetailPaneMode::CustomFields
+    }
+
     pub fn in_actions_mode(&self) -> bool {
         self.pane_mode == DetailPaneMode::Actions
     }
@@ -239,8 +300,35 @@ impl App {
         self.comment_input_mode
     }
 
+    pub fn in_edit_input_mode(&self) -> bool {
+        self.edit_input_mode
+    }
+
     pub fn comment_input(&self) -> &str {
         self.comment_input.as_str()
+    }
+
+    pub fn edit_input(&self) -> &str {
+        self.edit_input.as_str()
+    }
+
+    pub fn edit_target_label(&self) -> &'static str {
+        match self.edit_target {
+            EditField::Summary => "summary",
+            EditField::Description => "description",
+            EditField::Labels => "labels",
+            EditField::Components => "components",
+            EditField::CustomField => "custom field",
+        }
+    }
+
+    pub fn edit_target_display(&self) -> String {
+        if self.edit_target == EditField::CustomField {
+            if let Some(field) = &self.active_custom_field {
+                return format!("custom field: {}", field.name);
+            }
+        }
+        self.edit_target_label().to_string()
     }
 
     pub fn enter_comments_mode(&mut self) {
@@ -259,6 +347,31 @@ impl App {
             "Transitions mode: n/p select transition, Enter apply, t or Esc close".to_string();
     }
 
+    pub fn enter_boards_mode(&mut self) {
+        self.pane_mode = DetailPaneMode::Boards;
+        self.comment_input_mode = false;
+        self.comment_input.clear();
+        self.load_boards();
+        if !self.boards.is_empty() {
+            self.status_line =
+                "Boards mode: n/p select board, Enter apply, b or Esc close".to_string();
+        }
+    }
+
+    pub fn enter_custom_fields_mode(&mut self) {
+        self.pane_mode = DetailPaneMode::CustomFields;
+        self.comment_input_mode = false;
+        self.comment_input.clear();
+        self.edit_input_mode = false;
+        self.edit_input.clear();
+        self.active_custom_field = None;
+        self.load_custom_fields();
+        if !self.custom_fields.is_empty() {
+            self.status_line =
+                "Custom fields mode: n/p select field, Enter edit, u or Esc close".to_string();
+        }
+    }
+
     pub fn enter_actions_mode(&mut self) {
         self.pane_mode = DetailPaneMode::Actions;
         self.comment_input_mode = false;
@@ -270,6 +383,9 @@ impl App {
         self.pane_mode = DetailPaneMode::Detail;
         self.comment_input_mode = false;
         self.comment_input.clear();
+        self.edit_input_mode = false;
+        self.edit_input.clear();
+        self.active_custom_field = None;
         self.status_line = "Detail mode".to_string();
     }
 
@@ -282,6 +398,8 @@ impl App {
             return;
         }
 
+        self.edit_input_mode = false;
+        self.edit_input.clear();
         self.comment_input_mode = true;
         self.status_line = "Comment input: type message, Enter submit, Esc cancel".to_string();
     }
@@ -298,6 +416,93 @@ impl App {
 
     pub fn pop_comment_input_char(&mut self) {
         self.comment_input.pop();
+    }
+
+    pub fn start_summary_edit_input(&mut self) {
+        self.start_edit_input(EditField::Summary);
+    }
+
+    pub fn start_description_edit_input(&mut self) {
+        self.start_edit_input(EditField::Description);
+    }
+
+    pub fn start_labels_edit_input(&mut self) {
+        self.start_edit_input(EditField::Labels);
+    }
+
+    pub fn start_components_edit_input(&mut self) {
+        self.start_edit_input(EditField::Components);
+    }
+
+    pub fn start_selected_custom_field_edit_input(&mut self) {
+        if self.custom_fields.is_empty() {
+            self.status_line = "No custom fields configured".to_string();
+            return;
+        }
+
+        let selected_index = self.custom_field_selected.min(self.custom_fields.len() - 1);
+        self.active_custom_field = Some(self.custom_fields[selected_index].clone());
+        self.start_edit_input(EditField::CustomField);
+    }
+
+    fn start_edit_input(&mut self, field: EditField) {
+        if self.edit_submit_in_flight {
+            self.status_line = "Issue update in progress...".to_string();
+            return;
+        }
+
+        let Some(issue) = self.selected_issue() else {
+            self.status_line = "No issue selected".to_string();
+            return;
+        };
+        let issue_key = issue.key.clone();
+        let issue_summary = issue.summary.clone();
+
+        self.comment_input_mode = false;
+        self.comment_input.clear();
+        self.edit_input_mode = true;
+        self.edit_target = field;
+        if field != EditField::CustomField {
+            self.active_custom_field = None;
+        }
+        self.edit_input = match field {
+            EditField::Summary => issue_summary,
+            EditField::Description => self
+                .detail_cache
+                .get(&issue_key)
+                .map(|detail| detail.description.clone())
+                .unwrap_or_default(),
+            EditField::Labels => self
+                .detail_cache
+                .get(&issue_key)
+                .map(|detail| detail.labels.join(", "))
+                .unwrap_or_default(),
+            EditField::Components => self
+                .detail_cache
+                .get(&issue_key)
+                .map(|detail| detail.components.join(", "))
+                .unwrap_or_default(),
+            EditField::CustomField => String::new(),
+        };
+        self.status_line = format!(
+            "Editing {}: Enter submit, Esc cancel",
+            self.edit_target_label()
+        );
+    }
+
+    pub fn cancel_edit_input(&mut self) {
+        self.edit_input_mode = false;
+        self.edit_input.clear();
+        self.active_custom_field = None;
+        self.status_line = "Edit canceled".to_string();
+    }
+
+    pub fn push_edit_input_char(&mut self, value: char) {
+        self.edit_input.push(value);
+    }
+
+    pub fn pop_edit_input_char(&mut self) {
+        self.edit_input.pop();
     }
 
     pub fn next_comment(&mut self) {
@@ -364,6 +569,42 @@ impl App {
         };
     }
 
+    pub fn next_board(&mut self) {
+        if self.boards.is_empty() {
+            return;
+        }
+        self.board_selected = (self.board_selected + 1) % self.boards.len();
+    }
+
+    pub fn prev_board(&mut self) {
+        if self.boards.is_empty() {
+            return;
+        }
+        self.board_selected = if self.board_selected == 0 {
+            self.boards.len() - 1
+        } else {
+            self.board_selected - 1
+        };
+    }
+
+    pub fn next_custom_field(&mut self) {
+        if self.custom_fields.is_empty() {
+            return;
+        }
+        self.custom_field_selected = (self.custom_field_selected + 1) % self.custom_fields.len();
+    }
+
+    pub fn prev_custom_field(&mut self) {
+        if self.custom_fields.is_empty() {
+            return;
+        }
+        self.custom_field_selected = if self.custom_field_selected == 0 {
+            self.custom_fields.len() - 1
+        } else {
+            self.custom_field_selected - 1
+        };
+    }
+
     pub fn selected_issue(&self) -> Option<&Issue> {
         let visible = self.visible_indices();
         let issue_index = visible.get(self.selected)?;
@@ -387,11 +628,18 @@ impl App {
         self.comment_input_mode = false;
         self.comment_input.clear();
         self.comment_submit_in_flight = false;
+        self.edit_input_mode = false;
+        self.edit_input.clear();
+        self.edit_target = EditField::Summary;
+        self.active_custom_field = None;
+        self.edit_submit_in_flight = false;
         self.transitions_cache.clear();
         self.transitions_errors.clear();
         self.transitions_loading_key = None;
         self.transition_selected = 0;
         self.transition_apply_in_flight = false;
+        self.custom_fields.clear();
+        self.custom_field_selected = 0;
 
         if self.source.mock_only {
             self.issues = mock_issues(self.reload_count);
@@ -433,7 +681,11 @@ impl App {
             self.comments_selected = 0;
             self.comment_input_mode = false;
             self.comment_input.clear();
+            self.edit_input_mode = false;
+            self.edit_input.clear();
+            self.active_custom_field = None;
             self.transition_selected = 0;
+            self.custom_field_selected = 0;
         }
     }
 
@@ -555,6 +807,73 @@ impl App {
         }
     }
 
+    fn load_boards(&mut self) {
+        if self.source.mock_only {
+            self.boards = mock_boards();
+        } else {
+            match load_boards_from_adapter() {
+                Ok(boards) => {
+                    self.boards = boards;
+                }
+                Err(error) => {
+                    self.boards.clear();
+                    self.status_line = format!(
+                        "Failed to load boards ({})",
+                        compact_error(&error.to_string())
+                    );
+                    return;
+                }
+            }
+        }
+
+        if self.boards.is_empty() {
+            self.status_line = "No boards configured".to_string();
+            self.board_selected = 0;
+            return;
+        }
+
+        if let Some(current_board) = self.source.board.as_deref() {
+            if let Some(position) = self
+                .boards
+                .iter()
+                .position(|board| board.name.as_str() == current_board)
+            {
+                self.board_selected = position;
+                return;
+            }
+        }
+
+        self.board_selected = 0;
+    }
+
+    fn load_custom_fields(&mut self) {
+        if self.source.mock_only {
+            self.custom_fields = mock_custom_fields();
+        } else {
+            match load_custom_fields_from_adapter() {
+                Ok(fields) => {
+                    self.custom_fields = fields;
+                }
+                Err(error) => {
+                    self.custom_fields.clear();
+                    self.status_line = format!(
+                        "Failed to load custom fields ({})",
+                        compact_error(&error.to_string())
+                    );
+                    return;
+                }
+            }
+        }
+
+        if self.custom_fields.is_empty() {
+            self.status_line = "No custom fields configured".to_string();
+            self.custom_field_selected = 0;
+            return;
+        }
+
+        self.custom_field_selected = 0;
+    }
+
     pub fn submit_comment_input(&mut self, submit_tx: &Sender<AddCommentRequest>) {
         let Some(key) = self.selected_issue_key() else {
             self.status_line = "No issue selected".to_string();
@@ -604,6 +923,74 @@ impl App {
             self.status_line = format!("Submitting comment for {key}...");
         } else {
             self.status_line = format!("Failed to queue comment submission for {key}");
+        }
+    }
+
+    pub fn submit_edit_input(&mut self, submit_tx: &Sender<EditIssueRequest>) {
+        let Some(key) = self.selected_issue_key() else {
+            self.status_line = "No issue selected".to_string();
+            return;
+        };
+
+        let value = self.edit_input.to_string();
+        if self.edit_target == EditField::Summary && value.trim().is_empty() {
+            self.status_line = "Summary cannot be empty".to_string();
+            return;
+        }
+
+        if self.edit_submit_in_flight {
+            self.status_line = "Issue update in progress...".to_string();
+            return;
+        }
+
+        if !self.using_adapter {
+            match self.edit_target {
+                EditField::Summary => {
+                    self.update_issue_summary(&key, &value);
+                    self.detail_cache.remove(&key);
+                }
+                EditField::Description => {
+                    if let Some(detail) = self.detail_cache.get_mut(&key) {
+                        detail.description = value.clone();
+                    }
+                }
+                EditField::Labels => {
+                    if let Some(detail) = self.detail_cache.get_mut(&key) {
+                        detail.labels = Self::csv_to_values(&value);
+                    }
+                }
+                EditField::Components => {
+                    if let Some(detail) = self.detail_cache.get_mut(&key) {
+                        detail.components = Self::csv_to_values(&value);
+                    }
+                }
+                EditField::CustomField => {}
+            }
+            self.edit_input_mode = false;
+            self.edit_input.clear();
+            self.status_line = format!("Updated {} in mock mode", self.edit_target_label());
+            return;
+        }
+
+        if submit_tx
+            .send(EditIssueRequest {
+                key: key.clone(),
+                field: self.edit_target,
+                value: value.clone(),
+                custom_field: if self.edit_target == EditField::CustomField {
+                    self.active_custom_field.clone()
+                } else {
+                    None
+                },
+            })
+            .is_ok()
+        {
+            self.edit_submit_in_flight = true;
+            self.edit_input_mode = false;
+            self.edit_input.clear();
+            self.status_line = format!("Updating {} for {}...", self.edit_target_label(), key);
+        } else {
+            self.status_line = format!("Failed to queue issue update for {key}");
         }
     }
 
@@ -658,10 +1045,40 @@ impl App {
         }
     }
 
+    pub fn apply_selected_board(&mut self) {
+        if self.boards.is_empty() {
+            self.status_line = "No boards available".to_string();
+            return;
+        }
+
+        let selected_index = self.board_selected.min(self.boards.len() - 1);
+        let selected = self.boards[selected_index].clone();
+        self.source.board = Some(selected.name.clone());
+        self.source.query = None;
+        self.enter_detail_mode();
+        self.reload_issues();
+        self.status_line = format!("Switched to board '{}'", selected.name);
+    }
+
     fn update_issue_status(&mut self, key: &str, status: &str) {
         if let Some(issue) = self.issues.iter_mut().find(|issue| issue.key == key) {
             issue.status = status.to_string();
         }
+    }
+
+    fn update_issue_summary(&mut self, key: &str, summary: &str) {
+        if let Some(issue) = self.issues.iter_mut().find(|issue| issue.key == key) {
+            issue.summary = summary.to_string();
+        }
+    }
+
+    fn csv_to_values(value: &str) -> Vec<String> {
+        value
+            .split(',')
+            .map(|entry| entry.trim())
+            .filter(|entry| !entry.is_empty())
+            .map(|entry| entry.to_string())
+            .collect()
     }
 
     pub fn ingest_detail_result(&mut self, message: DetailResult) {
@@ -775,6 +1192,69 @@ impl App {
                 if self.selected_issue_key().as_deref() == Some(message.key.as_str()) {
                     self.status_line = format!(
                         "Failed to transition {} ({})",
+                        message.key,
+                        compact_error(&error)
+                    );
+                }
+            }
+        }
+    }
+
+    pub fn ingest_edit_issue_result(&mut self, message: EditIssueResult) {
+        self.edit_submit_in_flight = false;
+        self.active_custom_field = None;
+        match message.result {
+            Ok(()) => {
+                match message.field {
+                    EditField::Summary => {
+                        self.update_issue_summary(&message.key, &message.value);
+                        self.detail_cache.remove(&message.key);
+                    }
+                    EditField::Description => {
+                        if let Some(detail) = self.detail_cache.get_mut(&message.key) {
+                            detail.description = message.value.clone();
+                        } else {
+                            self.detail_cache.remove(&message.key);
+                        }
+                    }
+                    EditField::Labels => {
+                        if let Some(detail) = self.detail_cache.get_mut(&message.key) {
+                            detail.labels = Self::csv_to_values(&message.value);
+                        } else {
+                            self.detail_cache.remove(&message.key);
+                        }
+                    }
+                    EditField::Components => {
+                        if let Some(detail) = self.detail_cache.get_mut(&message.key) {
+                            detail.components = Self::csv_to_values(&message.value);
+                        } else {
+                            self.detail_cache.remove(&message.key);
+                        }
+                    }
+                    EditField::CustomField => {}
+                }
+                if self.selected_issue_key().as_deref() == Some(message.key.as_str()) {
+                    self.status_line = format!(
+                        "Updated {} for {}",
+                        match message.field {
+                            EditField::Summary => "summary",
+                            EditField::Description => "description",
+                            EditField::Labels => "labels",
+                            EditField::Components => "components",
+                            EditField::CustomField => message
+                                .custom_field
+                                .as_ref()
+                                .map(|field| field.name.as_str())
+                                .unwrap_or("custom field"),
+                        },
+                        message.key
+                    );
+                }
+            }
+            Err(error) => {
+                if self.selected_issue_key().as_deref() == Some(message.key.as_str()) {
+                    self.status_line = format!(
+                        "Failed to update {} ({})",
                         message.key,
                         compact_error(&error)
                     );
@@ -986,10 +1466,62 @@ impl App {
         text
     }
 
+    pub fn boards_text(&self) -> String {
+        if self.boards.is_empty() {
+            return "No boards loaded.\n\nPress b to retry loading configured boards.".to_string();
+        }
+
+        let current_board = self
+            .source
+            .board
+            .as_deref()
+            .unwrap_or("myissue")
+            .to_string();
+        let mut out = format!(
+            "Configured Boards\nCurrent: {}\n\nUse n/p to choose and Enter to switch.\n\n",
+            current_board
+        );
+        for (index, board) in self.boards.iter().enumerate() {
+            let marker = if index == self.board_selected {
+                ">"
+            } else {
+                " "
+            };
+            out.push_str(&format!(
+                "{marker} {} - {}\n",
+                board.name, board.description
+            ));
+        }
+        out
+    }
+
+    pub fn custom_fields_text(&self) -> String {
+        if self.custom_fields.is_empty() {
+            return "No custom fields configured.\n\nPress u to retry loading configured custom fields."
+                .to_string();
+        }
+
+        let mut out =
+            "Configured Custom Fields\n\nUse n/p to choose and Enter to edit selected field.\n\n"
+                .to_string();
+        for (index, field) in self.custom_fields.iter().enumerate() {
+            let marker = if index == self.custom_field_selected {
+                ">"
+            } else {
+                " "
+            };
+            out.push_str(&format!(
+                "{marker} {} ({}, {}) - {}\n",
+                field.name, field.field_id, field.field_type, field.description
+            ));
+        }
+        out
+    }
+
     pub fn actions_text(&self) -> String {
         let mode = if self.choose_mode { "choose" } else { "normal" };
         format!(
-            "Jayrah Rust TUI Actions ({mode} mode)\n\nNavigation\n  j/k or arrows: move issue selection\n  f or /: filter issues\n  r: reload issues\n\nIssue Actions\n  o: open selected issue in browser\n  c: comments pane\n  t: transitions pane\n  ?: actions/help pane\n\nComments Mode\n  n/p: previous/next comment\n  a: compose comment\n  Enter: submit comment draft\n\nTransitions Mode\n  n/p: previous/next transition\n  Enter: apply selected transition\n\nGlobal\n  q: quit (or close active pane)\n  Esc: close active pane/filter"
+            "Jayrah Rust TUI Actions ({mode} mode)\n\nNavigation\n  j/k or arrows: move issue selection\n  f or /: filter issues\n  r: reload issues\n\nIssue Actions\n  o: open selected issue in browser\n  e: edit issue summary\n  E: edit issue description\n  l: edit issue labels\n  m: edit issue components\n  u: custom field editor pane\n  b: board switcher pane\n  c: comments pane\n  t: transitions pane\n  ?: actions/help pane\n\nComments Mode\n  n/p: previous/next comment\n  a: compose comment\n  Enter: submit comment draft\n\nTransitions Mode\n  n/p: previous/next transition\n  Enter: apply selected transition\n\nBoards Mode\n  n/p: previous/next board\n  Enter: switch active board\n\nCustom Fields Mode\n  n/p: previous/next field\n  Enter: edit selected custom field\n\nGlobal\n  q: quit (or close active pane)\n  Esc: close active pane/filter"
         )
     }
 
@@ -998,6 +1530,8 @@ impl App {
             DetailPaneMode::Detail => self.detail_text_for_selected(),
             DetailPaneMode::Comments => self.comments_text_for_selected(),
             DetailPaneMode::Transitions => self.transitions_text_for_selected(),
+            DetailPaneMode::Boards => self.boards_text(),
+            DetailPaneMode::CustomFields => self.custom_fields_text(),
             DetailPaneMode::Actions => self.actions_text(),
         }
     }
@@ -1007,6 +1541,8 @@ impl App {
             DetailPaneMode::Detail => "Detail",
             DetailPaneMode::Comments => "Comments",
             DetailPaneMode::Transitions => "Transitions",
+            DetailPaneMode::Boards => "Boards",
+            DetailPaneMode::CustomFields => "Custom Fields",
             DetailPaneMode::Actions => "Actions",
         }
     }
@@ -1204,8 +1740,130 @@ mod tests {
         app.enter_actions_mode();
 
         let text = app.actions_text();
+        assert!(text.contains("b: board switcher pane"));
         assert!(text.contains("c: comments pane"));
         assert!(text.contains("t: transitions pane"));
+        assert!(text.contains("l: edit issue labels"));
+        assert!(text.contains("m: edit issue components"));
+        assert!(text.contains("u: custom field editor pane"));
         assert!(text.contains("?: actions/help pane"));
+    }
+
+    #[test]
+    fn enter_boards_mode_loads_mock_boards() {
+        let mut app = App::new(mock_source(), false);
+        app.enter_boards_mode();
+
+        assert!(app.in_boards_mode());
+        let text = app.boards_text();
+        assert!(text.contains("Configured Boards"));
+        assert!(text.contains("myissue"));
+    }
+
+    #[test]
+    fn apply_selected_board_updates_source() {
+        let mut app = App::new(mock_source(), false);
+        app.enter_boards_mode();
+        app.next_board();
+        app.apply_selected_board();
+
+        assert_eq!(app.source.board.as_deref(), Some("team"));
+        assert!(!app.in_boards_mode());
+        assert!(app.status_line.contains("Switched to board 'team'"));
+    }
+
+    #[test]
+    fn submit_summary_edit_in_mock_mode_updates_issue() {
+        let mut app = App::new(mock_source(), false);
+        let (tx, _) = mpsc::channel();
+
+        app.start_summary_edit_input();
+        app.edit_input = "Updated summary".to_string();
+        app.submit_edit_input(&tx);
+
+        let issue = app.selected_issue().expect("selected issue");
+        assert_eq!(issue.summary, "Updated summary");
+    }
+
+    #[test]
+    fn submit_description_edit_in_mock_mode_updates_detail_cache() {
+        let mut app = App::new(mock_source(), false);
+        let (detail_tx, _) = mpsc::channel();
+        let (edit_tx, _) = mpsc::channel();
+
+        app.maybe_request_detail(&detail_tx);
+        app.start_description_edit_input();
+        app.edit_input = "Updated description".to_string();
+        app.submit_edit_input(&edit_tx);
+
+        let detail = app.detail_text_for_selected();
+        assert!(detail.contains("Updated description"));
+    }
+
+    #[test]
+    fn submit_labels_edit_in_mock_mode_updates_detail_cache() {
+        let mut app = App::new(mock_source(), false);
+        let (detail_tx, _) = mpsc::channel();
+        let (edit_tx, _) = mpsc::channel();
+
+        app.maybe_request_detail(&detail_tx);
+        app.start_labels_edit_input();
+        app.edit_input = "alpha, beta".to_string();
+        app.submit_edit_input(&edit_tx);
+
+        let detail = app.detail_text_for_selected();
+        assert!(detail.contains("Labels: alpha, beta"));
+    }
+
+    #[test]
+    fn submit_components_edit_in_mock_mode_updates_detail_cache() {
+        let mut app = App::new(mock_source(), false);
+        let (detail_tx, _) = mpsc::channel();
+        let (edit_tx, _) = mpsc::channel();
+
+        app.maybe_request_detail(&detail_tx);
+        app.start_components_edit_input();
+        app.edit_input = "core, ui".to_string();
+        app.submit_edit_input(&edit_tx);
+
+        let detail = app.detail_text_for_selected();
+        assert!(detail.contains("Components: core, ui"));
+    }
+
+    #[test]
+    fn enter_custom_fields_mode_loads_mock_custom_fields() {
+        let mut app = App::new(mock_source(), false);
+        app.enter_custom_fields_mode();
+
+        assert!(app.in_custom_fields_mode());
+        let text = app.custom_fields_text();
+        assert!(text.contains("Configured Custom Fields"));
+        assert!(text.contains("Story Points"));
+    }
+
+    #[test]
+    fn start_selected_custom_field_edit_input_sets_custom_target() {
+        let mut app = App::new(mock_source(), false);
+        app.enter_custom_fields_mode();
+        app.start_selected_custom_field_edit_input();
+
+        assert!(app.in_edit_input_mode());
+        assert_eq!(app.edit_target_label(), "custom field");
+        assert!(app.edit_target_display().contains("Story Points"));
+    }
+
+    #[test]
+    fn submit_custom_field_edit_in_mock_mode_sets_status() {
+        let mut app = App::new(mock_source(), false);
+        let (edit_tx, _) = mpsc::channel();
+
+        app.enter_custom_fields_mode();
+        app.start_selected_custom_field_edit_input();
+        app.edit_input = "8".to_string();
+        app.submit_edit_input(&edit_tx);
+
+        assert!(app
+            .status_line
+            .contains("Updated custom field in mock mode"));
     }
 }

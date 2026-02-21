@@ -40,6 +40,20 @@ pub struct IssueTransition {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+pub struct BoardEntry {
+    pub name: String,
+    pub description: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CustomFieldEntry {
+    pub name: String,
+    pub field_id: String,
+    pub field_type: String,
+    pub description: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AdapterSource {
     pub board: Option<String>,
     pub query: Option<String>,

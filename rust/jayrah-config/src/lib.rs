@@ -1,6 +1,7 @@
 use std::{
     env, fs,
     path::{Path, PathBuf},
+    process::Command,
 };
 
 use anyhow::{anyhow, Context, Result};
@@ -20,6 +21,14 @@ pub struct BoardConfig {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CustomFieldConfig {
+    pub name: String,
+    pub field: String,
+    pub field_type: String,
+    pub description: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct JayrahConfig {
     pub jira_server: Option<String>,
     pub jira_user: Option<String>,
@@ -28,6 +37,7 @@ pub struct JayrahConfig {
     pub auth_method: Option<String>,
     pub insecure: bool,
     pub boards: Vec<BoardConfig>,
+    pub custom_fields: Vec<CustomFieldConfig>,
 }
 
 #[derive(Default, Deserialize)]
@@ -36,6 +46,8 @@ struct RawConfig {
     general: RawGeneral,
     #[serde(default)]
     boards: Vec<RawBoard>,
+    #[serde(default)]
+    custom_fields: Vec<RawCustomField>,
     jira_server: Option<String>,
     jira_user: Option<String>,
     jira_password: Option<String>,
@@ -52,6 +64,8 @@ struct RawGeneral {
     api_version: Option<String>,
     auth_method: Option<String>,
     insecure: Option<bool>,
+    #[serde(default)]
+    custom_fields: Vec<RawCustomField>,
 }
 
 #[derive(Default, Deserialize)]
@@ -59,6 +73,15 @@ struct RawBoard {
     name: Option<String>,
     jql: Option<String>,
     order_by: Option<String>,
+    description: Option<String>,
+}
+
+#[derive(Default, Deserialize)]
+struct RawCustomField {
+    name: Option<String>,
+    field: Option<String>,
+    #[serde(rename = "type")]
+    field_type: Option<String>,
     description: Option<String>,
 }
 
@@ -127,8 +150,8 @@ impl JayrahConfig {
         let jira_server =
             first_some(raw.general.jira_server, raw.jira_server).and_then(normalize_jira_server);
         let jira_user = first_some(raw.general.jira_user, raw.jira_user).and_then(non_empty);
-        let jira_password =
-            first_some(raw.general.jira_password, raw.jira_password).and_then(non_empty);
+        let jira_password = first_some(raw.general.jira_password, raw.jira_password)
+            .and_then(resolve_jira_password);
         let api_version = first_some(raw.general.api_version, raw.api_version).and_then(non_empty);
         let auth_method = first_some(raw.general.auth_method, raw.auth_method).and_then(non_empty);
         let insecure = raw.general.insecure.or(raw.insecure).unwrap_or(false);
@@ -154,6 +177,11 @@ impl JayrahConfig {
             boards.push(default_board());
         }
 
+        let mut custom_fields = parse_custom_fields(raw.general.custom_fields);
+        if !raw.custom_fields.is_empty() {
+            custom_fields = parse_custom_fields(raw.custom_fields);
+        }
+
         Self {
             jira_server,
             jira_user,
@@ -162,6 +190,7 @@ impl JayrahConfig {
             auth_method,
             insecure,
             boards,
+            custom_fields,
         }
     }
 }
@@ -236,13 +265,73 @@ fn first_some<T>(first: Option<T>, second: Option<T>) -> Option<T> {
     first.or(second)
 }
 
+fn parse_custom_fields(entries: Vec<RawCustomField>) -> Vec<CustomFieldConfig> {
+    entries
+        .into_iter()
+        .filter_map(|entry| {
+            let name = entry.name.and_then(non_empty)?;
+            let field = entry.field.and_then(non_empty)?;
+            let field_type = entry
+                .field_type
+                .and_then(non_empty)
+                .unwrap_or_else(|| "string".to_string());
+            let description = entry.description.and_then(non_empty);
+            Some(CustomFieldConfig {
+                name,
+                field,
+                field_type,
+                description,
+            })
+        })
+        .collect()
+}
+
+fn resolve_jira_password(value: String) -> Option<String> {
+    resolve_jira_password_with(value, fetch_secret_from_manager)
+}
+
+fn resolve_jira_password_with<F>(value: String, fetch: F) -> Option<String>
+where
+    F: Fn(&str, &str) -> Option<String>,
+{
+    let password = non_empty(value)?;
+    let Some((provider, key)) = parse_secret_reference(password.as_str()) else {
+        return Some(password);
+    };
+    fetch(provider, key)
+}
+
+fn parse_secret_reference(value: &str) -> Option<(&str, &str)> {
+    let (provider, key) = value.split_once("::")?;
+    if key.trim().is_empty() {
+        return None;
+    }
+    if provider == "pass" || provider == "passage" {
+        Some((provider, key.trim()))
+    } else {
+        None
+    }
+}
+
+fn fetch_secret_from_manager(provider: &str, key: &str) -> Option<String> {
+    let output = Command::new(provider).arg("show").arg(key).output().ok()?;
+    if !output.status.success() {
+        return None;
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    non_empty(stdout.trim().to_string())
+}
+
 #[cfg(test)]
 mod tests {
     use std::fs;
 
     use tempfile::tempdir;
 
-    use super::{default_config_path, resolve_current_user_jql, JayrahConfig};
+    use super::{
+        default_config_path, resolve_current_user_jql, resolve_jira_password_with, JayrahConfig,
+    };
 
     #[test]
     fn parses_general_config_and_board() {
@@ -261,6 +350,10 @@ boards:
   - name: my-board
     jql: project = DEMO
     order_by: updated
+custom_fields:
+  - name: Story Points
+    field: customfield_10016
+    type: number
 "#,
         )
         .expect("write config");
@@ -273,6 +366,8 @@ boards:
         assert_eq!(config.api_version(), "3");
         assert_eq!(config.auth_method(), "basic");
         assert_eq!(config.boards[0].name, "my-board");
+        assert_eq!(config.custom_fields[0].name, "Story Points");
+        assert_eq!(config.custom_fields[0].field_type, "number");
     }
 
     #[test]
@@ -310,5 +405,42 @@ boards:
             Some(value) => std::env::set_var("JAYRAH_CONFIG_FILE", value),
             None => std::env::remove_var("JAYRAH_CONFIG_FILE"),
         }
+    }
+
+    #[test]
+    fn resolves_pass_secret_references() {
+        let resolved =
+            resolve_jira_password_with("pass::jira/main".to_string(), |provider, key| {
+                assert_eq!(provider, "pass");
+                assert_eq!(key, "jira/main");
+                Some("token-from-pass".to_string())
+            });
+        assert_eq!(resolved.as_deref(), Some("token-from-pass"));
+    }
+
+    #[test]
+    fn resolves_passage_secret_references() {
+        let resolved =
+            resolve_jira_password_with("passage::jira/main".to_string(), |provider, key| {
+                assert_eq!(provider, "passage");
+                assert_eq!(key, "jira/main");
+                Some("token-from-passage".to_string())
+            });
+        assert_eq!(resolved.as_deref(), Some("token-from-passage"));
+    }
+
+    #[test]
+    fn leaves_plain_password_unchanged() {
+        let resolved = resolve_jira_password_with("plain-token".to_string(), |_provider, _key| {
+            panic!("fetch should not be called for plain passwords");
+        });
+        assert_eq!(resolved.as_deref(), Some("plain-token"));
+    }
+
+    #[test]
+    fn drops_password_when_secret_lookup_fails() {
+        let resolved =
+            resolve_jira_password_with("pass::jira/main".to_string(), |_provider, _key| None);
+        assert!(resolved.is_none());
     }
 }

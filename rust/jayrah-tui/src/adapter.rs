@@ -1,11 +1,13 @@
 use anyhow::{anyhow, Result};
-use jayrah_config::{resolve_current_user_jql, JayrahConfig};
+use jayrah_config::{resolve_current_user_jql, CustomFieldConfig, JayrahConfig};
 use jayrah_jira::{
     DetailIssue, IssueComment as JiraIssueComment, IssueTransition as JiraIssueTransition,
     JiraClient, ListIssue,
 };
 
-use crate::types::{AdapterSource, Issue, IssueComment, IssueDetail, IssueTransition};
+use crate::types::{
+    AdapterSource, BoardEntry, CustomFieldEntry, Issue, IssueComment, IssueDetail, IssueTransition,
+};
 
 const SEARCH_PAGE_SIZE: usize = 200;
 const SEARCH_FIELDS: [&str; 9] = [
@@ -63,10 +65,85 @@ pub fn apply_issue_transition_from_adapter(key: &str, transition_id: &str) -> Re
     client.transition_issue(key, transition_id)
 }
 
+pub fn update_issue_summary_from_adapter(key: &str, summary: &str) -> Result<()> {
+    let (_, client) = load_runtime()?;
+    client.update_issue_summary(key, summary)
+}
+
+pub fn update_issue_description_from_adapter(key: &str, description: &str) -> Result<()> {
+    let (_, client) = load_runtime()?;
+    client.update_issue_description(key, description)
+}
+
+pub fn update_issue_labels_from_adapter(key: &str, labels: &[String]) -> Result<()> {
+    let (_, client) = load_runtime()?;
+    client.update_issue_labels(key, labels)
+}
+
+pub fn update_issue_components_from_adapter(key: &str, components: &[String]) -> Result<()> {
+    let (_, client) = load_runtime()?;
+    client.update_issue_components(key, components)
+}
+
+pub fn load_custom_fields_from_adapter() -> Result<Vec<CustomFieldEntry>> {
+    let config = load_config()?;
+    Ok(load_custom_fields_from_config(config))
+}
+
+pub fn update_custom_field_from_adapter(
+    key: &str,
+    field: &CustomFieldEntry,
+    value: &str,
+) -> Result<()> {
+    let (_, client) = load_runtime()?;
+    client.update_issue_custom_field(key, &field.field_id, &field.field_type, value)
+}
+
+pub fn load_boards_from_adapter() -> Result<Vec<BoardEntry>> {
+    let config = load_config()?;
+    Ok(load_boards_from_config(config))
+}
+
 fn load_runtime() -> Result<(JayrahConfig, JiraClient)> {
-    let config = JayrahConfig::load_default()?;
+    let config = load_config()?;
     let client = JiraClient::from_config(&config)?;
     Ok((config, client))
+}
+
+fn load_config() -> Result<JayrahConfig> {
+    JayrahConfig::load_default()
+}
+
+fn load_boards_from_config(config: JayrahConfig) -> Vec<BoardEntry> {
+    config
+        .boards
+        .into_iter()
+        .map(|board| BoardEntry {
+            name: board.name,
+            description: board
+                .description
+                .unwrap_or_else(|| "<no description>".to_string()),
+        })
+        .collect()
+}
+
+fn load_custom_fields_from_config(config: JayrahConfig) -> Vec<CustomFieldEntry> {
+    config
+        .custom_fields
+        .into_iter()
+        .map(map_custom_field_config)
+        .collect()
+}
+
+fn map_custom_field_config(field: CustomFieldConfig) -> CustomFieldEntry {
+    CustomFieldEntry {
+        name: field.name,
+        field_id: field.field,
+        field_type: field.field_type,
+        description: field
+            .description
+            .unwrap_or_else(|| "<no description>".to_string()),
+    }
 }
 
 fn resolve_source_jql(source: &AdapterSource, config: &JayrahConfig) -> Result<String> {
@@ -150,14 +227,15 @@ fn map_issue_transition(transition: JiraIssueTransition) -> IssueTransition {
 
 #[cfg(test)]
 mod tests {
-    use jayrah_config::{BoardConfig, JayrahConfig};
+    use jayrah_config::{BoardConfig, CustomFieldConfig, JayrahConfig};
     use jayrah_jira::{
         DetailIssue, IssueComment as JiraIssueComment, IssueTransition as JiraIssueTransition,
         ListIssue,
     };
 
     use super::{
-        map_issue, map_issue_comment, map_issue_detail, map_issue_transition, resolve_source_jql,
+        load_boards_from_config, load_custom_fields_from_config, map_issue, map_issue_comment,
+        map_issue_detail, map_issue_transition, resolve_source_jql,
     };
     use crate::types::AdapterSource;
 
@@ -229,6 +307,55 @@ mod tests {
     }
 
     #[test]
+    fn loads_boards_from_config_with_default_description() {
+        let config = JayrahConfig {
+            jira_server: None,
+            jira_user: None,
+            jira_password: None,
+            api_version: None,
+            auth_method: None,
+            insecure: false,
+            boards: vec![BoardConfig {
+                name: "demo".to_string(),
+                jql: "project = DEMO".to_string(),
+                order_by: None,
+                description: None,
+            }],
+            custom_fields: vec![],
+        };
+
+        let boards = load_boards_from_config(config);
+        assert_eq!(boards.len(), 1);
+        assert_eq!(boards[0].name, "demo");
+        assert_eq!(boards[0].description, "<no description>");
+    }
+
+    #[test]
+    fn loads_custom_fields_from_config() {
+        let config = JayrahConfig {
+            jira_server: None,
+            jira_user: None,
+            jira_password: None,
+            api_version: None,
+            auth_method: None,
+            insecure: false,
+            boards: vec![],
+            custom_fields: vec![CustomFieldConfig {
+                name: "Story Points".to_string(),
+                field: "customfield_10016".to_string(),
+                field_type: "number".to_string(),
+                description: None,
+            }],
+        };
+
+        let fields = load_custom_fields_from_config(config);
+        assert_eq!(fields.len(), 1);
+        assert_eq!(fields[0].name, "Story Points");
+        assert_eq!(fields[0].field_id, "customfield_10016");
+        assert_eq!(fields[0].description, "<no description>");
+    }
+
+    #[test]
     fn resolves_board_jql_with_order_by_and_current_user() {
         let config = JayrahConfig {
             jira_server: Some("https://jira.example.com".to_string()),
@@ -243,6 +370,7 @@ mod tests {
                 order_by: Some("updated".to_string()),
                 description: None,
             }],
+            custom_fields: vec![],
         };
         let source = AdapterSource {
             board: Some("myissue".to_string()),

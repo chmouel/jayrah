@@ -7,12 +7,14 @@ use crate::{
     adapter::{
         add_issue_comment_from_adapter, apply_issue_transition_from_adapter,
         load_issue_comments_from_adapter, load_issue_detail_from_adapter,
-        load_issue_transitions_from_adapter,
+        load_issue_transitions_from_adapter, update_custom_field_from_adapter,
+        update_issue_components_from_adapter, update_issue_description_from_adapter,
+        update_issue_labels_from_adapter, update_issue_summary_from_adapter,
     },
     app::{
         AddCommentRequest, AddCommentResult, ApplyTransitionRequest, ApplyTransitionResult,
-        CommentRequest, CommentResult, DetailRequest, DetailResult, TransitionRequest,
-        TransitionResult,
+        CommentRequest, CommentResult, DetailRequest, DetailResult, EditField, EditIssueRequest,
+        EditIssueResult, TransitionRequest, TransitionResult,
     },
 };
 
@@ -154,4 +156,64 @@ pub fn start_apply_transition_worker() -> (
     });
 
     (request_tx, result_rx)
+}
+
+pub fn start_edit_issue_worker() -> (Sender<EditIssueRequest>, Receiver<EditIssueResult>) {
+    let (request_tx, request_rx) = mpsc::channel::<EditIssueRequest>();
+    let (result_tx, result_rx) = mpsc::channel::<EditIssueResult>();
+
+    thread::spawn(move || {
+        while let Ok(request) = request_rx.recv() {
+            let result = match request.field {
+                EditField::Summary => {
+                    update_issue_summary_from_adapter(&request.key, &request.value)
+                        .map_err(|error| error.to_string())
+                }
+                EditField::Description => {
+                    update_issue_description_from_adapter(&request.key, &request.value)
+                        .map_err(|error| error.to_string())
+                }
+                EditField::Labels => {
+                    update_issue_labels_from_adapter(&request.key, &csv_to_values(&request.value))
+                        .map_err(|error| error.to_string())
+                }
+                EditField::Components => update_issue_components_from_adapter(
+                    &request.key,
+                    &csv_to_values(&request.value),
+                )
+                .map_err(|error| error.to_string()),
+                EditField::CustomField => match request.custom_field.as_ref() {
+                    Some(field) => {
+                        update_custom_field_from_adapter(&request.key, field, &request.value)
+                            .map_err(|error| error.to_string())
+                    }
+                    None => Err("custom field metadata is missing".to_string()),
+                },
+            };
+
+            if result_tx
+                .send(EditIssueResult {
+                    key: request.key,
+                    field: request.field,
+                    value: request.value,
+                    custom_field: request.custom_field,
+                    result,
+                })
+                .is_err()
+            {
+                break;
+            }
+        }
+    });
+
+    (request_tx, result_rx)
+}
+
+fn csv_to_values(value: &str) -> Vec<String> {
+    value
+        .split(',')
+        .map(|entry| entry.trim())
+        .filter(|entry| !entry.is_empty())
+        .map(|entry| entry.to_string())
+        .collect()
 }

@@ -1,4 +1,6 @@
-use crate::types::{Issue, IssueComment, IssueDetail, IssueTransition};
+use crate::types::{
+    BoardEntry, CustomFieldEntry, Issue, IssueComment, IssueDetail, IssueTransition,
+};
 
 pub fn mock_issues(reload_count: usize) -> Vec<Issue> {
     let suffix = if reload_count == 0 {
@@ -83,6 +85,40 @@ pub fn mock_transitions_for_issue(issue_key: &str) -> Vec<IssueTransition> {
             name: "Mark Done".to_string(),
             to_status: "Done".to_string(),
             description: "Complete issue and close the workflow.".to_string(),
+        },
+    ]
+}
+
+pub fn mock_boards() -> Vec<BoardEntry> {
+    vec![
+        BoardEntry {
+            name: "myissue".to_string(),
+            description: "My current unresolved issues".to_string(),
+        },
+        BoardEntry {
+            name: "team".to_string(),
+            description: "Team board for active sprint work".to_string(),
+        },
+        BoardEntry {
+            name: "backlog".to_string(),
+            description: "Backlog triage and refinement queue".to_string(),
+        },
+    ]
+}
+
+pub fn mock_custom_fields() -> Vec<CustomFieldEntry> {
+    vec![
+        CustomFieldEntry {
+            name: "Story Points".to_string(),
+            field_id: "customfield_10016".to_string(),
+            field_type: "number".to_string(),
+            description: "Sprint estimation points".to_string(),
+        },
+        CustomFieldEntry {
+            name: "Spec URL".to_string(),
+            field_id: "customfield_10100".to_string(),
+            field_type: "url".to_string(),
+            description: "Reference design or specification link".to_string(),
         },
     ]
 }

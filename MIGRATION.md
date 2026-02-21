@@ -303,21 +303,21 @@ Exit criteria:
 - Legacy adapter-only code paths are removed.
 
 ### TUI Parity Checklist (Release Gate)
-- [ ] Browse issues
-- [ ] Filter/search issues
-- [ ] Issue detail pane
-- [ ] Reload issues
-- [ ] Open issue in browser
-- [ ] Choose mode return key
-- [ ] View comments
-- [ ] Add comment
-- [ ] Edit labels
-- [ ] Edit components
-- [ ] Transition issue
-- [ ] Edit title/description
-- [ ] Edit custom fields
-- [ ] Board switcher
-- [ ] Actions/help palette parity
+- [x] Browse issues
+- [x] Filter/search issues
+- [x] Issue detail pane
+- [x] Reload issues
+- [x] Open issue in browser
+- [x] Choose mode return key
+- [x] View comments
+- [x] Add comment
+- [x] Edit labels
+- [x] Edit components
+- [x] Transition issue
+- [x] Edit title/description
+- [x] Edit custom fields
+- [x] Board switcher
+- [x] Actions/help palette parity
 
 ### Testing Strategy
 - Rust unit tests:
@@ -392,3 +392,49 @@ Exit criteria:
 - 2026-02-21 06:10 UTC | uncertainty | Jira API v3 comment-create and transition-list/apply behavior still needs validation against a live Jira Cloud instance.
 - 2026-02-21 06:10 UTC | uncertainty | Rust config/client path does not yet resolve `pass::` or `passage::` secrets; behavior parity with Python secret resolution remains pending.
 - 2026-02-21 06:10 UTC | uncertainty | Final fallback policy progression (Stage 2/3) still needs explicit acceptance criteria tied to parity/stability thresholds.
+2026-02-21 06:12 UTC | codex | phaseB-board-switcher | Started Phase B board switcher parity slice for Rust TUI | in_progress | Add config-backed board list loading and in-app board selection/apply workflow
+2026-02-21 06:14 UTC | codex | phaseB-board-switcher | Added board switcher pane (`b`) with config-backed board list, `n/p` navigation, Enter-to-apply board switch, and query->board handoff behavior | complete | Run workspace formatting/check/tests and refresh migration TODO snapshot
+2026-02-21 06:14 UTC | codex | phaseB-board-switcher | Verified with `cargo fmt --all`, `cargo check --workspace`, `cargo test --workspace` (43 tests passed), and `cargo run -p jayrah-tui -- --help` | complete | Continue Phase B with labels/components edits, title/description edits, and custom field editing parity
+- 2026-02-21 06:14 UTC | todo | Phase B parity remaining: labels/components edits, title/description edits, and custom field editing.
+- 2026-02-21 06:14 UTC | todo | TUI parity checklist progress: View comments, Add comment, Transition issue, Board switcher, and Actions/help parity are implemented in Rust path; keep checklist gate entries synchronized as remaining actions land.
+- 2026-02-21 06:14 UTC | uncertainty | Jira API v3 comment-create and transition-list/apply behavior still needs validation against a live Jira Cloud instance.
+- 2026-02-21 06:14 UTC | uncertainty | Board switcher currently resets query mode to selected board mode by design; confirm expected UX for users who started in raw `--query` mode.
+- 2026-02-21 06:14 UTC | uncertainty | Rust config/client path does not yet resolve `pass::` or `passage::` secrets; behavior parity with Python secret resolution remains pending.
+- 2026-02-21 06:14 UTC | uncertainty | Final fallback policy progression (Stage 2/3) still needs explicit acceptance criteria tied to parity/stability thresholds.
+2026-02-21 06:15 UTC | codex | phaseB-edit-summary-description | Started Phase B title/description edit parity slice for Rust TUI | in_progress | Add native issue update API calls and inline summary/description edit flow in TUI
+2026-02-21 06:18 UTC | codex | phaseB-edit-summary-description | Added inline issue edit flow (`e` summary, `E` description) with async update worker, native Jira issue update endpoints, adapter bridge, and cache/list refresh on success | complete | Run workspace formatting/check/tests and refresh migration TODO snapshot
+2026-02-21 06:18 UTC | codex | phaseB-edit-summary-description | Verified with `cargo fmt --all`, `cargo check --workspace`, `cargo test --workspace` (46 tests passed), and `cargo run -p jayrah-tui -- --help` | complete | Continue Phase B with labels/components edits and custom field editing parity
+- 2026-02-21 06:18 UTC | todo | Phase B parity remaining: labels/components edits and custom field editing.
+- 2026-02-21 06:18 UTC | todo | TUI parity checklist progress: View comments, Add comment, Transition issue, Edit title/description, Board switcher, and Actions/help parity are implemented in Rust path; keep checklist gate entries synchronized as remaining actions land.
+- 2026-02-21 06:18 UTC | uncertainty | Jira API v3 comment-create, transition-list/apply, and description-update behavior still needs validation against a live Jira Cloud instance.
+- 2026-02-21 06:18 UTC | uncertainty | Board switcher currently resets query mode to selected board mode by design; confirm expected UX for users who started in raw `--query` mode.
+- 2026-02-21 06:18 UTC | uncertainty | Rust config/client path does not yet resolve `pass::` or `passage::` secrets; behavior parity with Python secret resolution remains pending.
+- 2026-02-21 06:18 UTC | uncertainty | Final fallback policy progression (Stage 2/3) still needs explicit acceptance criteria tied to parity/stability thresholds.
+2026-02-21 06:19 UTC | codex | phaseB-labels-components | Started Phase B labels/components edit parity slice for Rust TUI | in_progress | Extend inline edit pipeline with labels/components field updates and native Jira update calls
+2026-02-21 06:21 UTC | codex | phaseB-labels-components | Added labels/components edit flow (`l` labels, `m` components) with native Jira update endpoints, adapter bridge, async worker handling, and mock/detail cache updates | complete | Run workspace formatting/check/tests and refresh migration TODO snapshot
+2026-02-21 06:21 UTC | codex | phaseB-labels-components | Verified with `cargo fmt --all`, `cargo check --workspace`, `cargo test --workspace` (49 tests passed), and `cargo run -p jayrah-tui -- --help` | complete | Continue Phase B with custom field editing parity
+- 2026-02-21 06:21 UTC | todo | Phase B parity remaining: custom field editing.
+- 2026-02-21 06:21 UTC | todo | TUI parity checklist progress: View comments, Add comment, Edit labels, Edit components, Transition issue, Edit title/description, Board switcher, and Actions/help parity are implemented in Rust path; keep checklist gate entries synchronized as remaining actions land.
+- 2026-02-21 06:21 UTC | uncertainty | Jira API v3 comment-create, transition-list/apply, description-update, and labels/components update behavior still needs validation against a live Jira Cloud instance.
+- 2026-02-21 06:21 UTC | uncertainty | Board switcher currently resets query mode to selected board mode by design; confirm expected UX for users who started in raw `--query` mode.
+- 2026-02-21 06:21 UTC | uncertainty | Rust config/client path does not yet resolve `pass::` or `passage::` secrets; behavior parity with Python secret resolution remains pending.
+- 2026-02-21 06:21 UTC | uncertainty | Final fallback policy progression (Stage 2/3) still needs explicit acceptance criteria tied to parity/stability thresholds.
+2026-02-21 06:24 UTC | codex | phaseB-custom-fields | Started Phase B custom field editing parity slice for Rust TUI | in_progress | Add config-backed custom field metadata, TUI pane/edit flow, and native Jira update bridge
+2026-02-21 06:27 UTC | codex | phaseB-custom-fields | Added custom field editing flow (`u` pane, `n/p` select, Enter edit) with config-backed field metadata, native Jira custom field update endpoint, adapter bridge, async worker handling, and mock/detail cache updates | complete | Run workspace formatting/check/tests and refresh migration TODO snapshot
+2026-02-21 06:28 UTC | codex | phaseB-custom-fields | Verified with `cargo fmt --all`, `cargo check --workspace`, `cargo test --workspace` (54 tests passed), and `cargo run -p jayrah-tui -- --help` | complete | Refresh parity checklist status and move to Phase C hardening/live validation
+- 2026-02-21 06:28 UTC | todo | Phase B parity implementation is complete; next migration TODOs are Phase C hardening tasks (live Jira validation pass, latency/error instrumentation, and rollout policy staging).
+- 2026-02-21 06:28 UTC | todo | TUI parity checklist status: all listed features are now implemented in the Rust path; keep checklist gate and acceptance evidence synchronized during hardening.
+- 2026-02-21 06:28 UTC | uncertainty | Jira API v3 behavior for comment-create, transition-list/apply, description-update, labels/components update, and custom-field update still needs validation against a live Jira Cloud instance.
+- 2026-02-21 06:28 UTC | uncertainty | Board switcher currently resets query mode to selected board mode by design; confirm expected UX for users who started in raw `--query` mode.
+- 2026-02-21 06:28 UTC | uncertainty | Rust config/client path does not yet resolve `pass::` or `passage::` secrets; behavior parity with Python secret resolution remains pending.
+- 2026-02-21 06:28 UTC | uncertainty | Final fallback policy progression (Stage 2/3) still needs explicit acceptance criteria tied to parity/stability thresholds.
+2026-02-21 06:28 UTC | codex | migration-doc | Updated TUI parity checklist gate to mark all currently implemented Rust parity features as complete (`[x]`) | complete | Use Phase C hardening validation to confirm release-readiness against live Jira and rollout policy gates
+- 2026-02-21 06:28 UTC | todo | unchanged: Phase C hardening tasks remain (live Jira validation, latency/error instrumentation, rollout staging).
+- 2026-02-21 06:28 UTC | uncertainty | unchanged: board-switch query-mode UX expectation, `pass::`/`passage::` secret parity, and Stage 2/3 fallback acceptance criteria are still open.
+2026-02-21 06:29 UTC | codex | phaseA-config-parity | Started Rust config parity update for `jira_password` secret references (`pass::` / `passage::`) | in_progress | Add resolver path that mirrors Python behavior and unit coverage without PATH-global test coupling
+2026-02-21 06:30 UTC | codex | phaseA-config-parity | Added `jira_password` secret-reference resolver in `jayrah-config` that detects `pass::`/`passage::` refs and runs `<provider> show <key>`, with injectable fetcher tests for pass/passage/plain/failure flows | complete | Run rust workspace formatting/check/tests and refresh migration TODO snapshot
+2026-02-21 06:30 UTC | codex | phaseA-config-parity | Verified with `cargo fmt --all`, `cargo check --workspace`, and `cargo test --workspace` (58 tests passed) | complete | Continue Phase C hardening with live Jira behavior validation and rollout gate criteria
+- 2026-02-21 06:30 UTC | todo | Phase C hardening remains: live Jira validation for write/update flows, latency/error instrumentation, and rollout staging criteria.
+- 2026-02-21 06:30 UTC | uncertainty | Jira API v3 behavior for comment-create, transition-list/apply, description-update, labels/components update, and custom-field update still needs validation against a live Jira Cloud instance.
+- 2026-02-21 06:30 UTC | uncertainty | Board switcher currently resets query mode to selected board mode by design; confirm expected UX for users who started in raw `--query` mode.
+- 2026-02-21 06:30 UTC | uncertainty | Final fallback policy progression (Stage 2/3) still needs explicit acceptance criteria tied to parity/stability thresholds.
