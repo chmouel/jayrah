@@ -347,3 +347,16 @@ Exit criteria:
 
 2026-02-21 05:31 UTC | codex | Decision | Locked migration direction to full Rust TUI stack (native Rust Jira client, phased rollout, mostly-compatible config/auth, Python browse kept as thin launcher) | complete | Append comprehensive execution plan and begin Phase A foundation
 2026-02-21 05:31 UTC | codex | migration-doc | Added complete end-to-end Full Rust TUI Stack plan with scope, phases, parity gate, tests, risks, and cleanup criteria | complete | Start Phase A implementation in rust workspace and keep logging each step
+2026-02-21 05:46 UTC | codex | phaseA-native-backend | Started Phase A implementation to remove Python adapter dependency from Rust runtime path | in_progress | Scaffold Rust config/Jira/domain crates and wire jayrah-tui adapter to native client
+2026-02-21 05:46 UTC | codex | phaseA-native-backend | Added new workspace crates `jayrah-config`, `jayrah-jira`, and `jayrah-domain` with config parsing, auth defaults, JQL currentUser resolution, and Jira REST client foundations | complete | Replace jayrah-tui adapter subprocess calls with native Rust config/Jira usage
+2026-02-21 05:46 UTC | codex | phaseA-native-backend | Replaced `rust/jayrah-tui/src/adapter.rs` Python subprocess calls (`browse-list`, `issue-show`, `open`) with native Rust config + Jira client + browser open flow | complete | Run formatting/check/tests and validate help smoke path
+2026-02-21 05:46 UTC | codex | phaseA-native-backend | Verified with `cargo fmt --all`, `cargo check --workspace`, `cargo test --workspace` (23 tests passed), and `cargo run -p jayrah-tui -- --help` | complete | Continue Phase A by adding Rust-side comments/transitions/edit API surfaces and launcher integration checks
+2026-02-21 05:46 UTC | codex | phaseA-native-backend | Verified Python launcher compatibility with `uv run pytest tests/test_rust_tui_launcher.py tests/test_commands.py -q` (13 passed) after Rust adapter swap | complete | Begin next parity increment for native comment/transition/edit flows
+
+## Remaining TODOs / Uncertainties (Append-Only)
+- 2026-02-21 05:49 UTC | todo | Implement full Phase B Rust parity flows: comments view/add, transitions, labels/components edits, title/description edits, custom fields, board switcher, actions/help parity.
+- 2026-02-21 05:49 UTC | uncertainty | Rust config/client path does not yet resolve `pass::` or `passage::` secrets; behavior parity with Python secret resolution is pending.
+- 2026-02-21 05:49 UTC | uncertainty | Final fallback policy progression (Stage 2/3) still needs explicit acceptance criteria tied to parity/stability thresholds.
+
+2026-02-21 05:49 UTC | codex | migration-doc | Added append-only Remaining TODOs / uncertainties section with current open items | complete | Refresh this section on each rewrite step (use `none` when empty)
+2026-02-21 05:49 UTC | codex | repo-governance | Updated AGENTS.md to mandate Remaining TODOs / uncertainties updates in MIGRATION.md during rewrite work | complete | Apply this rule in all subsequent rewrite turns

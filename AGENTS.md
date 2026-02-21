@@ -4,6 +4,7 @@
 - The repository is currently in a Python -> Rust Ratatui TUI rewrite.
 - Before starting any rewrite-related task, always read `MIGRATION.md`.
 - During rewrite work, always append step-by-step progress entries to `MIGRATION.md` as you go.
+- During rewrite work, always append a `Remaining TODOs / uncertainties` update to `MIGRATION.md` for the current state (use `none` when there are no open items).
 - Required log format: `YYYY-MM-DD HH:MM UTC | actor | area | action | result | next`
 - If scope changes, add a `Decision` log entry before implementation.
 - If blocked, add a `Blocker` log entry with clear unblock conditions.
