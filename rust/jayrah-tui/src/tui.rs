@@ -843,7 +843,7 @@ fn draw_ui(frame: &mut Frame, app: &mut App, edit_session: Option<&EditInputSess
             Row::new(vec![
                 Cell::from(issue.key.clone()),
                 Cell::from(issue.summary.clone()),
-                Cell::from(issue.status.clone()),
+                Cell::from(issue.status.clone()).style(theme.table_status(issue.status.as_str())),
                 Cell::from(issue.assignee.clone()),
             ])
             .style(theme.table_row())

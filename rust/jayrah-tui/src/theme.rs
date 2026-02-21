@@ -91,6 +91,10 @@ impl Theme {
         Style::default().bg(BASE03).fg(BASE0)
     }
 
+    pub fn table_status(self, status: &str) -> Style {
+        self.status(issue_status_tone(status))
+    }
+
     pub fn table_selected(self) -> Style {
         Style::default()
             .bg(BLUE)
@@ -159,6 +163,66 @@ impl Theme {
     }
 }
 
+pub fn issue_status_tone(status: &str) -> StatusTone {
+    let lowered = status.to_ascii_lowercase();
+
+    if contains_any(
+        lowered.as_str(),
+        &[
+            "failed",
+            "failure",
+            "error",
+            "rejected",
+            "cancelled",
+            "canceled",
+        ],
+    ) {
+        return StatusTone::Error;
+    }
+
+    if contains_any(
+        lowered.as_str(),
+        &[
+            "done",
+            "closed",
+            "resolved",
+            "complete",
+            "completed",
+            "accepted",
+            "deployed",
+            "merged",
+        ],
+    ) {
+        return StatusTone::Success;
+    }
+
+    if contains_any(
+        lowered.as_str(),
+        &[
+            "blocked", "on hold", "pending", "waiting", "todo", "to do", "backlog",
+        ],
+    ) {
+        return StatusTone::Warning;
+    }
+
+    if contains_any(
+        lowered.as_str(),
+        &[
+            "in progress",
+            "progress",
+            "review",
+            "testing",
+            "qa",
+            "ready",
+            "triage",
+        ],
+    ) {
+        return StatusTone::Info;
+    }
+
+    StatusTone::Neutral
+}
+
 pub fn status_tone(status_line: &str) -> StatusTone {
     let lowered = status_line.to_ascii_lowercase();
 
@@ -212,7 +276,7 @@ fn contains_any(line: &str, patterns: &[&str]) -> bool {
 mod tests {
     use ratatui::style::{Color, Modifier};
 
-    use super::{status_tone, StatusTone, Theme};
+    use super::{issue_status_tone, status_tone, StatusTone, Theme};
 
     #[test]
     fn selected_row_style_uses_contrasting_accent() {
@@ -250,5 +314,24 @@ mod tests {
         let placeholder = theme.detail_placeholder();
         assert_eq!(placeholder.fg, Some(Color::Indexed(245)));
         assert!(placeholder.add_modifier.contains(Modifier::DIM));
+    }
+
+    #[test]
+    fn issue_status_tone_maps_common_workflow_statuses() {
+        assert_eq!(issue_status_tone("Done"), StatusTone::Success);
+        assert_eq!(issue_status_tone("In Progress"), StatusTone::Info);
+        assert_eq!(issue_status_tone("Blocked"), StatusTone::Warning);
+        assert_eq!(issue_status_tone("Failed"), StatusTone::Error);
+        assert_eq!(issue_status_tone("Open"), StatusTone::Neutral);
+    }
+
+    #[test]
+    fn table_status_style_uses_expected_status_color() {
+        let done_style = Theme::solarized_warm().table_status("Done");
+        assert_eq!(done_style.fg, Some(Color::Indexed(64)));
+        assert!(done_style.add_modifier.contains(Modifier::BOLD));
+
+        let blocked_style = Theme::solarized_warm().table_status("Blocked");
+        assert_eq!(blocked_style.fg, Some(Color::Indexed(166)));
     }
 }
