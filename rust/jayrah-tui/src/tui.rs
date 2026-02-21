@@ -742,37 +742,37 @@ fn draw_ui(frame: &mut Frame, app: &mut App, edit_session: Option<&EditInputSess
         )
     } else if app.in_actions_mode() {
         format!(
-            "[{}] ? close | j/k scroll | Ctrl+d/u page | Ctrl+v layout | Alt+h/l resize panes | e/E/l/m edit | u custom popup | b boards popup | c comments popup | t transitions popup | f filter | r reload | {}",
+            "[{}] j/k scroll | Ctrl+d/u page | ? close | q quit | {}",
             mode, app.status_line
         )
     } else if app.in_custom_fields_mode() {
         format!(
-            "[{}] j/k/n/p pick field | Enter edit | Ctrl+v layout | u close | r reload | o open | {}",
+            "[{}] j/k pick | Enter edit | u close | q quit | {}",
             mode, app.status_line
         )
     } else if app.in_boards_mode() {
         format!(
-            "[{}] j/k/n/p pick board | Enter switch | Ctrl+v layout | u custom | b close | r reload | o open | {}",
+            "[{}] j/k pick | Enter switch | b close | q quit | {}",
             mode, app.status_line
         )
     } else if app.in_transitions_mode() {
         format!(
-            "[{}] j/k/n/p pick transition | Enter apply | Ctrl+v layout | e/E/l/m edit | u custom | t close | r reload | o open | {}",
+            "[{}] j/k pick | Enter apply | t close | q quit | {}",
             mode, app.status_line
         )
     } else if app.in_comments_mode() {
         format!(
-            "[{}] j/k/n/p move comments | a add | Ctrl+v layout | e/E/l/m edit | u custom | c close | r reload | o open | {}",
+            "[{}] j/k move | a add | c close | q quit | {}",
             mode, app.status_line
         )
     } else if app.choose_mode {
         format!(
-            "[{}] j/k move (scroll in detail zoom) | J/K scroll detail | Ctrl+d/u page detail | Ctrl+v toggle layout | 1/2 zoom panes | Enter choose | e/E/l/m edit | u custom popup | b boards popup | c comments popup | t transitions popup | ? help popup | Alt+h/l resize first/second pane | f filter | o open | q quit | {}",
+            "[{}] j/k zoom | Enter choose | f filter | 1/2 zoom | Ctrl+v layout | ? help | q quit | {}",
             mode, app.status_line
         )
     } else {
         format!(
-            "[{}] j/k move (scroll in detail zoom) | J/K scroll detail | Ctrl+d/u page detail | Ctrl+v toggle layout | 1/2 zoom panes | e/E/l/m edit | u custom popup | b boards popup | c comments popup | t transitions popup | ? help popup | Alt+h/l resize first/second pane | f filter | r reload | o open | q quit | {}",
+            "[{}] j/k scroll | f filter | r reload | o open | 1/2 zoom | Ctrl+v layout | ? help | q quit | {}",
             mode, app.status_line
         )
     };

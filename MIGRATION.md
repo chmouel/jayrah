@@ -714,3 +714,11 @@ test result: ok. 82 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fin
 2026-02-21 12:42 UTC | codex | phase3-tooling | Fixed clippy warnings in jayrah-tui (collapsible string replace, question_mark, and dead-code warnings via test-only helper + production edit-submit path usage) | complete | Re-run formatting and clippy across workspace
 2026-02-21 12:42 UTC | codex | phase3-tooling | Verified with `cargo fmt --all` and `cargo clippy --workspace --all-targets` (clean, no warnings) | complete | Update remaining todos/uncertainties snapshot
 2026-02-21 12:42 UTC | codex | remaining-todos-uncertainties | Updated current state after clippy cleanup | none | none
+2026-02-21 12:48 UTC | codex | phase3-ux-footer | Started simplifying bottom footer shortcuts to essential keys only across modes | in_progress | Trim footer strings in tui renderer
+2026-02-21 12:48 UTC | codex | phase3-ux-footer | Reduced footer verbosity for NORMAL/CHOOSE and popup modes (actions/comments/transitions/boards/custom-fields) while keeping key essentials and status text | complete | Run rust fmt and clippy
+2026-02-21 12:48 UTC | codex | phase3-ux-footer | Verified with `cargo fmt --all` and `cargo clippy --workspace --all-targets` | complete | Update remaining todos/uncertainties snapshot
+2026-02-21 12:48 UTC | codex | remaining-todos-uncertainties | Updated current state after footer simplification | none | none
+2026-02-21 12:51 UTC | codex | phase3-tests | Started fixing failing jayrah-tui tests after condensed help/footer changes | in_progress | Align pane orientation assertions with current pane default ratios
+2026-02-21 12:51 UTC | codex | phase3-tests | Updated stale pane orientation/resize test expectations to match current horizontal default 40/60 and resize step behavior | complete | Run rust fmt, jayrah-tui tests, and clippy
+2026-02-21 12:51 UTC | codex | phase3-tests | Verified with `cargo fmt --all`, `cargo test -p jayrah-tui` (91 passed), and `cargo clippy --workspace --all-targets` | complete | Update remaining todos/uncertainties snapshot
+2026-02-21 12:51 UTC | codex | remaining-todos-uncertainties | Updated current state after pane test expectation alignment | none | none

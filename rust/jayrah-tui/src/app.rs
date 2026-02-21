@@ -2262,7 +2262,7 @@ mod tests {
     fn default_pane_orientation_is_horizontal() {
         let app = App::new(mock_source(), false);
         assert_eq!(app.pane_orientation(), PaneOrientation::Horizontal);
-        assert_eq!(app.pane_width_percentages(), (60, 40));
+        assert_eq!(app.pane_width_percentages(), (40, 60));
     }
 
     #[test]
@@ -2300,7 +2300,7 @@ mod tests {
 
         app.toggle_pane_orientation();
         assert_eq!(app.pane_orientation(), PaneOrientation::Horizontal);
-        assert_eq!(app.pane_width_percentages(), (60, 40));
+        assert_eq!(app.pane_width_percentages(), (40, 60));
     }
 
     #[test]
@@ -2308,7 +2308,7 @@ mod tests {
         let mut app = App::new(mock_source(), false);
 
         app.grow_left_pane();
-        assert_eq!(app.pane_width_percentages(), (65, 35));
+        assert_eq!(app.pane_width_percentages(), (45, 55));
 
         app.toggle_pane_orientation();
         assert_eq!(app.pane_width_percentages(), (30, 70));
@@ -2316,7 +2316,7 @@ mod tests {
         assert_eq!(app.pane_width_percentages(), (35, 65));
 
         app.toggle_pane_orientation();
-        assert_eq!(app.pane_width_percentages(), (65, 35));
+        assert_eq!(app.pane_width_percentages(), (45, 55));
     }
 
     #[test]
