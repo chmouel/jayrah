@@ -232,6 +232,12 @@ fn handle_mouse_event(app: &mut App, mouse: MouseEvent, hit_areas: MouseHitAreas
                 } else {
                     app.prev_custom_field();
                 }
+            } else if app.in_edit_menu_mode() {
+                if is_scroll_down {
+                    app.next_edit_menu();
+                } else {
+                    app.prev_edit_menu();
+                }
             }
         }
         return;
@@ -455,10 +461,7 @@ fn handle_key_event_with_edit_session(
             KeyCode::Char('j') | KeyCode::Down | KeyCode::Char('n') => app.next_comment(),
             KeyCode::Char('k') | KeyCode::Up | KeyCode::Char('p') => app.prev_comment(),
             KeyCode::Char('a') => app.start_comment_input(),
-            KeyCode::Char('e') => app.start_summary_edit_input(),
-            KeyCode::Char('E') => app.start_description_edit_input(),
-            KeyCode::Char('l') => app.start_labels_edit_input(),
-            KeyCode::Char('m') => app.start_components_edit_input(),
+            KeyCode::Char('e') => app.enter_edit_menu_mode(),
             KeyCode::Char('u') => app.enter_custom_fields_mode(),
             KeyCode::Char('?') => app.enter_actions_mode(),
             KeyCode::Char('r') => app.reload_issues(),
@@ -488,10 +491,7 @@ fn handle_key_event_with_edit_session(
             KeyCode::Char('u') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                 app.scroll_actions_up(app.actions_half_page_step())
             }
-            KeyCode::Char('e') => app.start_summary_edit_input(),
-            KeyCode::Char('E') => app.start_description_edit_input(),
-            KeyCode::Char('l') => app.start_labels_edit_input(),
-            KeyCode::Char('m') => app.start_components_edit_input(),
+            KeyCode::Char('e') => app.enter_edit_menu_mode(),
             KeyCode::Char('u') => app.enter_custom_fields_mode(),
             KeyCode::Char('b') => app.enter_boards_mode(),
             KeyCode::Char('c') => app.enter_comments_mode(),
@@ -511,10 +511,7 @@ fn handle_key_event_with_edit_session(
             KeyCode::Char('q') | KeyCode::Esc | KeyCode::Char('b') => app.enter_detail_mode(),
             KeyCode::Char('j') | KeyCode::Down | KeyCode::Char('n') => app.next_board(),
             KeyCode::Char('k') | KeyCode::Up | KeyCode::Char('p') => app.prev_board(),
-            KeyCode::Char('e') => app.start_summary_edit_input(),
-            KeyCode::Char('E') => app.start_description_edit_input(),
-            KeyCode::Char('l') => app.start_labels_edit_input(),
-            KeyCode::Char('m') => app.start_components_edit_input(),
+            KeyCode::Char('e') => app.enter_edit_menu_mode(),
             KeyCode::Char('u') => app.enter_custom_fields_mode(),
             KeyCode::Char('c') => app.enter_comments_mode(),
             KeyCode::Char('t') => app.enter_transitions_mode(),
@@ -550,15 +547,33 @@ fn handle_key_event_with_edit_session(
         return None;
     }
 
+    if app.in_edit_menu_mode() {
+        match key.code {
+            KeyCode::Char('q') | KeyCode::Esc | KeyCode::Char('e') => app.enter_detail_mode(),
+            KeyCode::Char('j') | KeyCode::Down | KeyCode::Char('n') => app.next_edit_menu(),
+            KeyCode::Char('k') | KeyCode::Up | KeyCode::Char('p') => app.prev_edit_menu(),
+            KeyCode::Char('b') => app.enter_boards_mode(),
+            KeyCode::Char('c') => app.enter_comments_mode(),
+            KeyCode::Char('t') => app.enter_transitions_mode(),
+            KeyCode::Char('u') => app.enter_custom_fields_mode(),
+            KeyCode::Char('?') => app.enter_actions_mode(),
+            KeyCode::Char('r') => app.reload_issues(),
+            KeyCode::Char('o') => app.open_selected_issue(),
+            KeyCode::Char('f') => {
+                focus_filter_input(app);
+            }
+            KeyCode::Enter => app.apply_selected_edit_menu(),
+            _ => {}
+        }
+        return None;
+    }
+
     if app.in_transitions_mode() {
         match key.code {
             KeyCode::Char('q') | KeyCode::Esc | KeyCode::Char('t') => app.enter_detail_mode(),
             KeyCode::Char('j') | KeyCode::Down | KeyCode::Char('n') => app.next_transition(),
             KeyCode::Char('k') | KeyCode::Up | KeyCode::Char('p') => app.prev_transition(),
-            KeyCode::Char('e') => app.start_summary_edit_input(),
-            KeyCode::Char('E') => app.start_description_edit_input(),
-            KeyCode::Char('l') => app.start_labels_edit_input(),
-            KeyCode::Char('m') => app.start_components_edit_input(),
+            KeyCode::Char('e') => app.enter_edit_menu_mode(),
             KeyCode::Char('u') => app.enter_custom_fields_mode(),
             KeyCode::Char('c') => app.enter_comments_mode(),
             KeyCode::Char('?') => app.enter_actions_mode(),
@@ -585,10 +600,7 @@ fn handle_key_event_with_edit_session(
         KeyCode::Char('u') if key.modifiers.contains(KeyModifiers::CONTROL) => {
             app.scroll_detail_up(app.detail_half_page_step())
         }
-        KeyCode::Char('e') => app.start_summary_edit_input(),
-        KeyCode::Char('E') => app.start_description_edit_input(),
-        KeyCode::Char('l') => app.start_labels_edit_input(),
-        KeyCode::Char('m') => app.start_components_edit_input(),
+        KeyCode::Char('e') => app.enter_edit_menu_mode(),
         KeyCode::Char('u') => app.enter_custom_fields_mode(),
         KeyCode::Char('b') => app.enter_boards_mode(),
         KeyCode::Char('c') => app.enter_comments_mode(),
@@ -1195,6 +1207,8 @@ fn draw_ui(
         "EDIT-INPUT"
     } else if app.in_actions_mode() {
         "ACTIONS"
+    } else if app.in_edit_menu_mode() {
+        "EDIT"
     } else if app.in_custom_fields_mode() {
         "CUSTOM-FIELDS"
     } else if app.in_boards_mode() {
@@ -1284,6 +1298,11 @@ fn draw_ui(
     } else if app.in_custom_fields_mode() {
         (
             String::from("j/k pick | Enter edit | u close | q quit"),
+            true,
+        )
+    } else if app.in_edit_menu_mode() {
+        (
+            String::from("j/k/n/p pick | Enter edit | e close | q quit"),
             true,
         )
     } else if app.in_boards_mode() {
@@ -1654,7 +1673,7 @@ mod tests {
     }
 
     #[test]
-    fn e_enters_edit_input_mode() {
+    fn e_enters_edit_menu_mode() {
         let mut app = App::new(mock_source(), false);
         let (add_tx, _) = mpsc::channel();
         let (transition_tx, _) = mpsc::channel();
@@ -1669,20 +1688,68 @@ mod tests {
         );
 
         assert_eq!(outcome, None);
-        assert!(app.in_edit_input_mode());
-        assert_eq!(app.edit_target_label(), "summary");
+        assert!(app.in_edit_menu_mode());
+        assert!(!app.in_edit_input_mode());
     }
 
     #[test]
-    fn l_enters_labels_edit_input_mode() {
+    fn e_then_enter_starts_summary_edit_input_mode() {
         let mut app = App::new(mock_source(), false);
         let (add_tx, _) = mpsc::channel();
         let (transition_tx, _) = mpsc::channel();
         let (edit_tx, _) = mpsc::channel();
 
+        let _ = handle_key_event(
+            &mut app,
+            key(KeyCode::Char('e')),
+            &add_tx,
+            &transition_tx,
+            &edit_tx,
+        );
         let outcome = handle_key_event(
             &mut app,
-            key(KeyCode::Char('l')),
+            key(KeyCode::Enter),
+            &add_tx,
+            &transition_tx,
+            &edit_tx,
+        );
+
+        assert_eq!(outcome, None);
+        assert!(app.in_edit_input_mode());
+        assert_eq!(app.edit_target_label(), "summary");
+    }
+
+    #[test]
+    fn e_then_j_j_then_enter_starts_labels_edit_input_mode() {
+        let mut app = App::new(mock_source(), false);
+        let (add_tx, _) = mpsc::channel();
+        let (transition_tx, _) = mpsc::channel();
+        let (edit_tx, _) = mpsc::channel();
+
+        let _ = handle_key_event(
+            &mut app,
+            key(KeyCode::Char('e')),
+            &add_tx,
+            &transition_tx,
+            &edit_tx,
+        );
+        let _ = handle_key_event(
+            &mut app,
+            key(KeyCode::Char('j')),
+            &add_tx,
+            &transition_tx,
+            &edit_tx,
+        );
+        let _ = handle_key_event(
+            &mut app,
+            key(KeyCode::Char('j')),
+            &add_tx,
+            &transition_tx,
+            &edit_tx,
+        );
+        let outcome = handle_key_event(
+            &mut app,
+            key(KeyCode::Enter),
             &add_tx,
             &transition_tx,
             &edit_tx,
@@ -1691,6 +1758,46 @@ mod tests {
         assert_eq!(outcome, None);
         assert!(app.in_edit_input_mode());
         assert_eq!(app.edit_target_label(), "labels");
+    }
+
+    #[test]
+    fn e_in_comments_mode_opens_edit_menu() {
+        let mut app = App::new(mock_source(), false);
+        app.enter_comments_mode();
+        let (add_tx, _) = mpsc::channel();
+        let (transition_tx, _) = mpsc::channel();
+        let (edit_tx, _) = mpsc::channel();
+
+        let outcome = handle_key_event(
+            &mut app,
+            key(KeyCode::Char('e')),
+            &add_tx,
+            &transition_tx,
+            &edit_tx,
+        );
+
+        assert_eq!(outcome, None);
+        assert!(app.in_edit_menu_mode());
+    }
+
+    #[test]
+    fn e_closes_edit_menu_before_quit() {
+        let mut app = App::new(mock_source(), false);
+        app.enter_edit_menu_mode();
+        let (add_tx, _) = mpsc::channel();
+        let (transition_tx, _) = mpsc::channel();
+        let (edit_tx, _) = mpsc::channel();
+
+        let outcome = handle_key_event(
+            &mut app,
+            key(KeyCode::Char('e')),
+            &add_tx,
+            &transition_tx,
+            &edit_tx,
+        );
+
+        assert_eq!(outcome, None);
+        assert!(!app.in_edit_menu_mode());
     }
 
     #[test]
@@ -2574,6 +2681,31 @@ mod tests {
         assert_eq!(outcome, None);
         let text = app.custom_fields_text();
         assert!(text.contains("> Spec URL (customfield_10100, url)"));
+    }
+
+    #[test]
+    fn mouse_scroll_in_edit_menu_moves_selection() {
+        let mut app = App::new(mock_source(), false);
+        app.enter_edit_menu_mode();
+        let hit_areas = MouseHitAreas {
+            issues: Some(Rect::new(0, 0, 40, 20)),
+            detail: Some(Rect::new(40, 0, 40, 20)),
+            popup: Some(Rect::new(20, 5, 40, 10)),
+        };
+
+        handle_mouse_event(
+            &mut app,
+            mouse_scroll(MouseEventKind::ScrollDown, 25, 8),
+            hit_areas,
+        );
+        assert!(app.edit_menu_text().contains("> Description"));
+
+        handle_mouse_event(
+            &mut app,
+            mouse_scroll(MouseEventKind::ScrollUp, 25, 8),
+            hit_areas,
+        );
+        assert!(app.edit_menu_text().contains("> Summary"));
     }
 
     #[test]

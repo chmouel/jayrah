@@ -127,6 +127,7 @@ enum DetailPaneMode {
     Boards,
     CustomFields,
     Actions,
+    EditMenu,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -287,6 +288,7 @@ pub struct App {
     board_selected: usize,
     custom_fields: Vec<CustomFieldEntry>,
     custom_field_selected: usize,
+    edit_menu_selected: usize,
     pane_mode: DetailPaneMode,
     actions_scroll: u16,
     actions_viewport_height: u16,
@@ -348,6 +350,7 @@ impl App {
             board_selected: 0,
             custom_fields: Vec::new(),
             custom_field_selected: 0,
+            edit_menu_selected: 0,
             pane_mode: DetailPaneMode::Detail,
             actions_scroll: 0,
             actions_viewport_height: ACTIONS_DEFAULT_VIEWPORT_HEIGHT,
@@ -609,6 +612,10 @@ impl App {
         self.pane_mode == DetailPaneMode::Actions
     }
 
+    pub fn in_edit_menu_mode(&self) -> bool {
+        self.pane_mode == DetailPaneMode::EditMenu
+    }
+
     pub fn in_popup_mode(&self) -> bool {
         self.pane_mode != DetailPaneMode::Detail
     }
@@ -694,6 +701,18 @@ impl App {
                 "Custom fields mode: j/k or n/p select field, Enter edit, u or Esc close"
                     .to_string();
         }
+    }
+
+    pub fn enter_edit_menu_mode(&mut self) {
+        self.pane_mode = DetailPaneMode::EditMenu;
+        self.comment_input_mode = false;
+        self.comment_input.clear();
+        self.edit_input_mode = false;
+        self.edit_input.clear();
+        self.active_custom_field = None;
+        self.edit_menu_selected = 0;
+        self.status_line =
+            "Edit menu: j/k or n/p select field, Enter edit, e or Esc close".to_string();
     }
 
     pub fn enter_actions_mode(&mut self) {
@@ -991,6 +1010,30 @@ impl App {
         };
     }
 
+    pub fn next_edit_menu(&mut self) {
+        const EDIT_MENU_COUNT: usize = 4;
+        self.edit_menu_selected = (self.edit_menu_selected + 1) % EDIT_MENU_COUNT;
+    }
+
+    pub fn prev_edit_menu(&mut self) {
+        const EDIT_MENU_COUNT: usize = 4;
+        self.edit_menu_selected = if self.edit_menu_selected == 0 {
+            EDIT_MENU_COUNT - 1
+        } else {
+            self.edit_menu_selected - 1
+        };
+    }
+
+    pub fn apply_selected_edit_menu(&mut self) {
+        match self.edit_menu_selected {
+            0 => self.start_summary_edit_input(),
+            1 => self.start_description_edit_input(),
+            2 => self.start_labels_edit_input(),
+            3 => self.start_components_edit_input(),
+            _ => {}
+        }
+    }
+
     pub fn selected_issue(&self) -> Option<&Issue> {
         let visible = self.visible_indices();
         let issue_index = visible.get(self.selected)?;
@@ -1026,6 +1069,7 @@ impl App {
         self.transition_apply_in_flight = false;
         self.custom_fields.clear();
         self.custom_field_selected = 0;
+        self.edit_menu_selected = 0;
         self.detail_scroll = 0;
 
         if self.source.mock_only {
@@ -1081,6 +1125,7 @@ impl App {
             self.active_custom_field = None;
             self.transition_selected = 0;
             self.custom_field_selected = 0;
+            self.edit_menu_selected = 0;
             self.detail_scroll = 0;
         }
     }
@@ -2013,10 +2058,26 @@ impl App {
         out
     }
 
+    pub fn edit_menu_text(&self) -> String {
+        let items = ["Summary", "Description", "Labels", "Components"];
+        let mut out =
+            "Edit Issue Fields\n\nUse j/k or n/p to choose and Enter to edit selected field.\n\n"
+                .to_string();
+        for (index, item) in items.iter().enumerate() {
+            let marker = if index == self.edit_menu_selected {
+                ">"
+            } else {
+                " "
+            };
+            out.push_str(&format!("{marker} {item}\n"));
+        }
+        out
+    }
+
     pub fn actions_text(&self) -> String {
         let mode = if self.choose_mode { "choose" } else { "normal" };
         format!(
-            "Jayrah Actions ({mode} mode)\n\nNavigation (detail mode)\n  j/k or arrows: move issue selection\n  J/K: scroll detail pane\n  Ctrl+d/Ctrl+u: page detail pane down/up\n  TAB: toggle horizontal/vertical layout\n  Alt+h/Alt+l: resize first/second pane\n  1: toggle issues pane zoom\n  2: toggle detail pane zoom\n  f: filter issues\n  /: search visible issues\n  n/N: next/previous search match\n  r: reload issues\n\nIssue Actions\n  o: open selected issue in browser\n  e: edit issue summary\n  E: edit issue description\n  l: edit issue labels\n  m: edit issue components\n  u: custom field editor popup\n  b: board switcher popup\n  c: comments popup\n  t: transitions popup\n  ?: actions/help popup\n\nActions Popup\n  j/k or arrows: scroll help\n  Ctrl+d/Ctrl+u: page down/up\n\nComments Popup\n  j/k or n/p: previous/next comment\n  a: compose comment\n  Enter: submit comment draft\n\nTransitions Popup\n  j/k or n/p: previous/next transition\n  Enter: apply selected transition\n\nBoards Popup\n  j/k or n/p: previous/next board\n  Enter: switch active board\n\nCustom Fields Popup\n  j/k or n/p: previous/next field\n  Enter: edit selected custom field\n\nGlobal\n  q: quit (or close active popup)\n  Esc: close active popup; clear filter/search while focused"
+            "Jayrah Actions ({mode} mode)\n\nNavigation (detail mode)\n  j/k or arrows: move issue selection\n  J/K: scroll detail pane\n  Ctrl+d/Ctrl+u: page detail pane down/up\n  TAB: toggle horizontal/vertical layout\n  Alt+h/Alt+l: resize first/second pane\n  1: toggle issues pane zoom\n  2: toggle detail pane zoom\n  f: filter issues\n  /: search visible issues\n  n/N: next/previous search match\n  r: reload issues\n\nIssue Actions\n  o: open selected issue in browser\n  e: edit menu popup (summary/description/labels/components)\n  u: custom field editor popup\n  b: board switcher popup\n  c: comments popup\n  t: transitions popup\n  ?: actions/help popup\n\nActions Popup\n  j/k or arrows: scroll help\n  Ctrl+d/Ctrl+u: page down/up\n\nEdit Menu Popup\n  j/k or n/p: previous/next editable field\n  Enter: edit selected field\n\nComments Popup\n  j/k or n/p: previous/next comment\n  a: compose comment\n  Enter: submit comment draft\n\nTransitions Popup\n  j/k or n/p: previous/next transition\n  Enter: apply selected transition\n\nBoards Popup\n  j/k or n/p: previous/next board\n  Enter: switch active board\n\nCustom Fields Popup\n  j/k or n/p: previous/next field\n  Enter: edit selected custom field\n\nGlobal\n  q: quit (or close active popup)\n  Esc: close active popup; clear filter/search while focused"
         )
     }
 
@@ -2028,6 +2089,7 @@ impl App {
             DetailPaneMode::Boards => self.boards_text(),
             DetailPaneMode::CustomFields => self.custom_fields_text(),
             DetailPaneMode::Actions => self.actions_text(),
+            DetailPaneMode::EditMenu => self.edit_menu_text(),
         }
     }
 
@@ -2039,6 +2101,7 @@ impl App {
             DetailPaneMode::Boards => "Boards",
             DetailPaneMode::CustomFields => "Custom Fields",
             DetailPaneMode::Actions => "Actions",
+            DetailPaneMode::EditMenu => "Edit",
         }
     }
 
@@ -2466,8 +2529,8 @@ mod tests {
         assert!(text.contains("b: board switcher popup"));
         assert!(text.contains("c: comments popup"));
         assert!(text.contains("t: transitions popup"));
-        assert!(text.contains("l: edit issue labels"));
-        assert!(text.contains("m: edit issue components"));
+        assert!(text.contains("e: edit menu popup"));
+        assert!(text.contains("Edit Menu Popup"));
         assert!(text.contains("u: custom field editor popup"));
         assert!(text.contains("?: actions/help popup"));
         assert!(text.contains("Ctrl+d/Ctrl+u: page down/up"));
@@ -2686,6 +2749,42 @@ mod tests {
         let text = app.custom_fields_text();
         assert!(text.contains("Configured Custom Fields"));
         assert!(text.contains("Story Points"));
+    }
+
+    #[test]
+    fn enter_edit_menu_mode_shows_edit_popup() {
+        let mut app = App::new(mock_source(), false);
+        app.enter_edit_menu_mode();
+
+        assert!(app.in_edit_menu_mode());
+        assert!(app.in_popup_mode());
+        assert_eq!(app.right_pane_title(), "Edit");
+        assert!(app.edit_menu_text().contains("Edit Issue Fields"));
+        assert!(app.edit_menu_text().contains("> Summary"));
+    }
+
+    #[test]
+    fn edit_menu_selection_wraps() {
+        let mut app = App::new(mock_source(), false);
+        app.enter_edit_menu_mode();
+
+        app.prev_edit_menu();
+        assert!(app.edit_menu_text().contains("> Components"));
+
+        app.next_edit_menu();
+        assert!(app.edit_menu_text().contains("> Summary"));
+    }
+
+    #[test]
+    fn apply_selected_edit_menu_starts_selected_edit_input() {
+        let mut app = App::new(mock_source(), false);
+        app.enter_edit_menu_mode();
+        app.next_edit_menu();
+        app.next_edit_menu();
+        app.apply_selected_edit_menu();
+
+        assert!(app.in_edit_input_mode());
+        assert_eq!(app.edit_target_label(), "labels");
     }
 
     #[test]
