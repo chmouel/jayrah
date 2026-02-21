@@ -32,6 +32,14 @@ pub struct IssueComment {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+pub struct IssueTransition {
+    pub id: String,
+    pub name: String,
+    pub to_status: String,
+    pub description: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AdapterSource {
     pub board: Option<String>,
     pub query: Option<String>,

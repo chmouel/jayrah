@@ -376,3 +376,19 @@ Exit criteria:
 - 2026-02-21 06:02 UTC | uncertainty | Jira API v3 comment-create payload compatibility still needs validation against a live Jira Cloud instance.
 - 2026-02-21 06:02 UTC | uncertainty | Rust config/client path does not yet resolve `pass::` or `passage::` secrets; behavior parity with Python secret resolution remains pending.
 - 2026-02-21 06:02 UTC | uncertainty | Final fallback policy progression (Stage 2/3) still needs explicit acceptance criteria tied to parity/stability thresholds.
+2026-02-21 06:04 UTC | codex | phaseB-transitions | Started Phase B transition parity slice for native Rust TUI | in_progress | Add Jira transition list/apply APIs, adapter bridge, async workers, and TUI transitions mode
+2026-02-21 06:07 UTC | codex | phaseB-transitions | Added Rust transitions mode (`t` open/close, `n/p` select, Enter apply), native Jira transition list/apply client calls, adapter mappings, and async transition workers with issue-status refresh | complete | Run workspace formatting/check/tests and refresh migration TODO snapshot
+2026-02-21 06:08 UTC | codex | phaseB-transitions | Verified with `cargo fmt --all`, `cargo check --workspace`, `cargo test --workspace` (37 tests passed), and `cargo run -p jayrah-tui -- --help` | complete | Continue Phase B with labels/components edits, title/description edits, custom fields, board switcher, and actions/help parity
+- 2026-02-21 06:08 UTC | todo | Phase B parity remaining: labels/components edits, title/description edits, custom field editing, board switcher, and actions/help palette parity.
+- 2026-02-21 06:08 UTC | todo | TUI parity checklist progress: View comments, Add comment, and Transition issue are implemented in Rust path; keep checklist gate entries synchronized as remaining actions land.
+- 2026-02-21 06:08 UTC | uncertainty | Jira API v3 comment-create and transition-list/apply behavior still needs validation against a live Jira Cloud instance.
+- 2026-02-21 06:08 UTC | uncertainty | Rust config/client path does not yet resolve `pass::` or `passage::` secrets; behavior parity with Python secret resolution remains pending.
+- 2026-02-21 06:08 UTC | uncertainty | Final fallback policy progression (Stage 2/3) still needs explicit acceptance criteria tied to parity/stability thresholds.
+2026-02-21 06:09 UTC | codex | phaseB-actions-help | Started Phase B actions/help parity slice for Rust TUI | in_progress | Add in-app actions/help pane with keymap guidance and mode-aware toggles
+2026-02-21 06:10 UTC | codex | phaseB-actions-help | Added actions/help pane (`?`) with mode-aware key handling and footer hints across normal/comments/transitions flows | complete | Run workspace formatting/check/tests and refresh migration TODO snapshot
+2026-02-21 06:10 UTC | codex | phaseB-actions-help | Verified with `cargo fmt --all`, `cargo check --workspace`, `cargo test --workspace` (39 tests passed), and `cargo run -p jayrah-tui -- --help` | complete | Continue Phase B with labels/components edits, title/description edits, custom fields, and board switcher parity
+- 2026-02-21 06:10 UTC | todo | Phase B parity remaining: labels/components edits, title/description edits, custom field editing, and board switcher.
+- 2026-02-21 06:10 UTC | todo | TUI parity checklist progress: View comments, Add comment, Transition issue, and Actions/help parity are implemented in Rust path; keep checklist gate entries synchronized as remaining actions land.
+- 2026-02-21 06:10 UTC | uncertainty | Jira API v3 comment-create and transition-list/apply behavior still needs validation against a live Jira Cloud instance.
+- 2026-02-21 06:10 UTC | uncertainty | Rust config/client path does not yet resolve `pass::` or `passage::` secrets; behavior parity with Python secret resolution remains pending.
+- 2026-02-21 06:10 UTC | uncertainty | Final fallback policy progression (Stage 2/3) still needs explicit acceptance criteria tied to parity/stability thresholds.

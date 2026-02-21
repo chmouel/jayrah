@@ -12,7 +12,10 @@ use ratatui::{
 
 use crate::{
     app::App,
-    worker::{start_add_comment_worker, start_comment_worker, start_detail_worker},
+    worker::{
+        start_add_comment_worker, start_apply_transition_worker, start_comment_worker,
+        start_detail_worker, start_transition_worker,
+    },
 };
 
 #[derive(Debug, PartialEq, Eq)]
@@ -28,6 +31,8 @@ pub fn run_app(
     let (detail_request_tx, detail_result_rx) = start_detail_worker();
     let (comment_request_tx, comment_result_rx) = start_comment_worker();
     let (add_comment_request_tx, add_comment_result_rx) = start_add_comment_worker();
+    let (transition_request_tx, transition_result_rx) = start_transition_worker();
+    let (apply_transition_request_tx, apply_transition_result_rx) = start_apply_transition_worker();
 
     loop {
         while let Ok(message) = detail_result_rx.try_recv() {
@@ -39,9 +44,16 @@ pub fn run_app(
         while let Ok(message) = add_comment_result_rx.try_recv() {
             app.ingest_add_comment_result(message);
         }
+        while let Ok(message) = transition_result_rx.try_recv() {
+            app.ingest_transition_result(message);
+        }
+        while let Ok(message) = apply_transition_result_rx.try_recv() {
+            app.ingest_apply_transition_result(message);
+        }
 
         app.maybe_request_detail(&detail_request_tx);
         app.maybe_request_comments(&comment_request_tx);
+        app.maybe_request_transitions(&transition_request_tx);
         terminal.draw(|frame| draw_ui(frame, &app))?;
 
         if event::poll(Duration::from_millis(100))? {
@@ -53,7 +65,12 @@ pub fn run_app(
                 continue;
             }
 
-            if let Some(outcome) = handle_key_event(&mut app, key, &add_comment_request_tx) {
+            if let Some(outcome) = handle_key_event(
+                &mut app,
+                key,
+                &add_comment_request_tx,
+                &apply_transition_request_tx,
+            ) {
                 return Ok(outcome);
             }
         }
@@ -64,6 +81,7 @@ fn handle_key_event(
     app: &mut App,
     key: KeyEvent,
     add_comment_request_tx: &std::sync::mpsc::Sender<crate::app::AddCommentRequest>,
+    apply_transition_request_tx: &std::sync::mpsc::Sender<crate::app::ApplyTransitionRequest>,
 ) -> Option<RunOutcome> {
     if app.filter_mode {
         match key.code {
@@ -112,6 +130,7 @@ fn handle_key_event(
             KeyCode::Char('n') => app.next_comment(),
             KeyCode::Char('p') => app.prev_comment(),
             KeyCode::Char('a') => app.start_comment_input(),
+            KeyCode::Char('?') => app.enter_actions_mode(),
             KeyCode::Char('r') => app.reload_issues(),
             KeyCode::Char('f') | KeyCode::Char('/') => {
                 app.filter_mode = true;
@@ -129,11 +148,52 @@ fn handle_key_event(
         return None;
     }
 
+    if app.in_actions_mode() {
+        match key.code {
+            KeyCode::Char('q') | KeyCode::Esc | KeyCode::Char('?') => app.enter_detail_mode(),
+            KeyCode::Char('j') | KeyCode::Down => app.next(),
+            KeyCode::Char('k') | KeyCode::Up => app.prev(),
+            KeyCode::Char('c') => app.enter_comments_mode(),
+            KeyCode::Char('t') => app.enter_transitions_mode(),
+            KeyCode::Char('r') => app.reload_issues(),
+            KeyCode::Char('o') => app.open_selected_issue(),
+            KeyCode::Char('f') | KeyCode::Char('/') => {
+                app.filter_mode = true;
+                app.status_line = String::from("Filter mode: type to filter, Enter to apply");
+            }
+            _ => {}
+        }
+        return None;
+    }
+
+    if app.in_transitions_mode() {
+        match key.code {
+            KeyCode::Char('q') | KeyCode::Esc | KeyCode::Char('t') => app.enter_detail_mode(),
+            KeyCode::Char('j') | KeyCode::Down => app.next(),
+            KeyCode::Char('k') | KeyCode::Up => app.prev(),
+            KeyCode::Char('n') => app.next_transition(),
+            KeyCode::Char('p') => app.prev_transition(),
+            KeyCode::Char('c') => app.enter_comments_mode(),
+            KeyCode::Char('?') => app.enter_actions_mode(),
+            KeyCode::Char('r') => app.reload_issues(),
+            KeyCode::Char('f') | KeyCode::Char('/') => {
+                app.filter_mode = true;
+                app.status_line = String::from("Filter mode: type to filter, Enter to apply");
+            }
+            KeyCode::Char('o') => app.open_selected_issue(),
+            KeyCode::Enter => app.apply_selected_transition(apply_transition_request_tx),
+            _ => {}
+        }
+        return None;
+    }
+
     match key.code {
         KeyCode::Char('q') | KeyCode::Esc => return Some(RunOutcome::Quit),
         KeyCode::Char('j') | KeyCode::Down => app.next(),
         KeyCode::Char('k') | KeyCode::Up => app.prev(),
         KeyCode::Char('c') => app.enter_comments_mode(),
+        KeyCode::Char('t') => app.enter_transitions_mode(),
+        KeyCode::Char('?') => app.enter_actions_mode(),
         KeyCode::Char('r') => app.reload_issues(),
         KeyCode::Char('f') | KeyCode::Char('/') => {
             app.filter_mode = true;
@@ -218,6 +278,10 @@ fn draw_ui(frame: &mut Frame, app: &App) {
         "FILTER"
     } else if app.in_comment_input_mode() {
         "COMMENT-INPUT"
+    } else if app.in_actions_mode() {
+        "ACTIONS"
+    } else if app.in_transitions_mode() {
+        "TRANSITIONS"
     } else if app.in_comments_mode() {
         "COMMENTS"
     } else if app.choose_mode {
@@ -237,6 +301,16 @@ fn draw_ui(frame: &mut Frame, app: &App) {
             app.comment_input(),
             app.status_line
         )
+    } else if app.in_actions_mode() {
+        format!(
+            "[{}] ? close | c comments | t transitions | j/k move issues | f filter | r reload | {}",
+            mode, app.status_line
+        )
+    } else if app.in_transitions_mode() {
+        format!(
+            "[{}] j/k move issues | n/p pick transition | Enter apply | t close | r reload | o open | {}",
+            mode, app.status_line
+        )
     } else if app.in_comments_mode() {
         format!(
             "[{}] j/k move issues | n/p move comments | a add | c close | r reload | o open | {}",
@@ -244,12 +318,12 @@ fn draw_ui(frame: &mut Frame, app: &App) {
         )
     } else if app.choose_mode {
         format!(
-            "[{}] j/k move | Enter choose | c comments | f filter | o open | q quit | {}",
+            "[{}] j/k move | Enter choose | c comments | t transitions | ? help | f filter | o open | q quit | {}",
             mode, app.status_line
         )
     } else {
         format!(
-            "[{}] j/k move | c comments | f filter | r reload | o open | q quit | {}",
+            "[{}] j/k move | c comments | t transitions | ? help | f filter | r reload | o open | q quit | {}",
             mode, app.status_line
         )
     };
@@ -287,8 +361,9 @@ mod tests {
     fn enter_returns_selected_key_in_choose_mode() {
         let mut app = App::new(mock_source(), true);
         let (add_tx, _) = mpsc::channel();
+        let (transition_tx, _) = mpsc::channel();
 
-        let outcome = handle_key_event(&mut app, key(KeyCode::Enter), &add_tx);
+        let outcome = handle_key_event(&mut app, key(KeyCode::Enter), &add_tx, &transition_tx);
         assert_eq!(
             outcome,
             Some(RunOutcome::Chosen(Some("JAY-101".to_string())))
@@ -299,8 +374,9 @@ mod tests {
     fn enter_opens_issue_outside_choose_mode() {
         let mut app = App::new(mock_source(), false);
         let (add_tx, _) = mpsc::channel();
+        let (transition_tx, _) = mpsc::channel();
 
-        let outcome = handle_key_event(&mut app, key(KeyCode::Enter), &add_tx);
+        let outcome = handle_key_event(&mut app, key(KeyCode::Enter), &add_tx, &transition_tx);
         assert_eq!(outcome, None);
         assert!(app
             .status_line
@@ -312,8 +388,9 @@ mod tests {
         let mut app = App::new(mock_source(), false);
         app.enter_comments_mode();
         let (add_tx, _) = mpsc::channel();
+        let (transition_tx, _) = mpsc::channel();
 
-        let outcome = handle_key_event(&mut app, key(KeyCode::Char('q')), &add_tx);
+        let outcome = handle_key_event(&mut app, key(KeyCode::Char('q')), &add_tx, &transition_tx);
 
         assert_eq!(outcome, None);
         assert!(!app.in_comments_mode());
@@ -324,10 +401,35 @@ mod tests {
         let mut app = App::new(mock_source(), false);
         app.enter_comments_mode();
         let (add_tx, _) = mpsc::channel();
+        let (transition_tx, _) = mpsc::channel();
 
-        let outcome = handle_key_event(&mut app, key(KeyCode::Char('a')), &add_tx);
+        let outcome = handle_key_event(&mut app, key(KeyCode::Char('a')), &add_tx, &transition_tx);
 
         assert_eq!(outcome, None);
         assert!(app.in_comment_input_mode());
+    }
+
+    #[test]
+    fn t_enters_transitions_mode() {
+        let mut app = App::new(mock_source(), false);
+        let (add_tx, _) = mpsc::channel();
+        let (transition_tx, _) = mpsc::channel();
+
+        let outcome = handle_key_event(&mut app, key(KeyCode::Char('t')), &add_tx, &transition_tx);
+
+        assert_eq!(outcome, None);
+        assert!(app.in_transitions_mode());
+    }
+
+    #[test]
+    fn question_mark_enters_actions_mode() {
+        let mut app = App::new(mock_source(), false);
+        let (add_tx, _) = mpsc::channel();
+        let (transition_tx, _) = mpsc::channel();
+
+        let outcome = handle_key_event(&mut app, key(KeyCode::Char('?')), &add_tx, &transition_tx);
+
+        assert_eq!(outcome, None);
+        assert!(app.in_actions_mode());
     }
 }

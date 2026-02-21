@@ -1,4 +1,4 @@
-use crate::types::{Issue, IssueComment, IssueDetail};
+use crate::types::{Issue, IssueComment, IssueDetail, IssueTransition};
 
 pub fn mock_issues(reload_count: usize) -> Vec<Issue> {
     let suffix = if reload_count == 0 {
@@ -66,6 +66,23 @@ pub fn mock_comments_for_issue(issue_key: &str) -> Vec<IssueComment> {
             author: "mock-user-2".to_string(),
             created: "2026-02-21T00:30:00Z".to_string(),
             body: "Second mock comment with extra detail for navigation testing.".to_string(),
+        },
+    ]
+}
+
+pub fn mock_transitions_for_issue(issue_key: &str) -> Vec<IssueTransition> {
+    vec![
+        IssueTransition {
+            id: format!("{issue_key}-transition-1"),
+            name: "Start Progress".to_string(),
+            to_status: "In Progress".to_string(),
+            description: "Move issue into active development.".to_string(),
+        },
+        IssueTransition {
+            id: format!("{issue_key}-transition-2"),
+            name: "Mark Done".to_string(),
+            to_status: "Done".to_string(),
+            description: "Complete issue and close the workflow.".to_string(),
         },
     ]
 }

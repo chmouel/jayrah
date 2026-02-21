@@ -6,13 +6,16 @@ use std::{
 
 use crate::{
     adapter::{load_issues_from_adapter, open_issue_in_browser},
-    mock::{mock_comments_for_issue, mock_detail_from_issue, mock_issues},
-    types::{AdapterSource, Issue, IssueComment, IssueDetail},
+    mock::{
+        mock_comments_for_issue, mock_detail_from_issue, mock_issues, mock_transitions_for_issue,
+    },
+    types::{AdapterSource, Issue, IssueComment, IssueDetail, IssueTransition},
     utils::{compact_error, join_or_dash},
 };
 
 const DETAIL_FETCH_DEBOUNCE_MS: u64 = 120;
 const COMMENT_FETCH_DEBOUNCE_MS: u64 = 120;
+const TRANSITION_FETCH_DEBOUNCE_MS: u64 = 120;
 
 #[derive(Debug)]
 pub struct DetailRequest {
@@ -48,10 +51,39 @@ pub struct AddCommentResult {
     pub result: std::result::Result<(), String>,
 }
 
+#[derive(Debug)]
+pub struct TransitionRequest {
+    pub key: String,
+}
+
+#[derive(Debug)]
+pub struct TransitionResult {
+    pub key: String,
+    pub result: std::result::Result<Vec<IssueTransition>, String>,
+}
+
+#[derive(Debug)]
+pub struct ApplyTransitionRequest {
+    pub key: String,
+    pub transition_id: String,
+    pub transition_name: String,
+    pub to_status: String,
+}
+
+#[derive(Debug)]
+pub struct ApplyTransitionResult {
+    pub key: String,
+    pub transition_name: String,
+    pub to_status: String,
+    pub result: std::result::Result<(), String>,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum DetailPaneMode {
     Detail,
     Comments,
+    Transitions,
+    Actions,
 }
 
 #[derive(Debug)]
@@ -75,6 +107,11 @@ pub struct App {
     comment_input_mode: bool,
     comment_input: String,
     comment_submit_in_flight: bool,
+    transitions_cache: HashMap<String, Vec<IssueTransition>>,
+    transitions_errors: HashMap<String, String>,
+    transitions_loading_key: Option<String>,
+    transition_selected: usize,
+    transition_apply_in_flight: bool,
     pane_mode: DetailPaneMode,
     last_selected_key: Option<String>,
     selected_changed_at: Instant,
@@ -102,6 +139,11 @@ impl App {
             comment_input_mode: false,
             comment_input: String::new(),
             comment_submit_in_flight: false,
+            transitions_cache: HashMap::new(),
+            transitions_errors: HashMap::new(),
+            transitions_loading_key: None,
+            transition_selected: 0,
+            transition_apply_in_flight: false,
             pane_mode: DetailPaneMode::Detail,
             last_selected_key: None,
             selected_changed_at: Instant::now(),
@@ -185,6 +227,14 @@ impl App {
         self.pane_mode == DetailPaneMode::Comments
     }
 
+    pub fn in_transitions_mode(&self) -> bool {
+        self.pane_mode == DetailPaneMode::Transitions
+    }
+
+    pub fn in_actions_mode(&self) -> bool {
+        self.pane_mode == DetailPaneMode::Actions
+    }
+
     pub fn in_comment_input_mode(&self) -> bool {
         self.comment_input_mode
     }
@@ -196,7 +246,24 @@ impl App {
     pub fn enter_comments_mode(&mut self) {
         self.pane_mode = DetailPaneMode::Comments;
         self.comments_selected = 0;
+        self.transition_selected = 0;
         self.status_line = "Comments mode: n/p to navigate comments, c or Esc to close".to_string();
+    }
+
+    pub fn enter_transitions_mode(&mut self) {
+        self.pane_mode = DetailPaneMode::Transitions;
+        self.comment_input_mode = false;
+        self.comment_input.clear();
+        self.transition_selected = 0;
+        self.status_line =
+            "Transitions mode: n/p select transition, Enter apply, t or Esc close".to_string();
+    }
+
+    pub fn enter_actions_mode(&mut self) {
+        self.pane_mode = DetailPaneMode::Actions;
+        self.comment_input_mode = false;
+        self.comment_input.clear();
+        self.status_line = "Actions help: press ? or Esc to close".to_string();
     }
 
     pub fn enter_detail_mode(&mut self) {
@@ -265,6 +332,38 @@ impl App {
         };
     }
 
+    pub fn next_transition(&mut self) {
+        let Some(key) = self.selected_issue_key() else {
+            return;
+        };
+        let Some(transitions) = self.transitions_cache.get(&key) else {
+            return;
+        };
+        if transitions.is_empty() {
+            return;
+        }
+
+        self.transition_selected = (self.transition_selected + 1) % transitions.len();
+    }
+
+    pub fn prev_transition(&mut self) {
+        let Some(key) = self.selected_issue_key() else {
+            return;
+        };
+        let Some(transitions) = self.transitions_cache.get(&key) else {
+            return;
+        };
+        if transitions.is_empty() {
+            return;
+        }
+
+        self.transition_selected = if self.transition_selected == 0 {
+            transitions.len() - 1
+        } else {
+            self.transition_selected - 1
+        };
+    }
+
     pub fn selected_issue(&self) -> Option<&Issue> {
         let visible = self.visible_indices();
         let issue_index = visible.get(self.selected)?;
@@ -288,6 +387,11 @@ impl App {
         self.comment_input_mode = false;
         self.comment_input.clear();
         self.comment_submit_in_flight = false;
+        self.transitions_cache.clear();
+        self.transitions_errors.clear();
+        self.transitions_loading_key = None;
+        self.transition_selected = 0;
+        self.transition_apply_in_flight = false;
 
         if self.source.mock_only {
             self.issues = mock_issues(self.reload_count);
@@ -329,6 +433,7 @@ impl App {
             self.comments_selected = 0;
             self.comment_input_mode = false;
             self.comment_input.clear();
+            self.transition_selected = 0;
         }
     }
 
@@ -407,6 +512,49 @@ impl App {
         }
     }
 
+    pub fn maybe_request_transitions(&mut self, request_tx: &Sender<TransitionRequest>) {
+        self.sync_selected_tracking();
+
+        if self.pane_mode != DetailPaneMode::Transitions {
+            return;
+        }
+
+        let Some(key) = self.selected_issue_key() else {
+            return;
+        };
+
+        if self.transitions_cache.contains_key(&key) {
+            return;
+        }
+
+        if !self.using_adapter {
+            self.transitions_cache
+                .insert(key.clone(), mock_transitions_for_issue(&key));
+            return;
+        }
+
+        if self.transitions_errors.contains_key(&key) {
+            return;
+        }
+
+        if self.transitions_loading_key.as_deref() == Some(key.as_str()) {
+            return;
+        }
+
+        if self.selected_changed_at.elapsed() < Duration::from_millis(TRANSITION_FETCH_DEBOUNCE_MS)
+        {
+            return;
+        }
+
+        if request_tx
+            .send(TransitionRequest { key: key.clone() })
+            .is_ok()
+        {
+            self.transitions_loading_key = Some(key.clone());
+            self.status_line = format!("Loading transitions for {key}...");
+        }
+    }
+
     pub fn submit_comment_input(&mut self, submit_tx: &Sender<AddCommentRequest>) {
         let Some(key) = self.selected_issue_key() else {
             self.status_line = "No issue selected".to_string();
@@ -456,6 +604,63 @@ impl App {
             self.status_line = format!("Submitting comment for {key}...");
         } else {
             self.status_line = format!("Failed to queue comment submission for {key}");
+        }
+    }
+
+    pub fn apply_selected_transition(&mut self, apply_tx: &Sender<ApplyTransitionRequest>) {
+        let Some(key) = self.selected_issue_key() else {
+            self.status_line = "No issue selected".to_string();
+            return;
+        };
+
+        if self.transition_apply_in_flight {
+            self.status_line = "Transition apply in progress...".to_string();
+            return;
+        }
+
+        let Some(transitions) = self.transitions_cache.get(&key) else {
+            self.status_line = format!("No transitions loaded for {key}");
+            return;
+        };
+        if transitions.is_empty() {
+            self.status_line = format!("No transitions available for {key}");
+            return;
+        }
+
+        let selected_index = self.transition_selected.min(transitions.len() - 1);
+        let selected = transitions[selected_index].clone();
+
+        if !self.using_adapter {
+            self.update_issue_status(&key, &selected.to_status);
+            self.detail_cache.remove(&key);
+            self.transitions_cache.remove(&key);
+            self.transition_selected = 0;
+            self.status_line = format!(
+                "Mock transition applied to {}: '{}' via '{}'",
+                key, selected.to_status, selected.name
+            );
+            return;
+        }
+
+        if apply_tx
+            .send(ApplyTransitionRequest {
+                key: key.clone(),
+                transition_id: selected.id.clone(),
+                transition_name: selected.name.clone(),
+                to_status: selected.to_status.clone(),
+            })
+            .is_ok()
+        {
+            self.transition_apply_in_flight = true;
+            self.status_line = format!("Applying transition '{}' to {key}...", selected.name);
+        } else {
+            self.status_line = format!("Failed to queue transition apply for {key}");
+        }
+    }
+
+    fn update_issue_status(&mut self, key: &str, status: &str) {
+        if let Some(issue) = self.issues.iter_mut().find(|issue| issue.key == key) {
+            issue.status = status.to_string();
         }
     }
 
@@ -509,6 +714,67 @@ impl App {
                 if self.selected_issue_key().as_deref() == Some(message.key.as_str()) {
                     self.status_line = format!(
                         "Failed to load comments for {} ({})",
+                        message.key,
+                        compact_error(&error)
+                    );
+                }
+            }
+        }
+    }
+
+    pub fn ingest_transition_result(&mut self, message: TransitionResult) {
+        match message.result {
+            Ok(transitions) => {
+                self.transitions_cache
+                    .insert(message.key.clone(), transitions);
+                self.transitions_errors.remove(&message.key);
+                if self.transitions_loading_key.as_deref() == Some(message.key.as_str()) {
+                    self.transitions_loading_key = None;
+                }
+                if self.selected_issue_key().as_deref() == Some(message.key.as_str()) {
+                    self.status_line = format!("Loaded transitions for {}", message.key);
+                }
+            }
+            Err(error) => {
+                self.transitions_errors
+                    .insert(message.key.clone(), error.clone());
+                if self.transitions_loading_key.as_deref() == Some(message.key.as_str()) {
+                    self.transitions_loading_key = None;
+                }
+                if self.selected_issue_key().as_deref() == Some(message.key.as_str()) {
+                    self.status_line = format!(
+                        "Failed to load transitions for {} ({})",
+                        message.key,
+                        compact_error(&error)
+                    );
+                }
+            }
+        }
+    }
+
+    pub fn ingest_apply_transition_result(&mut self, message: ApplyTransitionResult) {
+        self.transition_apply_in_flight = false;
+        match message.result {
+            Ok(()) => {
+                self.update_issue_status(&message.key, &message.to_status);
+                self.detail_cache.remove(&message.key);
+                self.transitions_cache.remove(&message.key);
+                self.transitions_errors.remove(&message.key);
+                if self.transitions_loading_key.as_deref() == Some(message.key.as_str()) {
+                    self.transitions_loading_key = None;
+                }
+                self.transition_selected = 0;
+                if self.selected_issue_key().as_deref() == Some(message.key.as_str()) {
+                    self.status_line = format!(
+                        "Issue {} transitioned to '{}' via '{}'",
+                        message.key, message.to_status, message.transition_name
+                    );
+                }
+            }
+            Err(error) => {
+                if self.selected_issue_key().as_deref() == Some(message.key.as_str()) {
+                    self.status_line = format!(
+                        "Failed to transition {} ({})",
                         message.key,
                         compact_error(&error)
                     );
@@ -671,19 +937,77 @@ impl App {
         text
     }
 
-    pub fn right_pane_text(&self) -> String {
-        if self.pane_mode == DetailPaneMode::Comments {
-            self.comments_text_for_selected()
+    pub fn transitions_text_for_selected(&self) -> String {
+        let Some(issue) = self.selected_issue() else {
+            return "No issue selected".to_string();
+        };
+
+        let key = issue.key.as_str();
+        let mut text = if let Some(transitions) = self.transitions_cache.get(key) {
+            if transitions.is_empty() {
+                format!("Transitions for {key}\n\nNo transitions available.")
+            } else {
+                let active_index = self.transition_selected.min(transitions.len() - 1);
+                let current = &transitions[active_index];
+                format!(
+                    "Transitions for {}\n\nTransition {}/{}\nName: {}\nTo: {}\nDescription: {}\n\nUse n/p to choose and Enter to apply.",
+                    key,
+                    active_index + 1,
+                    transitions.len(),
+                    current.name,
+                    current.to_status,
+                    current.description,
+                )
+            }
+        } else if let Some(error) = self.transitions_errors.get(key) {
+            format!(
+                "Transitions for {}\n\nFailed to load transitions\n{}",
+                key,
+                compact_error(error),
+            )
+        } else if self.transitions_loading_key.as_deref() == Some(key) {
+            format!(
+                "Loading transitions for {}...\n\nSummary\n{}\n\nSource\n{}",
+                issue.key,
+                issue.summary,
+                self.source.describe(),
+            )
         } else {
-            self.detail_text_for_selected()
+            format!(
+                "Transitions for {}\n\nPress t to load transitions for this issue.",
+                issue.key
+            )
+        };
+
+        if self.transition_apply_in_flight {
+            text.push_str("\n\nApplying transition...");
+        }
+
+        text
+    }
+
+    pub fn actions_text(&self) -> String {
+        let mode = if self.choose_mode { "choose" } else { "normal" };
+        format!(
+            "Jayrah Rust TUI Actions ({mode} mode)\n\nNavigation\n  j/k or arrows: move issue selection\n  f or /: filter issues\n  r: reload issues\n\nIssue Actions\n  o: open selected issue in browser\n  c: comments pane\n  t: transitions pane\n  ?: actions/help pane\n\nComments Mode\n  n/p: previous/next comment\n  a: compose comment\n  Enter: submit comment draft\n\nTransitions Mode\n  n/p: previous/next transition\n  Enter: apply selected transition\n\nGlobal\n  q: quit (or close active pane)\n  Esc: close active pane/filter"
+        )
+    }
+
+    pub fn right_pane_text(&self) -> String {
+        match self.pane_mode {
+            DetailPaneMode::Detail => self.detail_text_for_selected(),
+            DetailPaneMode::Comments => self.comments_text_for_selected(),
+            DetailPaneMode::Transitions => self.transitions_text_for_selected(),
+            DetailPaneMode::Actions => self.actions_text(),
         }
     }
 
     pub fn right_pane_title(&self) -> &'static str {
-        if self.pane_mode == DetailPaneMode::Comments {
-            "Comments"
-        } else {
-            "Detail"
+        match self.pane_mode {
+            DetailPaneMode::Detail => "Detail",
+            DetailPaneMode::Comments => "Comments",
+            DetailPaneMode::Transitions => "Transitions",
+            DetailPaneMode::Actions => "Actions",
         }
     }
 
@@ -842,5 +1166,46 @@ mod tests {
 
         assert_eq!(app.status_line, "Comment cannot be empty");
         assert!(app.in_comment_input_mode());
+    }
+
+    #[test]
+    fn maybe_request_transitions_populates_mock_cache_without_worker_request() {
+        let mut app = App::new(mock_source(), false);
+        let (tx, rx) = mpsc::channel();
+
+        app.enter_transitions_mode();
+        app.maybe_request_transitions(&tx);
+
+        assert!(rx.try_recv().is_err());
+        let transitions = app.transitions_text_for_selected();
+        assert!(transitions.contains("Transition 1/2"));
+        assert!(transitions.contains("Start Progress"));
+    }
+
+    #[test]
+    fn apply_transition_in_mock_mode_updates_issue_status() {
+        let mut app = App::new(mock_source(), false);
+        let (list_tx, _) = mpsc::channel();
+        let (apply_tx, _) = mpsc::channel();
+
+        app.enter_transitions_mode();
+        app.maybe_request_transitions(&list_tx);
+        app.next_transition();
+        app.apply_selected_transition(&apply_tx);
+
+        let issue = app.selected_issue().expect("selected issue");
+        assert_eq!(issue.status, "Done");
+        assert!(app.status_line.contains("Mock transition applied"));
+    }
+
+    #[test]
+    fn actions_text_lists_key_shortcuts() {
+        let mut app = App::new(mock_source(), false);
+        app.enter_actions_mode();
+
+        let text = app.actions_text();
+        assert!(text.contains("c: comments pane"));
+        assert!(text.contains("t: transitions pane"));
+        assert!(text.contains("?: actions/help pane"));
     }
 }

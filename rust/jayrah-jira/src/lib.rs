@@ -42,6 +42,14 @@ pub struct IssueComment {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+pub struct IssueTransition {
+    pub id: String,
+    pub name: Option<String>,
+    pub to_status: Option<String>,
+    pub description: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 enum AuthMode {
     Basic { user: String, password: String },
     Bearer { token: String },
@@ -66,6 +74,12 @@ struct SearchPayload {
 struct CommentsPayload {
     #[serde(default)]
     comments: Vec<CommentPayload>,
+}
+
+#[derive(Default, Deserialize)]
+struct TransitionsPayload {
+    #[serde(default)]
+    transitions: Vec<TransitionPayload>,
 }
 
 #[derive(Deserialize)]
@@ -109,11 +123,24 @@ struct UserLike {
 }
 
 #[derive(Default, Deserialize)]
+struct StatusLike {
+    name: Option<String>,
+    description: Option<String>,
+}
+
+#[derive(Default, Deserialize)]
 struct CommentPayload {
     id: Option<String>,
     author: Option<UserLike>,
     created: Option<String>,
     body: Option<Value>,
+}
+
+#[derive(Default, Deserialize)]
+struct TransitionPayload {
+    id: Option<String>,
+    name: Option<String>,
+    to: Option<StatusLike>,
 }
 
 impl JiraClient {
@@ -248,6 +275,61 @@ impl JiraClient {
             let body = response.text().unwrap_or_default();
             bail!(
                 "jira comment create request failed: status={} body={}",
+                status,
+                body
+            );
+        }
+
+        Ok(())
+    }
+
+    pub fn get_issue_transitions(&self, key: &str) -> Result<Vec<IssueTransition>> {
+        let endpoint = format!("{}/issue/{}/transitions", self.base_url, key);
+        let response = self
+            .with_auth(self.http.get(endpoint))
+            .send()
+            .with_context(|| format!("failed to fetch transitions for {}", key))?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let body = response.text().unwrap_or_default();
+            bail!(
+                "jira transition list request failed: status={} body={}",
+                status,
+                body
+            );
+        }
+
+        let payload: TransitionsPayload = response
+            .json()
+            .with_context(|| "failed to decode Jira transition list response")?;
+        Ok(payload
+            .transitions
+            .into_iter()
+            .map(into_issue_transition)
+            .collect())
+    }
+
+    pub fn transition_issue(&self, key: &str, transition_id: &str) -> Result<()> {
+        let trimmed = transition_id.trim();
+        if trimmed.is_empty() {
+            bail!("transition_id cannot be empty");
+        }
+
+        let endpoint = format!("{}/issue/{}/transitions", self.base_url, key);
+        let response = self
+            .with_auth(self.http.post(endpoint))
+            .json(&json!({
+                "transition": {"id": trimmed}
+            }))
+            .send()
+            .with_context(|| format!("failed to transition issue {}", key))?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let body = response.text().unwrap_or_default();
+            bail!(
+                "jira transition apply request failed: status={} body={}",
                 status,
                 body
             );
@@ -406,6 +488,23 @@ fn into_issue_comment(payload: CommentPayload) -> IssueComment {
     }
 }
 
+fn into_issue_transition(payload: TransitionPayload) -> IssueTransition {
+    let to_status = payload.to.as_ref().and_then(|value| value.name.clone());
+    let description = payload
+        .to
+        .and_then(|value| value.description.and_then(non_empty));
+
+    IssueTransition {
+        id: payload
+            .id
+            .and_then(non_empty)
+            .unwrap_or_else(|| "unknown".to_string()),
+        name: payload.name.and_then(non_empty),
+        to_status: to_status.and_then(non_empty),
+        description,
+    }
+}
+
 fn name_like(value: NameLike) -> Option<String> {
     value.name.and_then(non_empty)
 }
@@ -493,7 +592,10 @@ fn extract_adf_text(node: &Value, out: &mut String) {
 mod tests {
     use serde_json::json;
 
-    use super::{into_issue_comment, normalize_description, CommentPayload, JiraClient};
+    use super::{
+        into_issue_comment, into_issue_transition, normalize_description, CommentPayload,
+        JiraClient, TransitionPayload,
+    };
 
     #[test]
     fn chooses_correct_search_endpoint_for_api_versions() {
@@ -594,5 +696,19 @@ mod tests {
                 }
             })
         );
+    }
+
+    #[test]
+    fn maps_transition_payload_defaults() {
+        let transition = into_issue_transition(TransitionPayload {
+            id: None,
+            name: None,
+            to: None,
+        });
+
+        assert_eq!(transition.id, "unknown");
+        assert_eq!(transition.name, None);
+        assert_eq!(transition.to_status, None);
+        assert_eq!(transition.description, None);
     }
 }

@@ -1,8 +1,11 @@
 use anyhow::{anyhow, Result};
 use jayrah_config::{resolve_current_user_jql, JayrahConfig};
-use jayrah_jira::{DetailIssue, IssueComment as JiraIssueComment, JiraClient, ListIssue};
+use jayrah_jira::{
+    DetailIssue, IssueComment as JiraIssueComment, IssueTransition as JiraIssueTransition,
+    JiraClient, ListIssue,
+};
 
-use crate::types::{AdapterSource, Issue, IssueComment, IssueDetail};
+use crate::types::{AdapterSource, Issue, IssueComment, IssueDetail, IssueTransition};
 
 const SEARCH_PAGE_SIZE: usize = 200;
 const SEARCH_FIELDS: [&str; 9] = [
@@ -47,6 +50,17 @@ pub fn load_issue_comments_from_adapter(key: &str) -> Result<Vec<IssueComment>> 
 pub fn add_issue_comment_from_adapter(key: &str, body: &str) -> Result<()> {
     let (_, client) = load_runtime()?;
     client.add_issue_comment(key, body)
+}
+
+pub fn load_issue_transitions_from_adapter(key: &str) -> Result<Vec<IssueTransition>> {
+    let (_, client) = load_runtime()?;
+    let transitions = client.get_issue_transitions(key)?;
+    Ok(transitions.into_iter().map(map_issue_transition).collect())
+}
+
+pub fn apply_issue_transition_from_adapter(key: &str, transition_id: &str) -> Result<()> {
+    let (_, client) = load_runtime()?;
+    client.transition_issue(key, transition_id)
 }
 
 fn load_runtime() -> Result<(JayrahConfig, JiraClient)> {
@@ -119,12 +133,32 @@ fn map_issue_comment(comment: JiraIssueComment) -> IssueComment {
     }
 }
 
+fn map_issue_transition(transition: JiraIssueTransition) -> IssueTransition {
+    IssueTransition {
+        id: transition.id,
+        name: transition
+            .name
+            .unwrap_or_else(|| "Unknown transition".to_string()),
+        to_status: transition
+            .to_status
+            .unwrap_or_else(|| "Unknown status".to_string()),
+        description: transition
+            .description
+            .unwrap_or_else(|| "<no description>".to_string()),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use jayrah_config::{BoardConfig, JayrahConfig};
-    use jayrah_jira::{DetailIssue, IssueComment as JiraIssueComment, ListIssue};
+    use jayrah_jira::{
+        DetailIssue, IssueComment as JiraIssueComment, IssueTransition as JiraIssueTransition,
+        ListIssue,
+    };
 
-    use super::{map_issue, map_issue_comment, map_issue_detail, resolve_source_jql};
+    use super::{
+        map_issue, map_issue_comment, map_issue_detail, map_issue_transition, resolve_source_jql,
+    };
     use crate::types::AdapterSource;
 
     #[test]
@@ -178,6 +212,20 @@ mod tests {
         assert_eq!(comment.author, "Unknown");
         assert_eq!(comment.created, "Unknown");
         assert_eq!(comment.body, "<no comment body>");
+    }
+
+    #[test]
+    fn maps_transition_defaults() {
+        let transition = map_issue_transition(JiraIssueTransition {
+            id: "31".to_string(),
+            name: None,
+            to_status: None,
+            description: None,
+        });
+
+        assert_eq!(transition.name, "Unknown transition");
+        assert_eq!(transition.to_status, "Unknown status");
+        assert_eq!(transition.description, "<no description>");
     }
 
     #[test]
