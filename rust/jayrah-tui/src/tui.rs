@@ -6,7 +6,10 @@ use ratatui::{
     backend::CrosstermBackend,
     layout::{Constraint, Direction, Layout, Rect},
     text::{Line, Span, Text},
-    widgets::{Block, Borders, Cell, Clear, Paragraph, Row, Table, TableState, Wrap},
+    widgets::{
+        Block, Borders, Cell, Clear, Paragraph, Row, Scrollbar, ScrollbarOrientation,
+        ScrollbarState, Table, TableState, Wrap,
+    },
     Frame, Terminal,
 };
 use tui_textarea::TextArea;
@@ -439,8 +442,6 @@ fn handle_key_event_with_edit_session(
 
     match key.code {
         KeyCode::Char('q') | KeyCode::Esc => return Some(RunOutcome::Quit),
-        KeyCode::Char('j') if app.pane_zoom() == PaneZoom::Detail => app.scroll_detail_down(1),
-        KeyCode::Char('k') if app.pane_zoom() == PaneZoom::Detail => app.scroll_detail_up(1),
         KeyCode::Char('j') | KeyCode::Down => app.next(),
         KeyCode::Char('k') | KeyCode::Up => app.prev(),
         KeyCode::Char('J') => app.scroll_detail_down(1),
@@ -763,6 +764,25 @@ fn edit_input_height(inner_height: u16, is_summary_target: bool) -> u16 {
     }
 }
 
+fn vertical_scrollbar_state(
+    content_lines: usize,
+    viewport_height: u16,
+    scroll_offset: u16,
+) -> Option<ScrollbarState> {
+    let viewport_lines = usize::from(viewport_height.max(1));
+    if content_lines <= viewport_lines {
+        return None;
+    }
+
+    let max_scroll = content_lines.saturating_sub(viewport_lines);
+    let clamped_scroll = usize::from(scroll_offset).min(max_scroll);
+    Some(
+        ScrollbarState::new(content_lines)
+            .viewport_content_length(viewport_lines)
+            .position(clamped_scroll),
+    )
+}
+
 fn draw_ui(frame: &mut Frame, app: &mut App, edit_session: Option<&EditInputSession>) {
     let theme = Theme::solarized_warm();
     frame.render_widget(Block::default().style(theme.screen()), frame.area());
@@ -900,12 +920,29 @@ fn draw_ui(frame: &mut Frame, app: &mut App, edit_session: Option<&EditInputSess
                 .title(Line::from(Span::styled("ZOOMED", theme.panel_title(true))).right_aligned());
         }
         let detail_view = app.detail_view_model_for_selected();
-        let detail = Paragraph::new(Text::from(build_detail_lines(&detail_view, theme)))
+        let detail_lines = build_detail_lines(&detail_view, theme);
+        let detail_line_count = detail_lines.len().max(1);
+        let detail_inner = detail_block.inner(detail_area);
+        let detail_scroll = app.detail_scroll();
+        let detail = Paragraph::new(Text::from(detail_lines))
             .style(theme.panel())
             .block(detail_block)
-            .scroll((app.detail_scroll(), 0))
+            .scroll((detail_scroll, 0))
             .wrap(Wrap { trim: false });
         frame.render_widget(detail, detail_area);
+        if let Some(mut scrollbar_state) =
+            vertical_scrollbar_state(detail_line_count, detail_viewport_height, detail_scroll)
+        {
+            frame.render_stateful_widget(
+                Scrollbar::new(ScrollbarOrientation::VerticalRight)
+                    .begin_symbol(None)
+                    .end_symbol(None)
+                    .thumb_style(theme.panel_title(detail_active))
+                    .track_style(theme.panel_border(detail_active)),
+                detail_inner,
+                &mut scrollbar_state,
+            );
+        }
     }
 
     if app.in_popup_mode() {
@@ -926,15 +963,34 @@ fn draw_ui(frame: &mut Frame, app: &mut App, edit_session: Option<&EditInputSess
             .borders(Borders::ALL)
             .border_style(theme.popup_border())
             .style(theme.popup());
+        let popup_inner = popup_block.inner(popup_area);
+        let popup_line_count = popup_text.lines().count().max(1);
+        let actions_scroll = app.actions_scroll();
         let mut popup = Paragraph::new(popup_text)
             .style(theme.popup())
             .block(popup_block)
             .wrap(Wrap { trim: false });
         if app.in_actions_mode() {
-            popup = popup.scroll((app.actions_scroll(), 0));
+            popup = popup.scroll((actions_scroll, 0));
         }
         frame.render_widget(Clear, popup_area);
         frame.render_widget(popup, popup_area);
+        if app.in_actions_mode() {
+            let popup_viewport_height = popup_area.height.saturating_sub(2);
+            if let Some(mut scrollbar_state) =
+                vertical_scrollbar_state(popup_line_count, popup_viewport_height, actions_scroll)
+            {
+                frame.render_stateful_widget(
+                    Scrollbar::new(ScrollbarOrientation::VerticalRight)
+                        .begin_symbol(None)
+                        .end_symbol(None)
+                        .thumb_style(theme.popup_title())
+                        .track_style(theme.popup_border()),
+                    popup_inner,
+                    &mut scrollbar_state,
+                );
+            }
+        }
     }
 
     if app.in_edit_input_mode() {
@@ -1139,12 +1195,12 @@ mod tests {
 
     use crossterm::event::KeyEventState;
     use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
-    use ratatui::layout::Rect;
+    use ratatui::{layout::Rect, widgets::ScrollbarState};
 
     use super::{
         adaptive_popup_area, build_detail_lines, build_edit_textarea, edit_input_height,
         edit_popup_area, handle_key_event, handle_key_event_with_edit_session, percent_popup_area,
-        EditInputSession, RunOutcome,
+        vertical_scrollbar_state, EditInputSession, RunOutcome,
     };
     use crate::{
         app::{App, DetailMetaField, DetailViewMode, DetailViewModel, PaneOrientation, PaneZoom},
@@ -1279,6 +1335,23 @@ mod tests {
             .style
             .add_modifier
             .contains(ratatui::style::Modifier::DIM));
+    }
+
+    #[test]
+    fn vertical_scrollbar_state_is_none_when_content_fits_viewport() {
+        let state = vertical_scrollbar_state(5, 5, 0);
+        assert_eq!(state, None);
+    }
+
+    #[test]
+    fn vertical_scrollbar_state_clamps_scroll_position_to_max() {
+        let state = vertical_scrollbar_state(20, 6, 50).expect("scrollbar state");
+        assert_eq!(
+            state,
+            ScrollbarState::new(20)
+                .viewport_content_length(6)
+                .position(14)
+        );
     }
 
     #[test]
@@ -2051,7 +2124,7 @@ mod tests {
     }
 
     #[test]
-    fn lowercase_j_and_k_scroll_detail_when_detail_pane_is_zoomed() {
+    fn lowercase_j_and_k_move_issue_selection_when_detail_pane_is_zoomed() {
         let mut app = App::new(mock_source(), false);
         let (detail_tx, _) = mpsc::channel();
         app.maybe_request_detail(&detail_tx);
@@ -2072,8 +2145,8 @@ mod tests {
             &edit_tx,
         );
         assert_eq!(outcome, None);
-        assert_eq!(app.selected, initial_selected);
-        assert!(app.detail_scroll() > initial_scroll);
+        assert_eq!(app.selected, initial_selected + 1);
+        assert_eq!(app.detail_scroll(), initial_scroll);
 
         let outcome = handle_key_event(
             &mut app,
