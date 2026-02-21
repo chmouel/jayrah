@@ -92,11 +92,11 @@ fn focus_search_input(app: &mut App) {
     app.search_input = app.last_search_query().to_string();
     if app.has_active_search_query() {
         app.status_line = format!(
-            "Search focused: '{}'. Enter jump, Esc cancel",
+            "Search focused: '{}'. Enter jump, Esc clear",
             app.last_search_query()
         );
     } else {
-        app.status_line = String::from("Search focused: type query, Enter jump, Esc cancel");
+        app.status_line = String::from("Search focused: type query, Enter jump, Esc clear");
     }
 }
 
@@ -207,9 +207,8 @@ fn handle_key_event_with_edit_session(
             KeyCode::Esc => {
                 let selected_key = app.selected_issue_key();
                 app.filter_input.clear();
-                app.filter_mode = false;
                 app.normalize_selection_with_preferred_key(selected_key.as_deref());
-                app.status_line = String::from("Filter cleared");
+                app.status_line = String::from("Filter cleared. Still focused (Enter unfocus)");
             }
             KeyCode::Enter => {
                 app.filter_mode = false;
@@ -241,9 +240,8 @@ fn handle_key_event_with_edit_session(
     if app.search_mode {
         match key.code {
             KeyCode::Esc => {
-                app.search_mode = false;
                 app.search_input.clear();
-                app.status_line = String::from("Search canceled");
+                app.status_line = String::from("Search cleared. Still focused (Enter jump)");
             }
             KeyCode::Enter => {
                 app.search_mode = false;
@@ -891,7 +889,7 @@ fn draw_ui(frame: &mut Frame, app: &mut App, edit_session: Option<&EditInputSess
         let search_line = Line::from(vec![
             Span::styled("[SEARCH]", theme.footer_mode()),
             Span::styled(format!(" {search_label}"), theme.footer_hint()),
-            Span::styled(" | Enter jump | Esc cancel", theme.footer_hint()),
+            Span::styled(" | Enter jump | Esc clear", theme.footer_hint()),
         ]);
         frame.render_widget(
             Paragraph::new(search_line).style(theme.search_bar(app.search_mode)),
@@ -905,9 +903,7 @@ fn draw_ui(frame: &mut Frame, app: &mut App, edit_session: Option<&EditInputSess
         )
     } else if app.search_mode {
         (
-            String::from(
-                "type to search visible rows | Enter jump | Esc cancel | Backspace delete",
-            ),
+            String::from("type to search visible rows | Enter jump | Esc clear | Backspace delete"),
             false,
         )
     } else if app.in_comment_input_mode() {
@@ -1327,7 +1323,7 @@ mod tests {
     }
 
     #[test]
-    fn esc_clears_filter_and_unfocuses() {
+    fn esc_clears_filter_and_keeps_focus() {
         let mut app = App::new(mock_source(), false);
         app.filter_mode = true;
         app.filter_input = "adapter".to_string();
@@ -1343,9 +1339,9 @@ mod tests {
             &edit_tx,
         );
         assert_eq!(outcome, None);
-        assert!(!app.filter_mode);
+        assert!(app.filter_mode);
         assert!(app.filter_input.is_empty());
-        assert_eq!(app.status_line, "Filter cleared");
+        assert!(app.status_line.contains("Filter cleared"));
     }
 
     #[test]
@@ -1461,7 +1457,7 @@ mod tests {
     }
 
     #[test]
-    fn esc_cancels_search_mode_without_changing_selection() {
+    fn esc_clears_search_input_and_keeps_mode_without_changing_selection() {
         let mut app = App::new(mock_source(), false);
         app.selected = 2;
         let (add_tx, _) = mpsc::channel();
@@ -1491,8 +1487,9 @@ mod tests {
         );
         assert_eq!(outcome, None);
         assert_eq!(app.selected_issue_key().as_deref(), Some("JAY-103"));
-        assert!(!app.search_mode);
-        assert_eq!(app.status_line, "Search canceled");
+        assert!(app.search_mode);
+        assert!(app.search_input.is_empty());
+        assert!(app.status_line.contains("Search cleared"));
     }
 
     #[test]

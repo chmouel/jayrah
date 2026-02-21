@@ -736,3 +736,7 @@ test result: ok. 82 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fin
 2026-02-21 16:54 UTC | codex | phase1-theme | Applied themed styles to issues table, detail pane, popups, filter/search bars, footer, and status emphasis in `tui.rs` | complete | Run formatting/checks/tests for regression coverage
 2026-02-21 16:54 UTC | codex | phase1-theme | Verified with `cargo fmt --all`, `cargo check --workspace`, and `cargo test -p jayrah-tui` (106 passed) | complete | Confirm migration log state and handoff changes
 2026-02-21 16:54 UTC | codex | phase1-theme | Remaining TODOs / uncertainties | none | Continue with next Rust TUI feature iteration
+2026-02-21 16:59 UTC | codex | phase3-filter-search-esc | Started Esc behavior update for focused filter/search inputs so Esc clears input without leaving mode | in_progress | Patch key handling, help text, and tests in jayrah-tui
+2026-02-21 16:59 UTC | codex | phase3-filter-search-esc | Updated key handling so Esc clears filter/search input while staying in focused mode; refreshed search help/status copy and actions help text | complete | Run formatting and jayrah-tui tests
+2026-02-21 16:59 UTC | codex | phase3-filter-search-esc | Verified with `cargo fmt --all` and `cargo test -p jayrah-tui` (106 passed) | complete | Update remaining todos/uncertainties snapshot
+2026-02-21 16:59 UTC | codex | remaining-todos-uncertainties | Updated current state after Esc clear-without-exit behavior for filter/search modes | none | none
