@@ -200,7 +200,9 @@ def test_browse_command_uses_configured_rust_ui_default(
             "jira_user": "testuser",
             "jira_password": "testpass",
             "jira_project": "TEST",
-            "boards": [{"name": "myboard", "jql": "project = TEST", "order_by": "updated"}],
+            "boards": [
+                {"name": "myboard", "jql": "project = TEST", "order_by": "updated"}
+            ],
             "ui_backend": "rust",
             "verbose": False,
             "quiet": False,
@@ -230,7 +232,9 @@ def test_browse_command_global_ui_backend_flag_overrides_config(
             "jira_user": "testuser",
             "jira_password": "testpass",
             "jira_project": "TEST",
-            "boards": [{"name": "myboard", "jql": "project = TEST", "order_by": "updated"}],
+            "boards": [
+                {"name": "myboard", "jql": "project = TEST", "order_by": "updated"}
+            ],
             "ui_backend": "textual",
             "verbose": False,
             "quiet": False,
@@ -240,9 +244,7 @@ def test_browse_command_global_ui_backend_flag_overrides_config(
 
     monkeypatch.setattr(common.config, "make_config", fake_make_config)
 
-    result = runner.invoke(
-        commands.cli, ["--ui-backend", "rust", "browse", "myboard"]
-    )
+    result = runner.invoke(commands.cli, ["--ui-backend", "rust", "browse", "myboard"])
 
     assert result.exit_code == 0
     assert mock_boards.last_instance is not None
@@ -262,7 +264,9 @@ def test_browse_command_falls_back_to_textual_when_config_rust_unavailable(
             "jira_user": "testuser",
             "jira_password": "testpass",
             "jira_project": "TEST",
-            "boards": [{"name": "myboard", "jql": "project = TEST", "order_by": "updated"}],
+            "boards": [
+                {"name": "myboard", "jql": "project = TEST", "order_by": "updated"}
+            ],
             "ui_backend": "rust",
             "_ui_backend_from_cli": False,
             "verbose": False,
@@ -301,7 +305,9 @@ def test_browse_command_explicit_rust_request_stays_strict(
             "jira_user": "testuser",
             "jira_password": "testpass",
             "jira_project": "TEST",
-            "boards": [{"name": "myboard", "jql": "project = TEST", "order_by": "updated"}],
+            "boards": [
+                {"name": "myboard", "jql": "project = TEST", "order_by": "updated"}
+            ],
             "ui_backend": "textual",
             "_ui_backend_from_cli": False,
             "verbose": False,
@@ -331,7 +337,9 @@ def test_browse_command_global_explicit_rust_request_stays_strict(
             "jira_user": "testuser",
             "jira_password": "testpass",
             "jira_project": "TEST",
-            "boards": [{"name": "myboard", "jql": "project = TEST", "order_by": "updated"}],
+            "boards": [
+                {"name": "myboard", "jql": "project = TEST", "order_by": "updated"}
+            ],
             "ui_backend": "textual",
             "verbose": False,
             "quiet": False,
