@@ -9,6 +9,7 @@ use ratatui::{
     widgets::{Block, Borders, Cell, Clear, Paragraph, Row, Table, TableState, Wrap},
     Frame, Terminal,
 };
+use tui_textarea::TextArea;
 
 use crate::{
     app::App,
@@ -30,8 +31,39 @@ const POPUP_MIN_WIDTH: u16 = 28;
 const POPUP_MIN_HEIGHT: u16 = 6;
 const POPUP_HORIZONTAL_PADDING: u16 = 4;
 const POPUP_VERTICAL_PADDING: u16 = 2;
-const EDIT_POPUP_WIDTH_PERCENT: u16 = 80;
-const EDIT_POPUP_HEIGHT_PERCENT: u16 = 80;
+const DESCRIPTION_EDIT_POPUP_WIDTH_PERCENT: u16 = 80;
+const DESCRIPTION_EDIT_POPUP_HEIGHT_PERCENT: u16 = 80;
+const SUMMARY_EDIT_POPUP_HEIGHT_PERCENT: u16 = 35;
+const SUMMARY_EDIT_POPUP_MIN_HEIGHT: u16 = 7;
+const SUMMARY_EDIT_POPUP_MAX_HEIGHT: u16 = 10;
+const EDIT_POPUP_WIDTH_PERCENT: u16 = 70;
+const EDIT_POPUP_HEIGHT_PERCENT: u16 = 55;
+const EDIT_POPUP_MIN_WIDTH: u16 = 44;
+const EDIT_POPUP_MAX_WIDTH: u16 = 84;
+const EDIT_POPUP_MIN_HEIGHT: u16 = 8;
+const EDIT_POPUP_MAX_HEIGHT: u16 = 20;
+const EDIT_POPUP_MARGIN: u16 = 1;
+
+#[derive(Debug)]
+struct EditInputSession {
+    textarea: TextArea<'static>,
+}
+
+fn build_edit_textarea(value: &str) -> TextArea<'static> {
+    TextArea::from(value.split('\n'))
+}
+
+fn sync_edit_input_session(app: &App, edit_session: &mut Option<EditInputSession>) {
+    if app.in_edit_input_mode() {
+        if edit_session.is_none() {
+            *edit_session = Some(EditInputSession {
+                textarea: build_edit_textarea(app.edit_input()),
+            });
+        }
+    } else {
+        *edit_session = None;
+    }
+}
 
 pub fn run_app(
     terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
@@ -43,6 +75,7 @@ pub fn run_app(
     let (transition_request_tx, transition_result_rx) = start_transition_worker();
     let (apply_transition_request_tx, apply_transition_result_rx) = start_apply_transition_worker();
     let (edit_issue_request_tx, edit_issue_result_rx) = start_edit_issue_worker();
+    let mut edit_session: Option<EditInputSession> = None;
 
     loop {
         while let Ok(message) = detail_result_rx.try_recv() {
@@ -67,7 +100,8 @@ pub fn run_app(
         app.maybe_request_detail(&detail_request_tx);
         app.maybe_request_comments(&comment_request_tx);
         app.maybe_request_transitions(&transition_request_tx);
-        terminal.draw(|frame| draw_ui(frame, &mut app))?;
+        sync_edit_input_session(&app, &mut edit_session);
+        terminal.draw(|frame| draw_ui(frame, &mut app, edit_session.as_ref()))?;
 
         if event::poll(Duration::from_millis(100))? {
             let Event::Key(key) = event::read()? else {
@@ -78,8 +112,9 @@ pub fn run_app(
                 continue;
             }
 
-            if let Some(outcome) = handle_key_event(
+            if let Some(outcome) = handle_key_event_with_edit_session(
                 &mut app,
+                &mut edit_session,
                 key,
                 &add_comment_request_tx,
                 &apply_transition_request_tx,
@@ -93,6 +128,25 @@ pub fn run_app(
 
 fn handle_key_event(
     app: &mut App,
+    key: KeyEvent,
+    add_comment_request_tx: &std::sync::mpsc::Sender<crate::app::AddCommentRequest>,
+    apply_transition_request_tx: &std::sync::mpsc::Sender<crate::app::ApplyTransitionRequest>,
+    edit_issue_request_tx: &std::sync::mpsc::Sender<crate::app::EditIssueRequest>,
+) -> Option<RunOutcome> {
+    let mut edit_session = None;
+    handle_key_event_with_edit_session(
+        app,
+        &mut edit_session,
+        key,
+        add_comment_request_tx,
+        apply_transition_request_tx,
+        edit_issue_request_tx,
+    )
+}
+
+fn handle_key_event_with_edit_session(
+    app: &mut App,
+    edit_session: &mut Option<EditInputSession>,
     key: KeyEvent,
     add_comment_request_tx: &std::sync::mpsc::Sender<crate::app::AddCommentRequest>,
     apply_transition_request_tx: &std::sync::mpsc::Sender<crate::app::ApplyTransitionRequest>,
@@ -152,16 +206,33 @@ fn handle_key_event(
     }
 
     if app.in_edit_input_mode() {
-        match key.code {
-            KeyCode::Esc => app.cancel_edit_input(),
-            KeyCode::Enter => app.submit_edit_input(edit_issue_request_tx),
-            KeyCode::Backspace => app.pop_edit_input_char(),
-            KeyCode::Char(c) => {
-                if !key.modifiers.contains(KeyModifiers::CONTROL) {
-                    app.push_edit_input_char(c);
-                }
+        sync_edit_input_session(app, edit_session);
+        let Some(session) = edit_session.as_mut() else {
+            app.status_line = "Edit input unavailable".to_string();
+            return None;
+        };
+
+        match key {
+            KeyEvent {
+                code: KeyCode::Esc, ..
+            } => {
+                app.cancel_edit_input();
+                *edit_session = None;
             }
-            _ => {}
+            KeyEvent {
+                code: KeyCode::Char(c),
+                modifiers,
+                ..
+            } if modifiers.contains(KeyModifiers::CONTROL) && c.eq_ignore_ascii_case(&'s') => {
+                let value = session.textarea.lines().join("\n");
+                app.set_edit_input(value.clone());
+                app.submit_edit_value(value, edit_issue_request_tx);
+                sync_edit_input_session(app, edit_session);
+            }
+            _ => {
+                session.textarea.input(key);
+                app.set_edit_input(session.textarea.lines().join("\n"));
+            }
         }
         return None;
     }
@@ -392,7 +463,63 @@ fn adaptive_popup_area(area: Rect, title: &str, text: &str) -> Rect {
     centered_rect(area, popup_width, popup_height)
 }
 
-fn draw_ui(frame: &mut Frame, app: &mut App) {
+fn edit_popup_area(area: Rect, is_description_target: bool, is_summary_target: bool) -> Rect {
+    if is_description_target {
+        return percent_popup_area(
+            area,
+            DESCRIPTION_EDIT_POPUP_WIDTH_PERCENT,
+            DESCRIPTION_EDIT_POPUP_HEIGHT_PERCENT,
+        );
+    }
+
+    let available_width = area
+        .width
+        .saturating_sub(EDIT_POPUP_MARGIN.saturating_mul(2))
+        .max(1);
+    let available_height = area
+        .height
+        .saturating_sub(EDIT_POPUP_MARGIN.saturating_mul(2))
+        .max(1);
+    let width = available_width
+        .saturating_mul(EDIT_POPUP_WIDTH_PERCENT.clamp(1, 100))
+        .saturating_div(100)
+        .clamp(
+            EDIT_POPUP_MIN_WIDTH.min(available_width),
+            EDIT_POPUP_MAX_WIDTH.min(available_width),
+        );
+    let height = if is_summary_target {
+        available_height
+            .saturating_mul(SUMMARY_EDIT_POPUP_HEIGHT_PERCENT.clamp(1, 100))
+            .saturating_div(100)
+            .clamp(
+                SUMMARY_EDIT_POPUP_MIN_HEIGHT.min(available_height),
+                SUMMARY_EDIT_POPUP_MAX_HEIGHT.min(available_height),
+            )
+    } else {
+        available_height
+            .saturating_mul(EDIT_POPUP_HEIGHT_PERCENT.clamp(1, 100))
+            .saturating_div(100)
+            .clamp(
+                EDIT_POPUP_MIN_HEIGHT.min(available_height),
+                EDIT_POPUP_MAX_HEIGHT.min(available_height),
+            )
+    };
+    centered_rect(area, width, height)
+}
+
+fn edit_input_height(inner_height: u16, is_summary_target: bool) -> u16 {
+    if inner_height <= 1 {
+        return inner_height;
+    }
+
+    if is_summary_target {
+        4u16.min(inner_height.saturating_sub(1)).max(1)
+    } else {
+        inner_height.saturating_sub(1)
+    }
+}
+
+fn draw_ui(frame: &mut Frame, app: &mut App, edit_session: Option<&EditInputSession>) {
     let vertical = Layout::default()
         .direction(Direction::Vertical)
         .constraints([Constraint::Min(0), Constraint::Length(1)])
@@ -475,30 +602,47 @@ fn draw_ui(frame: &mut Frame, app: &mut App) {
     }
 
     if app.in_edit_input_mode() {
-        let edit_popup_area = percent_popup_area(
-            vertical[0],
-            EDIT_POPUP_WIDTH_PERCENT,
-            EDIT_POPUP_HEIGHT_PERCENT,
-        );
-        let value = app.edit_input();
-        let edit_title = format!("Edit {}", app.edit_target_display());
-        let edit_text = format!(
-            "Value\n> {}\n\nControls\nType text to edit\nBackspace delete character\nEnter submit\nEsc cancel\n\nStatus\n{}",
-            value, app.status_line
-        );
-        let edit_popup = Paragraph::new(edit_text)
-            .block(Block::default().title(edit_title).borders(Borders::ALL))
-            .wrap(Wrap { trim: false });
+        let is_description_target = app.edit_target_label() == "description";
+        let is_summary_target = app.edit_target_label() == "summary";
+        let edit_popup_area =
+            edit_popup_area(vertical[0], is_description_target, is_summary_target);
         frame.render_widget(Clear, edit_popup_area);
-        frame.render_widget(edit_popup, edit_popup_area);
+        let issue_key = app
+            .selected_issue_key()
+            .unwrap_or_else(|| String::from("<no issue>"));
+        let edit_title = format!("Edit {} ({issue_key})", app.edit_target_display());
+        let popup_block = Block::default().title(edit_title).borders(Borders::ALL);
+        frame.render_widget(popup_block.clone(), edit_popup_area);
 
-        // Keep a visible cursor at the end of the editable value line in the popup.
-        let inner_width = edit_popup_area.width.saturating_sub(2);
-        let max_value_width = inner_width.saturating_sub(2);
-        let value_width = u16::try_from(value.chars().count()).unwrap_or(u16::MAX);
-        let cursor_x = edit_popup_area.x + 1 + 2 + value_width.min(max_value_width);
-        let cursor_y = edit_popup_area.y + 2;
-        frame.set_cursor_position((cursor_x, cursor_y));
+        let inner = popup_block.inner(edit_popup_area);
+        if inner.width > 0 && inner.height > 0 {
+            if inner.height > 1 {
+                let input_height = edit_input_height(inner.height, is_summary_target);
+                let sections = Layout::default()
+                    .direction(Direction::Vertical)
+                    .constraints([Constraint::Length(input_height), Constraint::Length(1)])
+                    .split(inner);
+                if let Some(session) = edit_session {
+                    frame.render_widget(&session.textarea, sections[0]);
+                } else {
+                    frame.render_widget(
+                        Paragraph::new(app.edit_input()).wrap(Wrap { trim: false }),
+                        sections[0],
+                    );
+                }
+                let controls = Paragraph::new("Ctrl+s save  Esc cancel")
+                    .style(Style::default().add_modifier(Modifier::DIM))
+                    .wrap(Wrap { trim: true });
+                frame.render_widget(controls, sections[1]);
+            } else if let Some(session) = edit_session {
+                frame.render_widget(&session.textarea, inner);
+            } else {
+                frame.render_widget(
+                    Paragraph::new(app.edit_input()).wrap(Wrap { trim: false }),
+                    inner,
+                );
+            }
+        }
     }
 
     let mode = if app.filter_mode {
@@ -536,7 +680,7 @@ fn draw_ui(frame: &mut Frame, app: &mut App) {
         )
     } else if app.in_edit_input_mode() {
         format!(
-            "[{}] edit popup open | target: {} | Enter submit | Esc cancel | {}",
+            "[{}] editor open | target: {} | Ctrl+s save | Esc cancel | {}",
             mode,
             app.edit_target_display(),
             app.status_line
@@ -588,7 +732,11 @@ mod tests {
     use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
     use ratatui::layout::Rect;
 
-    use super::{adaptive_popup_area, handle_key_event, percent_popup_area, RunOutcome};
+    use super::{
+        adaptive_popup_area, build_edit_textarea, edit_input_height, edit_popup_area,
+        handle_key_event, handle_key_event_with_edit_session, percent_popup_area, EditInputSession,
+        RunOutcome,
+    };
     use crate::{app::App, types::AdapterSource};
 
     fn mock_source() -> AdapterSource {
@@ -1028,5 +1176,92 @@ mod tests {
         assert_eq!(popup.height, 32);
         assert_eq!(popup.x, 10);
         assert_eq!(popup.y, 4);
+    }
+
+    #[test]
+    fn edit_popup_area_stays_within_expected_bounds() {
+        let area = Rect::new(0, 0, 140, 60);
+        let popup = edit_popup_area(area, false, false);
+
+        assert!(popup.width >= 44);
+        assert!(popup.width <= 84);
+        assert!(popup.height >= 8);
+        assert!(popup.height <= 20);
+    }
+
+    #[test]
+    fn description_edit_popup_uses_eighty_percent_of_screen() {
+        let area = Rect::new(0, 0, 100, 40);
+        let popup = edit_popup_area(area, true, false);
+
+        assert_eq!(popup.width, 80);
+        assert_eq!(popup.height, 32);
+        assert_eq!(popup.x, 10);
+        assert_eq!(popup.y, 4);
+    }
+
+    #[test]
+    fn summary_edit_popup_uses_compact_height_profile() {
+        let area = Rect::new(0, 0, 140, 60);
+        let popup = edit_popup_area(area, false, true);
+
+        assert!(popup.height >= 7);
+        assert!(popup.height <= 10);
+    }
+
+    #[test]
+    fn summary_edit_input_height_uses_four_lines_when_possible() {
+        assert_eq!(edit_input_height(6, true), 4);
+        assert_eq!(edit_input_height(2, true), 1);
+        assert_eq!(edit_input_height(6, false), 5);
+    }
+
+    #[test]
+    fn ctrl_s_submits_edit_input_in_mock_mode() {
+        let mut app = App::new(mock_source(), false);
+        let (add_tx, _) = mpsc::channel();
+        let (transition_tx, _) = mpsc::channel();
+        let (edit_tx, _) = mpsc::channel();
+        app.start_summary_edit_input();
+
+        let mut edit_session = Some(EditInputSession {
+            textarea: build_edit_textarea("Saved with Ctrl+S"),
+        });
+        let outcome = handle_key_event_with_edit_session(
+            &mut app,
+            &mut edit_session,
+            key_with_modifiers(KeyCode::Char('s'), KeyModifiers::CONTROL),
+            &add_tx,
+            &transition_tx,
+            &edit_tx,
+        );
+
+        assert_eq!(outcome, None);
+        assert!(!app.in_edit_input_mode());
+        let issue = app.selected_issue().expect("selected issue");
+        assert_eq!(issue.summary, "Saved with Ctrl+S");
+    }
+
+    #[test]
+    fn enter_in_edit_mode_inserts_newline_and_does_not_submit() {
+        let mut app = App::new(mock_source(), false);
+        let (add_tx, _) = mpsc::channel();
+        let (transition_tx, _) = mpsc::channel();
+        let (edit_tx, _) = mpsc::channel();
+        app.start_description_edit_input();
+
+        let mut edit_session = None;
+        let outcome = handle_key_event_with_edit_session(
+            &mut app,
+            &mut edit_session,
+            key(KeyCode::Enter),
+            &add_tx,
+            &transition_tx,
+            &edit_tx,
+        );
+
+        assert_eq!(outcome, None);
+        assert!(app.in_edit_input_mode());
+        assert!(app.edit_input().contains('\n'));
     }
 }

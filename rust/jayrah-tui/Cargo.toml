@@ -9,4 +9,5 @@ crossterm = "0.28"
 jayrah-config = { path = "../jayrah-config" }
 jayrah-jira = { path = "../jayrah-jira" }
 ratatui = "0.29"
+tui-textarea = "0.7"
 webbrowser = "1.0"

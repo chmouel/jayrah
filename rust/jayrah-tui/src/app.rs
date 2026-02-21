@@ -327,6 +327,10 @@ impl App {
         self.edit_input.as_str()
     }
 
+    pub fn set_edit_input(&mut self, value: String) {
+        self.edit_input = value;
+    }
+
     pub fn edit_target_label(&self) -> &'static str {
         match self.edit_target {
             EditField::Summary => "summary",
@@ -533,7 +537,7 @@ impl App {
             EditField::CustomField => String::new(),
         };
         self.status_line = format!(
-            "Editing {}: Enter submit, Esc cancel",
+            "Editing {}: Ctrl+s save, Esc cancel",
             self.edit_target_label()
         );
     }
@@ -545,12 +549,19 @@ impl App {
         self.status_line = "Edit canceled".to_string();
     }
 
-    pub fn push_edit_input_char(&mut self, value: char) {
-        self.edit_input.push(value);
-    }
-
-    pub fn pop_edit_input_char(&mut self) {
-        self.edit_input.pop();
+    fn normalize_edit_value(&self, value: String) -> String {
+        match self.edit_target {
+            EditField::Summary => value
+                .replace('\r', " ")
+                .replace('\n', " ")
+                .split_whitespace()
+                .collect::<Vec<_>>()
+                .join(" "),
+            EditField::Labels | EditField::Components => {
+                value.replace('\r', ",").replace('\n', ",")
+            }
+            EditField::Description | EditField::CustomField => value,
+        }
     }
 
     pub fn next_comment(&mut self) {
@@ -999,12 +1010,16 @@ impl App {
     }
 
     pub fn submit_edit_input(&mut self, submit_tx: &Sender<EditIssueRequest>) {
+        self.submit_edit_value(self.edit_input.to_string(), submit_tx);
+    }
+
+    pub fn submit_edit_value(&mut self, value: String, submit_tx: &Sender<EditIssueRequest>) {
         let Some(key) = self.selected_issue_key() else {
             self.status_line = "No issue selected".to_string();
             return;
         };
 
-        let value = self.edit_input.to_string();
+        let value = self.normalize_edit_value(value);
         if self.edit_target == EditField::Summary && value.trim().is_empty() {
             self.status_line = "Summary cannot be empty".to_string();
             return;
@@ -1970,6 +1985,18 @@ mod tests {
     }
 
     #[test]
+    fn submit_summary_edit_normalizes_newlines_to_spaces() {
+        let mut app = App::new(mock_source(), false);
+        let (tx, _) = mpsc::channel();
+
+        app.start_summary_edit_input();
+        app.submit_edit_value("line one\nline   two".to_string(), &tx);
+
+        let issue = app.selected_issue().expect("selected issue");
+        assert_eq!(issue.summary, "line one line two");
+    }
+
+    #[test]
     fn submit_description_edit_in_mock_mode_updates_detail_cache() {
         let mut app = App::new(mock_source(), false);
         let (detail_tx, _) = mpsc::channel();
@@ -2000,6 +2027,20 @@ mod tests {
     }
 
     #[test]
+    fn submit_labels_edit_normalizes_newlines_to_csv_delimiters() {
+        let mut app = App::new(mock_source(), false);
+        let (detail_tx, _) = mpsc::channel();
+        let (edit_tx, _) = mpsc::channel();
+
+        app.maybe_request_detail(&detail_tx);
+        app.start_labels_edit_input();
+        app.submit_edit_value("alpha\nbeta".to_string(), &edit_tx);
+
+        let detail = app.detail_text_for_selected();
+        assert!(detail.contains("Labels: alpha, beta"));
+    }
+
+    #[test]
     fn submit_components_edit_in_mock_mode_updates_detail_cache() {
         let mut app = App::new(mock_source(), false);
         let (detail_tx, _) = mpsc::channel();
@@ -2009,6 +2050,20 @@ mod tests {
         app.start_components_edit_input();
         app.edit_input = "core, ui".to_string();
         app.submit_edit_input(&edit_tx);
+
+        let detail = app.detail_text_for_selected();
+        assert!(detail.contains("Components: core, ui"));
+    }
+
+    #[test]
+    fn submit_components_edit_normalizes_newlines_to_csv_delimiters() {
+        let mut app = App::new(mock_source(), false);
+        let (detail_tx, _) = mpsc::channel();
+        let (edit_tx, _) = mpsc::channel();
+
+        app.maybe_request_detail(&detail_tx);
+        app.start_components_edit_input();
+        app.submit_edit_value("core\nui".to_string(), &edit_tx);
 
         let detail = app.detail_text_for_selected();
         assert!(detail.contains("Components: core, ui"));
