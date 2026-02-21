@@ -195,5 +195,6 @@ API_VERSION = "2"
 # Default authentication method (will be auto-selected based on API version if not specified)
 # Options: "basic" or "bearer"
 AUTH_METHOD = "basic"
+UI_BACKEND = "textual"
 
 CONFIG_FILE = pathlib.Path.home() / ".config" / "jayrah" / "config.yaml"

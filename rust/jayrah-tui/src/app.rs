@@ -34,6 +34,7 @@ pub struct App {
     pub(crate) status_line: String,
     pub(crate) source: AdapterSource,
     pub(crate) using_adapter: bool,
+    pub(crate) choose_mode: bool,
     detail_cache: HashMap<String, IssueDetail>,
     detail_errors: HashMap<String, String>,
     detail_loading_key: Option<String>,
@@ -42,7 +43,7 @@ pub struct App {
 }
 
 impl App {
-    pub fn new(source: AdapterSource) -> Self {
+    pub fn new(source: AdapterSource, choose_mode: bool) -> Self {
         let mut app = Self {
             issues: Vec::new(),
             selected: 0,
@@ -52,6 +53,7 @@ impl App {
             status_line: String::new(),
             source,
             using_adapter: false,
+            choose_mode,
             detail_cache: HashMap::new(),
             detail_errors: HashMap::new(),
             detail_loading_key: None,
@@ -87,12 +89,27 @@ impl App {
     }
 
     pub fn normalize_selection(&mut self) {
-        let len = self.visible_indices().len();
-        if len == 0 {
+        self.normalize_selection_with_preferred_key(None);
+    }
+
+    pub fn normalize_selection_with_preferred_key(&mut self, preferred_key: Option<&str>) {
+        let visible = self.visible_indices();
+        if visible.is_empty() {
             self.selected = 0;
             return;
         }
 
+        if let Some(key) = preferred_key {
+            if let Some(position) = visible
+                .iter()
+                .position(|index| self.issues[*index].key.as_str() == key)
+            {
+                self.selected = position;
+                return;
+            }
+        }
+
+        let len = visible.len();
         if self.selected >= len {
             self.selected = len - 1;
         }
@@ -124,11 +141,12 @@ impl App {
         self.issues.get(*issue_index)
     }
 
-    fn selected_issue_key(&self) -> Option<String> {
+    pub(crate) fn selected_issue_key(&self) -> Option<String> {
         self.selected_issue().map(|issue| issue.key.clone())
     }
 
     pub fn reload_issues(&mut self) {
+        let preferred_key = self.selected_issue_key();
         self.reload_count += 1;
         self.detail_cache.clear();
         self.detail_errors.clear();
@@ -138,7 +156,7 @@ impl App {
             self.issues = mock_issues(self.reload_count);
             self.using_adapter = false;
             self.status_line = format!("Reloaded mock issues ({})", self.reload_count);
-            self.normalize_selection();
+            self.normalize_selection_with_preferred_key(preferred_key.as_deref());
             return;
         }
 
@@ -162,7 +180,7 @@ impl App {
             }
         }
 
-        self.normalize_selection();
+        self.normalize_selection_with_preferred_key(preferred_key.as_deref());
         self.sync_selected_tracking();
     }
 
@@ -346,7 +364,7 @@ mod tests {
 
     #[test]
     fn filters_visible_indices_by_summary() {
-        let mut app = App::new(mock_source());
+        let mut app = App::new(mock_source(), false);
         app.filter_input = "adapter".to_string();
 
         let visible = app.visible_indices();
@@ -356,7 +374,7 @@ mod tests {
 
     #[test]
     fn maybe_request_detail_populates_mock_cache_without_worker_request() {
-        let mut app = App::new(mock_source());
+        let mut app = App::new(mock_source(), false);
         let (tx, rx) = mpsc::channel();
 
         app.maybe_request_detail(&tx);
@@ -365,5 +383,34 @@ mod tests {
         let detail = app.detail_text_for_selected();
         assert!(detail.contains("Description"));
         assert!(detail.contains("Mock detail payload"));
+    }
+
+    #[test]
+    fn preserves_selected_issue_when_filter_changes() {
+        let mut app = App::new(mock_source(), false);
+        app.selected = 2;
+
+        let selected_key = app.selected_issue_key().expect("selected key");
+        app.filter_input = "jay".to_string();
+        app.normalize_selection_with_preferred_key(Some(selected_key.as_str()));
+
+        assert_eq!(
+            app.selected_issue_key().as_deref(),
+            Some(selected_key.as_str())
+        );
+    }
+
+    #[test]
+    fn preserves_selected_issue_key_across_reload() {
+        let mut app = App::new(mock_source(), false);
+        app.selected = 1;
+        let selected_key = app.selected_issue_key().expect("selected key");
+
+        app.reload_issues();
+
+        assert_eq!(
+            app.selected_issue_key().as_deref(),
+            Some(selected_key.as_str())
+        );
     }
 }

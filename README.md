@@ -61,11 +61,44 @@ Launch the issue browser with:
 jayrah browse # or just `jayrah` will do the same
 ```
 
+UI backend selection:
+
+- Persisted default: set `ui_backend` in `~/.config/jayrah/config.yaml`:
+
+```yaml
+ui_backend: "textual" # or "rust"
+```
+
+- Per-invocation override for all interactive commands:
+
+```sh
+jayrah --ui-backend rust browse myissue
+```
+
+- Browse-only override (highest precedence):
+
+```sh
+jayrah browse myissue --ui rust
+```
+
+Precedence order for browse: `browse --ui` > global `--ui-backend` > config `ui_backend` > built-in default (`textual`).
+
+Fallback behavior:
+
+- If Rust is chosen via config default and cannot be launched, Jayrah falls back to Textual automatically.
+- If Rust is chosen explicitly via `--ui rust` or `--ui-backend rust`, Jayrah fails fast instead of silently switching backends.
+
 List all your boards with the `-l/--list-boards` option.
 Filter issues by board with the `-f/--filter` option for example:
 
 ```sh
 jayrah browse myissue --filter status=New
+```
+
+Choose mode (prints selected key + URL without opening it):
+
+```sh
+jayrah browse myissue --choose
 ```
 
 if you add words after the `jayrah browse BOARD` command, it will search for

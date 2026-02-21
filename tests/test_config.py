@@ -100,6 +100,20 @@ def test_write_config(tmp_path):
     assert written_config["general"]["jira_user"] == "test_user"
 
 
+def test_read_config_ui_backend_default_and_override(tmp_path):
+    """read_config should default ui_backend and honor explicit config value."""
+    missing_file = tmp_path / "missing.yaml"
+    result = config.read_config({}, missing_file)
+    assert result["ui_backend"] == defaults.UI_BACKEND
+
+    config_file = tmp_path / "ui_backend.yaml"
+    with open(config_file, "w") as f:
+        yaml.safe_dump({"general": {"ui_backend": "rust"}}, f)
+
+    override = config.read_config({}, config_file)
+    assert override["ui_backend"] == "rust"
+
+
 @patch("rich.prompt.Prompt.ask")
 @patch("jayrah.config.write_config")
 def test_make_config_prompts_for_missing_values(

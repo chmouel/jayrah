@@ -6,6 +6,7 @@ from .. import utils
 from ..api import jira_client as jirahttp
 from ..config import defaults
 from . import issues
+from .rust_tui import run_rust_browser
 from .tui import run_textual_browser
 
 
@@ -74,28 +75,43 @@ class Boards:
 
         self.issues_client = issues.Issues(self.config, self.jira)
 
-    def fuzzy_search(self, issues, auto_choose: bool = False):
+    def fuzzy_search(
+        self,
+        issues,
+        auto_choose: bool = False,
+        ui_backend: str = "textual",
+        query: str | None = None,
+    ):
         """Use interactive UI to select an issue."""
+        issue_count = len(issues) if issues else 0
         if self.verbose:
             utils.log(
-                f"Preparing UI interface for {len(issues)} issues",
+                f"Preparing {ui_backend} UI for {issue_count} issues",
                 "DEBUG",
                 verbose_only=True,
                 verbose=self.verbose,
             )
 
-        try:
-            selected_key = run_textual_browser(
-                issues,
+        selected_key = None
+        if ui_backend == "rust":
+            selected_key = run_rust_browser(
                 self.config,
-                self.command,
-                self.jql,
-                self.order_by,
-                auto_choose=auto_choose,
+                query=query,
+                choose_mode=auto_choose,
             )
-        except Exception as e:
-            click.secho(f"Error occurred with Textual UI: {e}", fg="red")
-            raise
+        else:
+            try:
+                selected_key = run_textual_browser(
+                    issues,
+                    self.config,
+                    self.command,
+                    self.jql,
+                    self.order_by,
+                    auto_choose=auto_choose,
+                )
+            except Exception as e:
+                click.secho(f"Error occurred with Textual UI: {e}", fg="red")
+                raise
         if self.verbose and selected_key:
             print(f"User selected: {selected_key}")
 

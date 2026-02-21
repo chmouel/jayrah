@@ -4,10 +4,12 @@ Tests for the CLI commands.
 
 from unittest.mock import MagicMock
 
+import click
 import pytest
 from click.testing import CliRunner
 
 from jayrah import commands
+from jayrah.commands import common
 from jayrah.ui import boards
 
 
@@ -30,6 +32,9 @@ def mock_boards(monkeypatch):
             self.list_issues_jql = None
             self.fuzzy_search_called = False
             self.auto_choose = False
+            self.ui_backend = "textual"
+            self.query = None
+            self.calls = []
             self.issues_client = MagicMock()
 
             def _list_issues(jql, order_by=None):
@@ -40,9 +45,23 @@ def mock_boards(monkeypatch):
             self.issues_client.list_issues.side_effect = _list_issues
             mock_build_search_jql.last_instance = self
 
-        def fuzzy_search(self, issues, auto_choose=False):
+        def fuzzy_search(
+            self, issues, auto_choose=False, ui_backend="textual", query=None
+        ):
             self.fuzzy_search_called = True
             self.auto_choose = auto_choose
+            self.ui_backend = ui_backend
+            self.query = query
+            self.calls.append(
+                {
+                    "issues": issues,
+                    "auto_choose": auto_choose,
+                    "ui_backend": ui_backend,
+                    "query": query,
+                }
+            )
+            if mock_build_search_jql.raise_on_rust and ui_backend == "rust":
+                raise click.ClickException("rust launcher failed")
             return mock_build_search_jql.fuzzy_search_result
 
         def suggest_git_branch(self, search_terms=None, use_or=False, filters=None):
@@ -76,6 +95,7 @@ def mock_boards(monkeypatch):
     mock_build_search_jql.last_instance = None
     mock_build_search_jql.issues_return_value = []
     mock_build_search_jql.fuzzy_search_result = None
+    mock_build_search_jql.raise_on_rust = False
 
     monkeypatch.setattr(boards, "Boards", MockBoards)
     monkeypatch.setattr(boards, "check", mock_check)
@@ -149,3 +169,178 @@ def test_browse_command_choose_option(runner, mock_boards, monkeypatch):
     assert f"TEST-123 {expected_server}/browse/TEST-123" in result.output
     assert mock_boards.last_instance.fuzzy_search_called
     assert mock_boards.last_instance.auto_choose
+
+
+def test_browse_command_rust_ui_skips_python_issue_prefetch(runner, mock_boards):
+    """Test --ui rust routes through rust backend query and skips list_issues."""
+    mock_boards.fuzzy_search_result = "TEST-456"
+
+    result = runner.invoke(
+        commands.cli,
+        ["browse", "myboard", "--ui", "rust"],
+    )
+
+    assert result.exit_code == 0
+    assert mock_boards.last_instance is not None
+    assert mock_boards.last_instance.fuzzy_search_called
+    assert mock_boards.last_instance.ui_backend == "rust"
+    assert mock_boards.last_instance.query == "project = TEST ORDER BY updated"
+    assert not mock_boards.last_instance.list_issues_called
+
+
+def test_browse_command_uses_configured_rust_ui_default(
+    runner, mock_boards, monkeypatch
+):
+    """When config ui_backend=rust, browse should use rust path without --ui."""
+
+    def fake_make_config(flag_config, config_file):
+        _ = flag_config, config_file
+        return {
+            "jira_server": "https://jira.example.com",
+            "jira_user": "testuser",
+            "jira_password": "testpass",
+            "jira_project": "TEST",
+            "boards": [{"name": "myboard", "jql": "project = TEST", "order_by": "updated"}],
+            "ui_backend": "rust",
+            "verbose": False,
+            "quiet": False,
+            "insecure": False,
+            "cache_ttl": 3600,
+        }
+
+    monkeypatch.setattr(common.config, "make_config", fake_make_config)
+
+    result = runner.invoke(commands.cli, ["browse", "myboard"])
+
+    assert result.exit_code == 0
+    assert mock_boards.last_instance is not None
+    assert mock_boards.last_instance.ui_backend == "rust"
+    assert not mock_boards.last_instance.list_issues_called
+
+
+def test_browse_command_global_ui_backend_flag_overrides_config(
+    runner, mock_boards, monkeypatch
+):
+    """Global --ui-backend should override persisted config for this invocation."""
+
+    def fake_make_config(flag_config, config_file):
+        _ = flag_config, config_file
+        return {
+            "jira_server": "https://jira.example.com",
+            "jira_user": "testuser",
+            "jira_password": "testpass",
+            "jira_project": "TEST",
+            "boards": [{"name": "myboard", "jql": "project = TEST", "order_by": "updated"}],
+            "ui_backend": "textual",
+            "verbose": False,
+            "quiet": False,
+            "insecure": False,
+            "cache_ttl": 3600,
+        }
+
+    monkeypatch.setattr(common.config, "make_config", fake_make_config)
+
+    result = runner.invoke(
+        commands.cli, ["--ui-backend", "rust", "browse", "myboard"]
+    )
+
+    assert result.exit_code == 0
+    assert mock_boards.last_instance is not None
+    assert mock_boards.last_instance.ui_backend == "rust"
+    assert not mock_boards.last_instance.list_issues_called
+
+
+def test_browse_command_falls_back_to_textual_when_config_rust_unavailable(
+    runner, mock_boards, monkeypatch
+):
+    """Config-default rust backend should fall back to textual on launcher errors."""
+
+    def fake_make_config(flag_config, config_file):
+        _ = flag_config, config_file
+        return {
+            "jira_server": "https://jira.example.com",
+            "jira_user": "testuser",
+            "jira_password": "testpass",
+            "jira_project": "TEST",
+            "boards": [{"name": "myboard", "jql": "project = TEST", "order_by": "updated"}],
+            "ui_backend": "rust",
+            "_ui_backend_from_cli": False,
+            "verbose": False,
+            "quiet": False,
+            "insecure": False,
+            "cache_ttl": 3600,
+        }
+
+    monkeypatch.setattr(common.config, "make_config", fake_make_config)
+    mock_boards.raise_on_rust = True
+    mock_boards.issues_return_value = [{"key": "TEST-123"}]
+    mock_boards.fuzzy_search_result = "TEST-123"
+
+    result = runner.invoke(commands.cli, ["browse", "myboard"])
+
+    assert result.exit_code == 0
+    assert "falling back to Textual UI" in result.output
+    assert mock_boards.last_instance is not None
+    assert mock_boards.last_instance.list_issues_called
+    assert len(mock_boards.last_instance.calls) == 2
+    assert mock_boards.last_instance.calls[0]["ui_backend"] == "rust"
+    assert mock_boards.last_instance.calls[1]["ui_backend"] == "textual"
+
+
+def test_browse_command_explicit_rust_request_stays_strict(
+    runner, mock_boards, monkeypatch
+):
+    """Explicit rust selection should not fall back silently."""
+
+    def fake_make_config(flag_config, config_file):
+        _ = flag_config, config_file
+        return {
+            "jira_server": "https://jira.example.com",
+            "jira_user": "testuser",
+            "jira_password": "testpass",
+            "jira_project": "TEST",
+            "boards": [{"name": "myboard", "jql": "project = TEST", "order_by": "updated"}],
+            "ui_backend": "textual",
+            "_ui_backend_from_cli": False,
+            "verbose": False,
+            "quiet": False,
+            "insecure": False,
+            "cache_ttl": 3600,
+        }
+
+    monkeypatch.setattr(common.config, "make_config", fake_make_config)
+    mock_boards.raise_on_rust = True
+
+    result = runner.invoke(commands.cli, ["browse", "myboard", "--ui", "rust"])
+
+    assert result.exit_code != 0
+    assert "rust launcher failed" in result.output
+
+
+def test_browse_command_global_explicit_rust_request_stays_strict(
+    runner, mock_boards, monkeypatch
+):
+    """Global explicit rust selection should not fall back silently."""
+
+    def fake_make_config(flag_config, config_file):
+        _ = flag_config, config_file
+        return {
+            "jira_server": "https://jira.example.com",
+            "jira_user": "testuser",
+            "jira_password": "testpass",
+            "jira_project": "TEST",
+            "boards": [{"name": "myboard", "jql": "project = TEST", "order_by": "updated"}],
+            "ui_backend": "textual",
+            "verbose": False,
+            "quiet": False,
+            "insecure": False,
+            "cache_ttl": 3600,
+        }
+
+    monkeypatch.setattr(common.config, "make_config", fake_make_config)
+    mock_boards.raise_on_rust = True
+
+    result = runner.invoke(commands.cli, ["--ui-backend", "rust", "browse", "myboard"])
+
+    assert result.exit_code != 0
+    assert "rust launcher failed" in result.output

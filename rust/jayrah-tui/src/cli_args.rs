@@ -5,8 +5,14 @@ use anyhow::{anyhow, Result};
 use crate::types::AdapterSource;
 
 #[derive(Debug)]
+pub struct RunConfig {
+    pub source: AdapterSource,
+    pub choose_mode: bool,
+}
+
+#[derive(Debug)]
 pub enum CliAction {
-    Run(AdapterSource),
+    Run(RunConfig),
     Help,
 }
 
@@ -17,11 +23,12 @@ pub fn parse_cli_action() -> Result<CliAction> {
 pub fn print_help() {
     println!("jayrah-tui (phase 1 preview)");
     println!("Usage:");
-    println!("  cargo run -p jayrah-tui -- [--board <name>] [--query <jql>] [--mock]");
+    println!("  cargo run -p jayrah-tui -- [--board <name>] [--query <jql>] [--mock] [--choose]");
     println!("Options:");
     println!("  --board <name>   Load issues from a configured board");
     println!("  --query <jql>    Load issues from a raw JQL query");
     println!("  --mock           Skip adapter calls and use built-in mock issues");
+    println!("  --choose         Print selected issue key when Enter confirms selection");
 }
 
 fn parse_args<I>(args: I) -> Result<CliAction>
@@ -31,6 +38,7 @@ where
     let mut board = None;
     let mut query = None;
     let mut mock_only = false;
+    let mut choose_mode = false;
 
     let mut args = args.into_iter();
     while let Some(arg) = args.next() {
@@ -50,6 +58,9 @@ where
             "--mock" => {
                 mock_only = true;
             }
+            "--choose" => {
+                choose_mode = true;
+            }
             "--help" | "-h" => {
                 return Ok(CliAction::Help);
             }
@@ -66,10 +77,13 @@ where
         board = Some("myissue".to_string());
     }
 
-    Ok(CliAction::Run(AdapterSource {
-        board,
-        query,
-        mock_only,
+    Ok(CliAction::Run(RunConfig {
+        source: AdapterSource {
+            board,
+            query,
+            mock_only,
+        },
+        choose_mode,
     }))
 }
 
@@ -84,8 +98,19 @@ mod tests {
             panic!("expected run action");
         };
 
-        assert_eq!(source.board.as_deref(), Some("myissue"));
-        assert!(!source.mock_only);
+        assert_eq!(source.source.board.as_deref(), Some("myissue"));
+        assert!(!source.source.mock_only);
+        assert!(!source.choose_mode);
+    }
+
+    #[test]
+    fn parses_choose_mode_flag() {
+        let action = parse_args(vec!["--choose".to_string()]).expect("action");
+        let CliAction::Run(config) = action else {
+            panic!("expected run action");
+        };
+
+        assert!(config.choose_mode);
     }
 
     #[test]

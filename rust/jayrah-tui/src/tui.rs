@@ -12,7 +12,16 @@ use ratatui::{
 
 use crate::{app::App, worker::start_detail_worker};
 
-pub fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, mut app: App) -> Result<()> {
+#[derive(Debug, PartialEq, Eq)]
+pub enum RunOutcome {
+    Quit,
+    Chosen(Option<String>),
+}
+
+pub fn run_app(
+    terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
+    mut app: App,
+) -> Result<RunOutcome> {
     let (detail_request_tx, detail_result_rx) = start_detail_worker();
 
     loop {
@@ -32,16 +41,14 @@ pub fn run_app(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, mut app: A
                 continue;
             }
 
-            if handle_key_event(&mut app, key) {
-                break;
+            if let Some(outcome) = handle_key_event(&mut app, key) {
+                return Ok(outcome);
             }
         }
     }
-
-    Ok(())
 }
 
-fn handle_key_event(app: &mut App, key: KeyEvent) -> bool {
+fn handle_key_event(app: &mut App, key: KeyEvent) -> Option<RunOutcome> {
     if app.filter_mode {
         match key.code {
             KeyCode::Esc | KeyCode::Enter => {
@@ -50,22 +57,24 @@ fn handle_key_event(app: &mut App, key: KeyEvent) -> bool {
                 app.status_line = format!("Filter applied: '{}'", app.filter_input);
             }
             KeyCode::Backspace => {
+                let selected_key = app.selected_issue_key();
                 app.filter_input.pop();
-                app.normalize_selection();
+                app.normalize_selection_with_preferred_key(selected_key.as_deref());
             }
             KeyCode::Char(c) => {
                 if !key.modifiers.contains(KeyModifiers::CONTROL) {
+                    let selected_key = app.selected_issue_key();
                     app.filter_input.push(c);
-                    app.normalize_selection();
+                    app.normalize_selection_with_preferred_key(selected_key.as_deref());
                 }
             }
             _ => {}
         }
-        return false;
+        return None;
     }
 
     match key.code {
-        KeyCode::Char('q') | KeyCode::Esc => return true,
+        KeyCode::Char('q') | KeyCode::Esc => return Some(RunOutcome::Quit),
         KeyCode::Char('j') | KeyCode::Down => app.next(),
         KeyCode::Char('k') | KeyCode::Up => app.prev(),
         KeyCode::Char('r') => app.reload_issues(),
@@ -73,11 +82,17 @@ fn handle_key_event(app: &mut App, key: KeyEvent) -> bool {
             app.filter_mode = true;
             app.status_line = String::from("Filter mode: type to filter, Enter to apply");
         }
-        KeyCode::Char('o') | KeyCode::Enter => app.open_selected_issue(),
+        KeyCode::Char('o') => app.open_selected_issue(),
+        KeyCode::Enter => {
+            if app.choose_mode {
+                return Some(RunOutcome::Chosen(app.selected_issue_key()));
+            }
+            app.open_selected_issue();
+        }
         _ => {}
     }
 
-    false
+    None
 }
 
 fn draw_ui(frame: &mut Frame, app: &App) {
@@ -138,11 +153,22 @@ fn draw_ui(frame: &mut Frame, app: &App) {
         .wrap(Wrap { trim: false });
     frame.render_widget(detail, main_chunks[1]);
 
-    let mode = if app.filter_mode { "FILTER" } else { "NORMAL" };
+    let mode = if app.filter_mode {
+        "FILTER"
+    } else if app.choose_mode {
+        "CHOOSE"
+    } else {
+        "NORMAL"
+    };
     let footer = if app.filter_mode {
         format!(
             "[{}] filter: {}  | Enter/Esc apply  Backspace delete",
             mode, app.filter_input
+        )
+    } else if app.choose_mode {
+        format!(
+            "[{}] j/k or arrows move | Enter choose | f filter | o open | q quit | {}",
+            mode, app.status_line
         )
     } else {
         format!(
@@ -151,4 +177,52 @@ fn draw_ui(frame: &mut Frame, app: &App) {
         )
     };
     frame.render_widget(Paragraph::new(footer), vertical[1]);
+}
+
+#[cfg(test)]
+mod tests {
+    use crossterm::event::KeyEventState;
+    use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
+
+    use super::{handle_key_event, RunOutcome};
+    use crate::{app::App, types::AdapterSource};
+
+    fn mock_source() -> AdapterSource {
+        AdapterSource {
+            board: None,
+            query: None,
+            mock_only: true,
+        }
+    }
+
+    fn key(code: KeyCode) -> KeyEvent {
+        KeyEvent {
+            code,
+            modifiers: KeyModifiers::empty(),
+            kind: KeyEventKind::Press,
+            state: KeyEventState::empty(),
+        }
+    }
+
+    #[test]
+    fn enter_returns_selected_key_in_choose_mode() {
+        let mut app = App::new(mock_source(), true);
+
+        let outcome = handle_key_event(&mut app, key(KeyCode::Enter));
+        assert_eq!(
+            outcome,
+            Some(RunOutcome::Chosen(Some("JAY-101".to_string())))
+        );
+    }
+
+    #[test]
+    fn enter_opens_issue_outside_choose_mode() {
+        let mut app = App::new(mock_source(), false);
+
+        let outcome = handle_key_event(&mut app, key(KeyCode::Enter));
+        assert_eq!(outcome, None);
+        assert!(app
+            .status_line
+            .contains("Open disabled while using mock data"));
+    }
 }

@@ -13,7 +13,12 @@ pub fn start_detail_worker() -> (Sender<DetailRequest>, Receiver<DetailResult>) 
     let (result_tx, result_rx) = mpsc::channel::<DetailResult>();
 
     thread::spawn(move || {
-        while let Ok(request) = request_rx.recv() {
+        while let Ok(mut request) = request_rx.recv() {
+            // Coalesce a burst of selection changes and fetch only the latest key.
+            while let Ok(newer_request) = request_rx.try_recv() {
+                request = newer_request;
+            }
+
             let result =
                 load_issue_detail_from_adapter(&request.key).map_err(|error| error.to_string());
 

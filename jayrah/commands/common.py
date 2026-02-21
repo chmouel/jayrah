@@ -42,6 +42,12 @@ from ..ui import boards
     help="Config file to use",
 )
 @click.option("--quiet", is_flag=True, help="Suppress non-error output")
+@click.option(
+    "--ui-backend",
+    type=click.Choice(["textual", "rust"], case_sensitive=False),
+    default=None,
+    help="UI backend for interactive commands in this invocation",
+)
 @click.pass_context
 def cli(
     ctx,
@@ -55,6 +61,7 @@ def cli(
     cache_ttl,
     config_file,
     quiet,
+    ui_backend,
 ):
     """Jira Helper Tool"""
 
@@ -67,10 +74,17 @@ def cli(
         "no_cache": no_cache,
         "verbose": verbose,
         "quiet": quiet,
+        "ui_backend": ui_backend,
         "insecure": insecure,
         "jayrah_path": os.path.abspath(sys.argv[0]),
         "ctx": ctx,
     }
     wconfig = config.make_config(flag_config, pathlib.Path(config_file))
+    # CLI flags should win over persisted config for this invocation.
+    if ui_backend:
+        wconfig["ui_backend"] = ui_backend.lower()
+        wconfig["_ui_backend_from_cli"] = True
+    else:
+        wconfig["_ui_backend_from_cli"] = False
     utils.log(f"Using config: {wconfig}", verbose=verbose, verbose_only=True)
     ctx.obj = boards.Boards(wconfig)

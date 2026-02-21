@@ -120,6 +120,9 @@ def read_config(ret: dict, config_file: pathlib.Path) -> dict:
         if "custom_fields" not in ret:
             ret["custom_fields"] = []
 
+        if "ui_backend" not in ret or ret["ui_backend"] not in ("textual", "rust"):
+            ret["ui_backend"] = defaults.UI_BACKEND
+
     checks()
     if not config_file.exists():
         return ret
@@ -143,6 +146,7 @@ def read_config(ret: dict, config_file: pathlib.Path) -> dict:
                 "label_excludes",
                 "auth_method",
                 "api_version",
+                "ui_backend",
             ]:
                 ret[x] = set_general(x) if set_general(x) is not None else ret.get(x)
             # Add support for custom_fields in general
@@ -178,6 +182,7 @@ def write_config(config, config_file: pathlib.Path):
         "create",
         "insecure",
         "custom_fields",
+        "ui_backend",
     ]:
         if config.get(key):
             yaml_config["general"][key] = config[key]
