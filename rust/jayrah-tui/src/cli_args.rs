@@ -4,11 +4,26 @@ use anyhow::{anyhow, Result};
 
 use crate::types::AdapterSource;
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum StartupLayout {
+    Horizontal,
+    Vertical,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum StartupZoom {
+    Split,
+    Issues,
+    Detail,
+}
+
 #[derive(Debug)]
 pub struct RunConfig {
     pub source: AdapterSource,
     pub choose_mode: bool,
     pub config_file: Option<String>,
+    pub startup_layout: StartupLayout,
+    pub startup_zoom: StartupZoom,
 }
 
 #[derive(Debug)]
@@ -25,12 +40,14 @@ pub fn print_help() {
     println!("jayrah-tui (phase 1 preview)");
     println!("Usage:");
     println!(
-        "  cargo run -p jayrah-tui -- [--board <name>] [--query <jql>] [--config-file <path>] [--mock] [--choose]"
+        "  cargo run -p jayrah-tui -- [--board <name>] [--query <jql>] [--config-file <path>] [--layout <horizontal|vertical>] [--zoom <split|issues|detail>] [--mock] [--choose]"
     );
     println!("Options:");
     println!("  --board <name>   Load issues from a configured board");
     println!("  --query <jql>    Load issues from a raw JQL query");
     println!("  -c, --config-file <path>   Override config path (sets JAYRAH_CONFIG_FILE)");
+    println!("  --layout <mode>  Startup layout: horizontal or vertical");
+    println!("  --zoom <mode>    Startup zoom: split, issues, or detail");
     println!("  --mock           Skip adapter calls and use built-in mock issues");
     println!("  --choose         Print selected issue key when Enter confirms selection");
 }
@@ -44,6 +61,8 @@ where
     let mut mock_only = false;
     let mut choose_mode = false;
     let mut config_file = None;
+    let mut startup_layout = StartupLayout::Horizontal;
+    let mut startup_zoom = StartupZoom::Split;
 
     let mut args = args.into_iter();
     while let Some(arg) = args.next() {
@@ -65,6 +84,18 @@ where
                     args.next()
                         .ok_or_else(|| anyhow!("--config-file requires a value"))?,
                 );
+            }
+            "--layout" => {
+                let value = args
+                    .next()
+                    .ok_or_else(|| anyhow!("--layout requires a value"))?;
+                startup_layout = parse_startup_layout(&value)?;
+            }
+            "--zoom" => {
+                let value = args
+                    .next()
+                    .ok_or_else(|| anyhow!("--zoom requires a value"))?;
+                startup_zoom = parse_startup_zoom(&value)?;
             }
             "--mock" => {
                 mock_only = true;
@@ -96,12 +127,35 @@ where
         },
         choose_mode,
         config_file,
+        startup_layout,
+        startup_zoom,
     }))
+}
+
+fn parse_startup_layout(value: &str) -> Result<StartupLayout> {
+    match value.to_ascii_lowercase().as_str() {
+        "horizontal" => Ok(StartupLayout::Horizontal),
+        "vertical" => Ok(StartupLayout::Vertical),
+        other => Err(anyhow!(
+            "Invalid --layout value '{other}'. Expected one of: horizontal, vertical"
+        )),
+    }
+}
+
+fn parse_startup_zoom(value: &str) -> Result<StartupZoom> {
+    match value.to_ascii_lowercase().as_str() {
+        "split" => Ok(StartupZoom::Split),
+        "issues" => Ok(StartupZoom::Issues),
+        "detail" => Ok(StartupZoom::Detail),
+        other => Err(anyhow!(
+            "Invalid --zoom value '{other}'. Expected one of: split, issues, detail"
+        )),
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{parse_args, CliAction};
+    use super::{parse_args, CliAction, StartupLayout, StartupZoom};
 
     #[test]
     fn defaults_to_legacy_board_when_no_args() {
@@ -114,6 +168,8 @@ mod tests {
         assert!(!source.source.mock_only);
         assert!(!source.choose_mode);
         assert_eq!(source.config_file, None);
+        assert_eq!(source.startup_layout, StartupLayout::Horizontal);
+        assert_eq!(source.startup_zoom, StartupZoom::Split);
     }
 
     #[test]
@@ -157,5 +213,38 @@ mod tests {
         };
 
         assert_eq!(config.config_file.as_deref(), Some("/tmp/jayrah.yaml"));
+    }
+
+    #[test]
+    fn parses_layout_and_zoom_flags() {
+        let action = parse_args(vec![
+            "--layout".to_string(),
+            "vertical".to_string(),
+            "--zoom".to_string(),
+            "detail".to_string(),
+        ])
+        .expect("action");
+        let CliAction::Run(config) = action else {
+            panic!("expected run action");
+        };
+
+        assert_eq!(config.startup_layout, StartupLayout::Vertical);
+        assert_eq!(config.startup_zoom, StartupZoom::Detail);
+    }
+
+    #[test]
+    fn rejects_unknown_layout_value() {
+        let error = parse_args(vec!["--layout".to_string(), "diag".to_string()])
+            .expect_err("expected error");
+
+        assert!(error.to_string().contains("Invalid --layout value"));
+    }
+
+    #[test]
+    fn rejects_unknown_zoom_value() {
+        let error =
+            parse_args(vec!["--zoom".to_string(), "left".to_string()]).expect_err("expected error");
+
+        assert!(error.to_string().contains("Invalid --zoom value"));
     }
 }

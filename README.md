@@ -67,6 +67,8 @@ UI backend selection:
 
 ```yaml
 ui_backend: "textual" # or "rust"
+rust_tui_layout: "horizontal" # or "vertical"
+rust_tui_zoom: "split" # split, issues, or detail
 ```
 
 - Per-invocation override for all interactive commands:
@@ -79,6 +81,12 @@ jayrah --ui-backend rust browse myissue
 
 ```sh
 jayrah browse myissue --ui rust
+```
+
+- Rust startup layout/zoom override for a single run:
+
+```sh
+jayrah browse myissue --ui rust --rust-layout vertical --rust-zoom detail
 ```
 
 Precedence order for browse: `browse --ui` > global `--ui-backend` > config `ui_backend` > built-in default (`textual`).

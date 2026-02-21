@@ -38,6 +38,18 @@ from .completions import BoardType
     default=None,
     help="UI backend to use (defaults to config `ui_backend`, else textual)",
 )
+@click.option(
+    "--rust-layout",
+    type=click.Choice(["horizontal", "vertical"], case_sensitive=False),
+    default=None,
+    help="Rust UI startup layout override (defaults to config `rust_tui_layout`)",
+)
+@click.option(
+    "--rust-zoom",
+    type=click.Choice(["split", "issues", "detail"], case_sensitive=False),
+    default=None,
+    help="Rust UI startup zoom override (defaults to config `rust_tui_zoom`)",
+)
 @click.pass_obj
 def browse(
     jayrah_obj,
@@ -49,6 +61,8 @@ def browse(
     choose,
     jql_query,
     ui_backend,
+    rust_layout,
+    rust_zoom,
 ):
     """
     Browse boards
@@ -94,6 +108,22 @@ def browse(
     if effective_ui_backend not in ("textual", "rust"):
         effective_ui_backend = defaults.UI_BACKEND
 
+    effective_rust_layout = (
+        rust_layout
+        or jayrah_obj.config.get("rust_tui_layout")
+        or defaults.RUST_TUI_LAYOUT
+    ).lower()
+    if effective_rust_layout not in ("horizontal", "vertical"):
+        effective_rust_layout = defaults.RUST_TUI_LAYOUT
+
+    effective_rust_zoom = (
+        rust_zoom
+        or jayrah_obj.config.get("rust_tui_zoom")
+        or defaults.RUST_TUI_ZOOM
+    ).lower()
+    if effective_rust_zoom not in ("split", "issues", "detail"):
+        effective_rust_zoom = defaults.RUST_TUI_ZOOM
+
     if effective_ui_backend == "rust":
         effective_query = jql
         if order_by and "order by" not in effective_query.lower():
@@ -104,6 +134,8 @@ def browse(
                 auto_choose=choose,
                 ui_backend=effective_ui_backend,
                 query=effective_query,
+                rust_layout=effective_rust_layout,
+                rust_zoom=effective_rust_zoom,
             )
         except click.ClickException as rust_error:
             if explicit_rust_request:

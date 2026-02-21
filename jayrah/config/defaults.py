@@ -196,5 +196,7 @@ API_VERSION = "2"
 # Options: "basic" or "bearer"
 AUTH_METHOD = "basic"
 UI_BACKEND = "textual"
+RUST_TUI_LAYOUT = "horizontal"
+RUST_TUI_ZOOM = "split"
 
 CONFIG_FILE = pathlib.Path.home() / ".config" / "jayrah" / "config.yaml"

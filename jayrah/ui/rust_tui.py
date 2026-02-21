@@ -14,6 +14,8 @@ def run_rust_browser(
     config: dict,
     query: str | None = None,
     choose_mode: bool = False,
+    layout: str | None = None,
+    zoom: str | None = None,
 ) -> str | None:
     """Run the Rust TUI and optionally return a selected key in choose mode."""
     _ = config
@@ -36,6 +38,10 @@ def run_rust_browser(
     ]
     if query:
         command.extend(["--query", query])
+    if layout:
+        command.extend(["--layout", layout])
+    if zoom:
+        command.extend(["--zoom", zoom])
     if choose_mode:
         command.append("--choose")
 

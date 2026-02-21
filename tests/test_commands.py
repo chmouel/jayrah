@@ -10,6 +10,7 @@ from click.testing import CliRunner
 
 from jayrah import commands
 from jayrah.commands import common
+from jayrah.config import defaults
 from jayrah.ui import boards
 
 
@@ -34,6 +35,8 @@ def mock_boards(monkeypatch):
             self.auto_choose = False
             self.ui_backend = "textual"
             self.query = None
+            self.rust_layout = None
+            self.rust_zoom = None
             self.calls = []
             self.issues_client = MagicMock()
 
@@ -46,18 +49,28 @@ def mock_boards(monkeypatch):
             mock_build_search_jql.last_instance = self
 
         def fuzzy_search(
-            self, issues, auto_choose=False, ui_backend="textual", query=None
+            self,
+            issues,
+            auto_choose=False,
+            ui_backend="textual",
+            query=None,
+            rust_layout=None,
+            rust_zoom=None,
         ):
             self.fuzzy_search_called = True
             self.auto_choose = auto_choose
             self.ui_backend = ui_backend
             self.query = query
+            self.rust_layout = rust_layout
+            self.rust_zoom = rust_zoom
             self.calls.append(
                 {
                     "issues": issues,
                     "auto_choose": auto_choose,
                     "ui_backend": ui_backend,
                     "query": query,
+                    "rust_layout": rust_layout,
+                    "rust_zoom": rust_zoom,
                 }
             )
             if mock_build_search_jql.raise_on_rust and ui_backend == "rust":
@@ -185,7 +198,33 @@ def test_browse_command_rust_ui_skips_python_issue_prefetch(runner, mock_boards)
     assert mock_boards.last_instance.fuzzy_search_called
     assert mock_boards.last_instance.ui_backend == "rust"
     assert mock_boards.last_instance.query == "project = TEST ORDER BY updated"
+    assert mock_boards.last_instance.rust_layout == defaults.RUST_TUI_LAYOUT
+    assert mock_boards.last_instance.rust_zoom == defaults.RUST_TUI_ZOOM
     assert not mock_boards.last_instance.list_issues_called
+
+
+def test_browse_command_passes_rust_layout_and_zoom_overrides(runner, mock_boards):
+    """Rust layout/zoom options should override configured defaults per run."""
+    mock_boards.fuzzy_search_result = "TEST-456"
+
+    result = runner.invoke(
+        commands.cli,
+        [
+            "browse",
+            "myboard",
+            "--ui",
+            "rust",
+            "--rust-layout",
+            "vertical",
+            "--rust-zoom",
+            "detail",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert mock_boards.last_instance is not None
+    assert mock_boards.last_instance.rust_layout == "vertical"
+    assert mock_boards.last_instance.rust_zoom == "detail"
 
 
 def test_browse_command_uses_configured_rust_ui_default(

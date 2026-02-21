@@ -123,6 +123,19 @@ def read_config(ret: dict, config_file: pathlib.Path) -> dict:
         if "ui_backend" not in ret or ret["ui_backend"] not in ("textual", "rust"):
             ret["ui_backend"] = defaults.UI_BACKEND
 
+        if "rust_tui_layout" not in ret or ret["rust_tui_layout"] not in (
+            "horizontal",
+            "vertical",
+        ):
+            ret["rust_tui_layout"] = defaults.RUST_TUI_LAYOUT
+
+        if "rust_tui_zoom" not in ret or ret["rust_tui_zoom"] not in (
+            "split",
+            "issues",
+            "detail",
+        ):
+            ret["rust_tui_zoom"] = defaults.RUST_TUI_ZOOM
+
     checks()
     if not config_file.exists():
         return ret
@@ -147,6 +160,8 @@ def read_config(ret: dict, config_file: pathlib.Path) -> dict:
                 "auth_method",
                 "api_version",
                 "ui_backend",
+                "rust_tui_layout",
+                "rust_tui_zoom",
             ]:
                 ret[x] = set_general(x) if set_general(x) is not None else ret.get(x)
             # Add support for custom_fields in general
@@ -183,6 +198,8 @@ def write_config(config, config_file: pathlib.Path):
         "insecure",
         "custom_fields",
         "ui_backend",
+        "rust_tui_layout",
+        "rust_tui_zoom",
     ]:
         if config.get(key):
             yaml_config["general"][key] = config[key]

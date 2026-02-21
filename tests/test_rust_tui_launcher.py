@@ -30,6 +30,26 @@ def test_run_rust_browser_passes_query_to_cargo(monkeypatch):
     assert Path(captured["cwd"]).name == "jayrah"
 
 
+def test_run_rust_browser_passes_layout_and_zoom_to_cargo(monkeypatch):
+    """run_rust_browser should forward startup layout and zoom flags."""
+    captured = {}
+
+    def fake_run(command, cwd, env, check):
+        captured["command"] = command
+        _ = cwd, env, check
+        return SimpleNamespace(returncode=0)
+
+    monkeypatch.setattr(rust_tui.subprocess, "run", fake_run)
+
+    result = rust_tui.run_rust_browser({}, layout="vertical", zoom="detail")
+
+    assert result is None
+    assert "--layout" in captured["command"]
+    assert "vertical" in captured["command"]
+    assert "--zoom" in captured["command"]
+    assert "detail" in captured["command"]
+
+
 def test_run_rust_browser_choose_mode_reads_and_cleans_output(monkeypatch):
     """Choose mode should parse selected key from env-file and remove temp file."""
     captured = {}

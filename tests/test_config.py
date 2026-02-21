@@ -100,18 +100,31 @@ def test_write_config(tmp_path):
     assert written_config["general"]["jira_user"] == "test_user"
 
 
-def test_read_config_ui_backend_default_and_override(tmp_path):
-    """read_config should default ui_backend and honor explicit config value."""
+def test_read_config_ui_backend_and_rust_tui_defaults_and_override(tmp_path):
+    """read_config should default UI keys and honor explicit Rust TUI settings."""
     missing_file = tmp_path / "missing.yaml"
     result = config.read_config({}, missing_file)
     assert result["ui_backend"] == defaults.UI_BACKEND
+    assert result["rust_tui_layout"] == defaults.RUST_TUI_LAYOUT
+    assert result["rust_tui_zoom"] == defaults.RUST_TUI_ZOOM
 
     config_file = tmp_path / "ui_backend.yaml"
     with open(config_file, "w") as f:
-        yaml.safe_dump({"general": {"ui_backend": "rust"}}, f)
+        yaml.safe_dump(
+            {
+                "general": {
+                    "ui_backend": "rust",
+                    "rust_tui_layout": "vertical",
+                    "rust_tui_zoom": "detail",
+                }
+            },
+            f,
+        )
 
     override = config.read_config({}, config_file)
     assert override["ui_backend"] == "rust"
+    assert override["rust_tui_layout"] == "vertical"
+    assert override["rust_tui_zoom"] == "detail"
 
 
 @patch("rich.prompt.Prompt.ask")

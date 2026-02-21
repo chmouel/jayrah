@@ -13,8 +13,8 @@ mod worker;
 use anyhow::Result;
 use std::{env, fs};
 
-use app::App;
-use cli_args::{parse_cli_action, print_help, CliAction};
+use app::{App, PaneOrientation, PaneZoom, StartupLayoutConfig};
+use cli_args::{parse_cli_action, print_help, CliAction, StartupLayout, StartupZoom};
 use terminal::{restore_terminal, setup_terminal};
 use tui::{run_app, RunOutcome};
 
@@ -39,11 +39,22 @@ fn main() -> Result<()> {
     if let Some(config_file) = run_config.config_file.as_deref() {
         env::set_var("JAYRAH_CONFIG_FILE", config_file);
     }
+    let startup_layout = StartupLayoutConfig {
+        orientation: match run_config.startup_layout {
+            StartupLayout::Horizontal => PaneOrientation::Horizontal,
+            StartupLayout::Vertical => PaneOrientation::Vertical,
+        },
+        zoom: match run_config.startup_zoom {
+            StartupZoom::Split => PaneZoom::None,
+            StartupZoom::Issues => PaneZoom::Issues,
+            StartupZoom::Detail => PaneZoom::Detail,
+        },
+    };
 
     let mut terminal = setup_terminal()?;
     let run_result = run_app(
         &mut terminal,
-        App::new(run_config.source, run_config.choose_mode),
+        App::new_with_layout(run_config.source, run_config.choose_mode, startup_layout),
     );
     restore_terminal(&mut terminal)?;
     let outcome = run_result?;

@@ -143,6 +143,21 @@ pub enum PaneZoom {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct StartupLayoutConfig {
+    pub orientation: PaneOrientation,
+    pub zoom: PaneZoom,
+}
+
+impl Default for StartupLayoutConfig {
+    fn default() -> Self {
+        Self {
+            orientation: PaneOrientation::Horizontal,
+            zoom: PaneZoom::None,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum SearchDirection {
     Forward,
     Backward,
@@ -287,7 +302,16 @@ pub struct App {
 }
 
 impl App {
+    #[allow(dead_code)]
     pub fn new(source: AdapterSource, choose_mode: bool) -> Self {
+        Self::new_with_layout(source, choose_mode, StartupLayoutConfig::default())
+    }
+
+    pub fn new_with_layout(
+        source: AdapterSource,
+        choose_mode: bool,
+        startup_layout: StartupLayoutConfig,
+    ) -> Self {
         let mut app = Self {
             issues: Vec::new(),
             selected: 0,
@@ -329,8 +353,8 @@ impl App {
             actions_viewport_height: ACTIONS_DEFAULT_VIEWPORT_HEIGHT,
             detail_scroll: 0,
             detail_viewport_height: DETAIL_DEFAULT_VIEWPORT_HEIGHT,
-            pane_orientation: PaneOrientation::Horizontal,
-            pane_zoom: PaneZoom::None,
+            pane_orientation: startup_layout.orientation,
+            pane_zoom: startup_layout.zoom,
             horizontal_first_pane_percent: HORIZONTAL_FIRST_PANE_DEFAULT_PERCENT,
             vertical_first_pane_percent: VERTICAL_FIRST_PANE_DEFAULT_PERCENT,
             last_search_query: String::new(),
@@ -2140,7 +2164,7 @@ mod tests {
     use std::sync::mpsc;
 
     use super::{
-        App, DetailViewMode, PaneOrientation, PaneZoom, MAX_LEFT_PANE_PERCENT,
+        App, DetailViewMode, PaneOrientation, PaneZoom, StartupLayoutConfig, MAX_LEFT_PANE_PERCENT,
         MIN_LEFT_PANE_PERCENT,
     };
     use crate::types::AdapterSource;
@@ -2683,6 +2707,21 @@ mod tests {
         let app = App::new(mock_source(), false);
         assert_eq!(app.pane_orientation(), PaneOrientation::Horizontal);
         assert_eq!(app.pane_width_percentages(), (40, 60));
+    }
+
+    #[test]
+    fn new_with_layout_applies_startup_orientation_and_zoom() {
+        let app = App::new_with_layout(
+            mock_source(),
+            false,
+            StartupLayoutConfig {
+                orientation: PaneOrientation::Vertical,
+                zoom: PaneZoom::Issues,
+            },
+        );
+        assert_eq!(app.pane_orientation(), PaneOrientation::Vertical);
+        assert_eq!(app.pane_zoom(), PaneZoom::Issues);
+        assert_eq!(app.pane_width_percentages(), (30, 70));
     }
 
     #[test]

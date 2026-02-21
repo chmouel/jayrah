@@ -81,6 +81,8 @@ class Boards:
         auto_choose: bool = False,
         ui_backend: str = "textual",
         query: str | None = None,
+        rust_layout: str | None = None,
+        rust_zoom: str | None = None,
     ):
         """Use interactive UI to select an issue."""
         issue_count = len(issues) if issues else 0
@@ -98,6 +100,8 @@ class Boards:
                 self.config,
                 query=query,
                 choose_mode=auto_choose,
+                layout=rust_layout,
+                zoom=rust_zoom,
             )
         else:
             try:
