@@ -553,3 +553,15 @@ Exit criteria:
 2026-02-21 07:33 UTC | codex | phaseC-adaptive-popups | Verified with `cargo test -p jayrah-tui` (61 passed, 0 failed) including new app/tui tests for adaptive popup bounds/growth and mode-specific key handling | complete | Continue deferred live-validation rerun once valid issue/env values are available
 - 2026-02-21 07:33 UTC | todo | none (for adaptive popup work; deferred live-validation follow-up remains tracked in earlier entries)
 - 2026-02-21 07:33 UTC | uncertainty | none
+2026-02-21 07:49 UTC | codex | phaseC-adaptive-popups | Added dedicated edit-input popup overlay at fixed 80% width/80% height so edit flows (`e/E/l/m` and custom-field edit input) no longer rely on footer-only editing UI | complete | Add regression test for 80% popup dimensions and verify jayrah-tui tests
+2026-02-21 07:49 UTC | codex | phaseC-adaptive-popups | Verified with `cargo fmt --all` and `cargo test -p jayrah-tui` (62 passed, 0 failed) after edit popup wiring and test additions | complete | Continue deferred live-validation rerun once valid issue/env values are available
+- 2026-02-21 07:49 UTC | todo | none (for edit popup change; deferred live-validation follow-up remains tracked in earlier entries)
+- 2026-02-21 07:49 UTC | uncertainty | none
+2026-02-21 07:53 UTC | codex | phaseC-adaptive-popups | Fixed edit popup cursor behavior by rendering an explicit input line and setting the terminal cursor position to the end of the current edit value each frame; this restores visible/blinking cursor feedback while editing | complete | Re-run jayrah-tui formatting/tests and keep deferred live-validation follow-up tracked
+2026-02-21 07:53 UTC | codex | phaseC-adaptive-popups | Verified with `cargo fmt --all` and `cargo test -p jayrah-tui` (62 passed, 0 failed) after cursor-position fix and restoring expected Alt+h/l resize direction mapping in tests | complete | Continue deferred live-validation rerun once valid issue/env values are available
+- 2026-02-21 07:53 UTC | todo | none (for cursor visibility fix; deferred live-validation follow-up remains tracked in earlier entries)
+- 2026-02-21 07:53 UTC | uncertainty | none
+2026-02-21 07:55 UTC | codex | phaseC-adaptive-popups | Reverted Alt+h/l pane-resize key mapping back to previous behavior in TUI key handling (`Alt+h` grows right pane, `Alt+l` grows left pane) per user request; aligned keymap test expectation accordingly | complete | Re-run jayrah-tui formatting/tests
+2026-02-21 07:55 UTC | codex | phaseC-adaptive-popups | Verified with `cargo fmt --all` and `cargo test -p jayrah-tui` (62 passed, 0 failed) after mapping revert | complete | Continue deferred live-validation rerun once valid issue/env values are available
+- 2026-02-21 07:55 UTC | todo | none (for pane-resize mapping revert; deferred live-validation follow-up remains tracked in earlier entries)
+- 2026-02-21 07:55 UTC | uncertainty | none

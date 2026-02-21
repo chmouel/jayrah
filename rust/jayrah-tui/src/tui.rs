@@ -30,6 +30,8 @@ const POPUP_MIN_WIDTH: u16 = 28;
 const POPUP_MIN_HEIGHT: u16 = 6;
 const POPUP_HORIZONTAL_PADDING: u16 = 4;
 const POPUP_VERTICAL_PADDING: u16 = 2;
+const EDIT_POPUP_WIDTH_PERCENT: u16 = 80;
+const EDIT_POPUP_HEIGHT_PERCENT: u16 = 80;
 
 pub fn run_app(
     terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
@@ -352,6 +354,20 @@ fn centered_rect(area: Rect, width: u16, height: u16) -> Rect {
     Rect::new(x, y, popup_width, popup_height)
 }
 
+fn percent_popup_area(area: Rect, width_percent: u16, height_percent: u16) -> Rect {
+    let width = area
+        .width
+        .saturating_mul(width_percent.clamp(1, 100))
+        .saturating_div(100)
+        .max(1);
+    let height = area
+        .height
+        .saturating_mul(height_percent.clamp(1, 100))
+        .saturating_div(100)
+        .max(1);
+    centered_rect(area, width, height)
+}
+
 fn adaptive_popup_area(area: Rect, title: &str, text: &str) -> Rect {
     let available_width = area
         .width
@@ -458,6 +474,33 @@ fn draw_ui(frame: &mut Frame, app: &mut App) {
         frame.render_widget(popup, popup_area);
     }
 
+    if app.in_edit_input_mode() {
+        let edit_popup_area = percent_popup_area(
+            vertical[0],
+            EDIT_POPUP_WIDTH_PERCENT,
+            EDIT_POPUP_HEIGHT_PERCENT,
+        );
+        let value = app.edit_input();
+        let edit_title = format!("Edit {}", app.edit_target_display());
+        let edit_text = format!(
+            "Value\n> {}\n\nControls\nType text to edit\nBackspace delete character\nEnter submit\nEsc cancel\n\nStatus\n{}",
+            value, app.status_line
+        );
+        let edit_popup = Paragraph::new(edit_text)
+            .block(Block::default().title(edit_title).borders(Borders::ALL))
+            .wrap(Wrap { trim: false });
+        frame.render_widget(Clear, edit_popup_area);
+        frame.render_widget(edit_popup, edit_popup_area);
+
+        // Keep a visible cursor at the end of the editable value line in the popup.
+        let inner_width = edit_popup_area.width.saturating_sub(2);
+        let max_value_width = inner_width.saturating_sub(2);
+        let value_width = u16::try_from(value.chars().count()).unwrap_or(u16::MAX);
+        let cursor_x = edit_popup_area.x + 1 + 2 + value_width.min(max_value_width);
+        let cursor_y = edit_popup_area.y + 2;
+        frame.set_cursor_position((cursor_x, cursor_y));
+    }
+
     let mode = if app.filter_mode {
         "FILTER"
     } else if app.in_comment_input_mode() {
@@ -493,10 +536,9 @@ fn draw_ui(frame: &mut Frame, app: &mut App) {
         )
     } else if app.in_edit_input_mode() {
         format!(
-            "[{}] target: {} | value: {} | Enter submit | Esc cancel | {}",
+            "[{}] edit popup open | target: {} | Enter submit | Esc cancel | {}",
             mode,
             app.edit_target_display(),
-            app.edit_input(),
             app.status_line
         )
     } else if app.in_actions_mode() {
@@ -546,7 +588,7 @@ mod tests {
     use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
     use ratatui::layout::Rect;
 
-    use super::{adaptive_popup_area, handle_key_event, RunOutcome};
+    use super::{adaptive_popup_area, handle_key_event, percent_popup_area, RunOutcome};
     use crate::{app::App, types::AdapterSource};
 
     fn mock_source() -> AdapterSource {
@@ -788,7 +830,7 @@ mod tests {
         );
         assert_eq!(outcome, None);
         let after_h = app.pane_width_percentages();
-        assert!(after_h.0 > initial.0);
+        assert!(after_h.0 < initial.0);
 
         let outcome = handle_key_event(
             &mut app,
@@ -975,5 +1017,16 @@ mod tests {
 
         assert!(large.width >= small.width);
         assert!(large.height >= small.height);
+    }
+
+    #[test]
+    fn percent_popup_area_uses_requested_percentage() {
+        let area = Rect::new(0, 0, 100, 40);
+        let popup = percent_popup_area(area, 80, 80);
+
+        assert_eq!(popup.width, 80);
+        assert_eq!(popup.height, 32);
+        assert_eq!(popup.x, 10);
+        assert_eq!(popup.y, 4);
     }
 }
