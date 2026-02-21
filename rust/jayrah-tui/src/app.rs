@@ -135,6 +135,13 @@ pub enum PaneOrientation {
     Vertical,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PaneZoom {
+    None,
+    Issues,
+    Detail,
+}
+
 #[derive(Debug)]
 pub struct App {
     pub(crate) issues: Vec<Issue>,
@@ -176,6 +183,7 @@ pub struct App {
     detail_scroll: u16,
     detail_viewport_height: u16,
     pane_orientation: PaneOrientation,
+    pane_zoom: PaneZoom,
     horizontal_first_pane_percent: u16,
     vertical_first_pane_percent: u16,
     last_selected_key: Option<String>,
@@ -224,6 +232,7 @@ impl App {
             detail_scroll: 0,
             detail_viewport_height: DETAIL_DEFAULT_VIEWPORT_HEIGHT,
             pane_orientation: PaneOrientation::Horizontal,
+            pane_zoom: PaneZoom::None,
             horizontal_first_pane_percent: HORIZONTAL_FIRST_PANE_DEFAULT_PERCENT,
             vertical_first_pane_percent: VERTICAL_FIRST_PANE_DEFAULT_PERCENT,
             last_selected_key: None,
@@ -1665,7 +1674,7 @@ impl App {
     pub fn actions_text(&self) -> String {
         let mode = if self.choose_mode { "choose" } else { "normal" };
         format!(
-            "Jayrah Rust TUI Actions ({mode} mode)\n\nNavigation (detail mode)\n  j/k or arrows: move issue selection\n  J/K: scroll detail pane\n  Ctrl+d/Ctrl+u: page detail pane down/up\n  Ctrl+v: toggle horizontal/vertical layout\n  Alt+h/Alt+l: resize first/second pane\n  f or /: filter issues\n  r: reload issues\n\nIssue Actions\n  o: open selected issue in browser\n  e: edit issue summary\n  E: edit issue description\n  l: edit issue labels\n  m: edit issue components\n  u: custom field editor popup\n  b: board switcher popup\n  c: comments popup\n  t: transitions popup\n  ?: actions/help popup\n\nActions Popup\n  j/k or arrows: scroll help\n  Ctrl+d/Ctrl+u: page down/up\n\nComments Popup\n  j/k or n/p: previous/next comment\n  a: compose comment\n  Enter: submit comment draft\n\nTransitions Popup\n  j/k or n/p: previous/next transition\n  Enter: apply selected transition\n\nBoards Popup\n  j/k or n/p: previous/next board\n  Enter: switch active board\n\nCustom Fields Popup\n  j/k or n/p: previous/next field\n  Enter: edit selected custom field\n\nGlobal\n  q: quit (or close active popup)\n  Esc: close active popup/filter"
+            "Jayrah Rust TUI Actions ({mode} mode)\n\nNavigation (detail mode)\n  j/k or arrows: move issue selection\n  J/K: scroll detail pane\n  Ctrl+d/Ctrl+u: page detail pane down/up\n  Ctrl+v: toggle horizontal/vertical layout\n  Alt+h/Alt+l: resize first/second pane\n  1: toggle issues pane zoom\n  2: toggle detail pane zoom\n  f or /: filter issues\n  r: reload issues\n\nIssue Actions\n  o: open selected issue in browser\n  e: edit issue summary\n  E: edit issue description\n  l: edit issue labels\n  m: edit issue components\n  u: custom field editor popup\n  b: board switcher popup\n  c: comments popup\n  t: transitions popup\n  ?: actions/help popup\n\nActions Popup\n  j/k or arrows: scroll help\n  Ctrl+d/Ctrl+u: page down/up\n\nComments Popup\n  j/k or n/p: previous/next comment\n  a: compose comment\n  Enter: submit comment draft\n\nTransitions Popup\n  j/k or n/p: previous/next transition\n  Enter: apply selected transition\n\nBoards Popup\n  j/k or n/p: previous/next board\n  Enter: switch active board\n\nCustom Fields Popup\n  j/k or n/p: previous/next field\n  Enter: edit selected custom field\n\nGlobal\n  q: quit (or close active popup)\n  Esc: close active popup/filter"
         )
     }
 
@@ -1698,6 +1707,36 @@ impl App {
 
     pub fn pane_orientation(&self) -> PaneOrientation {
         self.pane_orientation
+    }
+
+    pub fn pane_zoom(&self) -> PaneZoom {
+        self.pane_zoom
+    }
+
+    pub fn toggle_zoom_issues(&mut self) {
+        self.pane_zoom = if self.pane_zoom == PaneZoom::Issues {
+            PaneZoom::None
+        } else {
+            PaneZoom::Issues
+        };
+        self.status_line = match self.pane_zoom {
+            PaneZoom::None => "Pane zoom: split".to_string(),
+            PaneZoom::Issues => "Pane zoom: issues".to_string(),
+            PaneZoom::Detail => "Pane zoom: detail".to_string(),
+        };
+    }
+
+    pub fn toggle_zoom_detail(&mut self) {
+        self.pane_zoom = if self.pane_zoom == PaneZoom::Detail {
+            PaneZoom::None
+        } else {
+            PaneZoom::Detail
+        };
+        self.status_line = match self.pane_zoom {
+            PaneZoom::None => "Pane zoom: split".to_string(),
+            PaneZoom::Issues => "Pane zoom: issues".to_string(),
+            PaneZoom::Detail => "Pane zoom: detail".to_string(),
+        };
     }
 
     pub fn toggle_pane_orientation(&mut self) {
@@ -1794,7 +1833,7 @@ impl App {
 mod tests {
     use std::sync::mpsc;
 
-    use super::{App, PaneOrientation, MAX_LEFT_PANE_PERCENT, MIN_LEFT_PANE_PERCENT};
+    use super::{App, PaneOrientation, PaneZoom, MAX_LEFT_PANE_PERCENT, MIN_LEFT_PANE_PERCENT};
     use crate::types::AdapterSource;
 
     fn mock_source() -> AdapterSource {
@@ -1969,6 +2008,8 @@ mod tests {
         assert!(text.contains("Ctrl+d/Ctrl+u: page detail pane down/up"));
         assert!(text.contains("Ctrl+v: toggle horizontal/vertical layout"));
         assert!(text.contains("Alt+h/Alt+l: resize first/second pane"));
+        assert!(text.contains("1: toggle issues pane zoom"));
+        assert!(text.contains("2: toggle detail pane zoom"));
         assert!(text.contains("b: board switcher popup"));
         assert!(text.contains("c: comments popup"));
         assert!(text.contains("t: transitions popup"));
@@ -2225,6 +2266,30 @@ mod tests {
         let app = App::new(mock_source(), false);
         assert_eq!(app.pane_orientation(), PaneOrientation::Horizontal);
         assert_eq!(app.pane_width_percentages(), (60, 40));
+    }
+
+    #[test]
+    fn pane_zoom_toggles_between_split_and_target_panes() {
+        let mut app = App::new(mock_source(), false);
+        assert_eq!(app.pane_zoom(), PaneZoom::None);
+
+        app.toggle_zoom_issues();
+        assert_eq!(app.pane_zoom(), PaneZoom::Issues);
+
+        app.toggle_zoom_issues();
+        assert_eq!(app.pane_zoom(), PaneZoom::None);
+
+        app.toggle_zoom_detail();
+        assert_eq!(app.pane_zoom(), PaneZoom::Detail);
+
+        app.toggle_zoom_issues();
+        assert_eq!(app.pane_zoom(), PaneZoom::Issues);
+
+        app.toggle_zoom_detail();
+        assert_eq!(app.pane_zoom(), PaneZoom::Detail);
+
+        app.toggle_zoom_detail();
+        assert_eq!(app.pane_zoom(), PaneZoom::None);
     }
 
     #[test]

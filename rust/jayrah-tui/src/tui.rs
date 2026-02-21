@@ -6,13 +6,14 @@ use ratatui::{
     backend::CrosstermBackend,
     layout::{Constraint, Direction, Layout, Rect},
     style::{Modifier, Style},
+    text::Line,
     widgets::{Block, Borders, Cell, Clear, Paragraph, Row, Table, TableState, Wrap},
     Frame, Terminal,
 };
 use tui_textarea::TextArea;
 
 use crate::{
-    app::{App, PaneOrientation},
+    app::{App, PaneOrientation, PaneZoom},
     worker::{
         start_add_comment_worker, start_apply_transition_worker, start_comment_worker,
         start_detail_worker, start_edit_issue_worker, start_transition_worker,
@@ -395,6 +396,8 @@ fn handle_key_event_with_edit_session(
         KeyCode::Char('t') => app.enter_transitions_mode(),
         KeyCode::Char('?') => app.enter_actions_mode(),
         KeyCode::Char('r') => app.reload_issues(),
+        KeyCode::Char('1') => app.toggle_zoom_issues(),
+        KeyCode::Char('2') => app.toggle_zoom_detail(),
         KeyCode::Char('f') | KeyCode::Char('/') => {
             app.filter_mode = true;
             app.status_line = String::from("Filter mode: type to filter, Enter to apply");
@@ -552,6 +555,7 @@ fn draw_ui(frame: &mut Frame, app: &mut App, edit_session: Option<&EditInputSess
             Constraint::Percentage(second_pane_percent),
         ])
         .split(root_chunks[0]);
+    let pane_zoom = app.pane_zoom();
 
     let visible = app.visible_indices();
 
@@ -569,9 +573,9 @@ fn draw_ui(frame: &mut Frame, app: &mut App, edit_session: Option<&EditInputSess
         .collect();
 
     let issues_title = if app.using_adapter {
-        "Issues (adapter)"
+        "Issues (adapter) (1)"
     } else {
-        "Issues (mock)"
+        "Issues (mock) (1)"
     };
 
     let table = Table::new(
@@ -584,7 +588,13 @@ fn draw_ui(frame: &mut Frame, app: &mut App, edit_session: Option<&EditInputSess
         ],
     )
     .header(Row::new(vec!["Key", "Summary", "Status", "Assignee"]))
-    .block(Block::default().title(issues_title).borders(Borders::ALL))
+    .block({
+        let mut block = Block::default().title(issues_title).borders(Borders::ALL);
+        if pane_zoom == PaneZoom::Issues {
+            block = block.title(Line::from("ZOOMED").right_aligned());
+        }
+        block
+    })
     .row_highlight_style(Style::default().add_modifier(Modifier::REVERSED))
     .highlight_symbol(">> ");
 
@@ -593,15 +603,35 @@ fn draw_ui(frame: &mut Frame, app: &mut App, edit_session: Option<&EditInputSess
         state.select(Some(app.selected));
     }
 
-    frame.render_stateful_widget(table, main_chunks[0], &mut state);
+    if pane_zoom != PaneZoom::Detail {
+        let issues_area = if pane_zoom == PaneZoom::Issues {
+            root_chunks[0]
+        } else {
+            main_chunks[0]
+        };
+        frame.render_stateful_widget(table, issues_area, &mut state);
+    }
 
-    let detail_viewport_height = main_chunks[1].height.saturating_sub(2);
-    app.set_detail_viewport_height(detail_viewport_height);
-    let detail = Paragraph::new(app.detail_text_for_selected())
-        .block(Block::default().title("Detail").borders(Borders::ALL))
-        .scroll((app.detail_scroll(), 0))
-        .wrap(Wrap { trim: false });
-    frame.render_widget(detail, main_chunks[1]);
+    if pane_zoom != PaneZoom::Issues {
+        let detail_area = if pane_zoom == PaneZoom::Detail {
+            root_chunks[0]
+        } else {
+            main_chunks[1]
+        };
+        let detail_viewport_height = detail_area.height.saturating_sub(2);
+        app.set_detail_viewport_height(detail_viewport_height);
+        let detail = Paragraph::new(app.detail_text_for_selected())
+            .block({
+                let mut block = Block::default().title("Detail (2)").borders(Borders::ALL);
+                if pane_zoom == PaneZoom::Detail {
+                    block = block.title(Line::from("ZOOMED").right_aligned());
+                }
+                block
+            })
+            .scroll((app.detail_scroll(), 0))
+            .wrap(Wrap { trim: false });
+        frame.render_widget(detail, detail_area);
+    }
 
     if app.in_popup_mode() {
         let popup_title = app.right_pane_title();
@@ -734,12 +764,12 @@ fn draw_ui(frame: &mut Frame, app: &mut App, edit_session: Option<&EditInputSess
         )
     } else if app.choose_mode {
         format!(
-            "[{}] j/k move | J/K scroll detail | Ctrl+d/u page detail | Ctrl+v toggle layout | Enter choose | e/E/l/m edit | u custom popup | b boards popup | c comments popup | t transitions popup | ? help popup | Alt+h/l resize first/second pane | f filter | o open | q quit | {}",
+            "[{}] j/k move | J/K scroll detail | Ctrl+d/u page detail | Ctrl+v toggle layout | 1/2 zoom panes | Enter choose | e/E/l/m edit | u custom popup | b boards popup | c comments popup | t transitions popup | ? help popup | Alt+h/l resize first/second pane | f filter | o open | q quit | {}",
             mode, app.status_line
         )
     } else {
         format!(
-            "[{}] j/k move | J/K scroll detail | Ctrl+d/u page detail | Ctrl+v toggle layout | e/E/l/m edit | u custom popup | b boards popup | c comments popup | t transitions popup | ? help popup | Alt+h/l resize first/second pane | f filter | r reload | o open | q quit | {}",
+            "[{}] j/k move | J/K scroll detail | Ctrl+d/u page detail | Ctrl+v toggle layout | 1/2 zoom panes | e/E/l/m edit | u custom popup | b boards popup | c comments popup | t transitions popup | ? help popup | Alt+h/l resize first/second pane | f filter | r reload | o open | q quit | {}",
             mode, app.status_line
         )
     };
@@ -760,7 +790,7 @@ mod tests {
         RunOutcome,
     };
     use crate::{
-        app::{App, PaneOrientation},
+        app::{App, PaneOrientation, PaneZoom},
         types::AdapterSource,
     };
 
@@ -1113,6 +1143,152 @@ mod tests {
         assert_eq!(outcome, None);
         assert!(app.in_edit_input_mode());
         assert_eq!(app.pane_orientation(), PaneOrientation::Horizontal);
+    }
+
+    #[test]
+    fn one_and_two_toggle_zoom_in_normal_mode() {
+        let mut app = App::new(mock_source(), false);
+        let (add_tx, _) = mpsc::channel();
+        let (transition_tx, _) = mpsc::channel();
+        let (edit_tx, _) = mpsc::channel();
+
+        let outcome = handle_key_event(
+            &mut app,
+            key(KeyCode::Char('1')),
+            &add_tx,
+            &transition_tx,
+            &edit_tx,
+        );
+        assert_eq!(outcome, None);
+        assert_eq!(app.pane_zoom(), PaneZoom::Issues);
+
+        let outcome = handle_key_event(
+            &mut app,
+            key(KeyCode::Char('1')),
+            &add_tx,
+            &transition_tx,
+            &edit_tx,
+        );
+        assert_eq!(outcome, None);
+        assert_eq!(app.pane_zoom(), PaneZoom::None);
+
+        let outcome = handle_key_event(
+            &mut app,
+            key(KeyCode::Char('2')),
+            &add_tx,
+            &transition_tx,
+            &edit_tx,
+        );
+        assert_eq!(outcome, None);
+        assert_eq!(app.pane_zoom(), PaneZoom::Detail);
+    }
+
+    #[test]
+    fn one_and_two_switch_zoom_target_when_other_pane_is_zoomed() {
+        let mut app = App::new(mock_source(), false);
+        let (add_tx, _) = mpsc::channel();
+        let (transition_tx, _) = mpsc::channel();
+        let (edit_tx, _) = mpsc::channel();
+
+        let outcome = handle_key_event(
+            &mut app,
+            key(KeyCode::Char('2')),
+            &add_tx,
+            &transition_tx,
+            &edit_tx,
+        );
+        assert_eq!(outcome, None);
+        assert_eq!(app.pane_zoom(), PaneZoom::Detail);
+
+        let outcome = handle_key_event(
+            &mut app,
+            key(KeyCode::Char('1')),
+            &add_tx,
+            &transition_tx,
+            &edit_tx,
+        );
+        assert_eq!(outcome, None);
+        assert_eq!(app.pane_zoom(), PaneZoom::Issues);
+    }
+
+    #[test]
+    fn one_and_two_do_not_toggle_zoom_in_filter_mode() {
+        let mut app = App::new(mock_source(), false);
+        app.filter_mode = true;
+        let (add_tx, _) = mpsc::channel();
+        let (transition_tx, _) = mpsc::channel();
+        let (edit_tx, _) = mpsc::channel();
+
+        let outcome = handle_key_event(
+            &mut app,
+            key(KeyCode::Char('1')),
+            &add_tx,
+            &transition_tx,
+            &edit_tx,
+        );
+        assert_eq!(outcome, None);
+        assert_eq!(app.pane_zoom(), PaneZoom::None);
+        assert_eq!(app.filter_input, "1");
+    }
+
+    #[test]
+    fn one_and_two_do_not_toggle_zoom_in_popup_mode() {
+        let mut app = App::new(mock_source(), false);
+        app.enter_actions_mode();
+        let (add_tx, _) = mpsc::channel();
+        let (transition_tx, _) = mpsc::channel();
+        let (edit_tx, _) = mpsc::channel();
+
+        let outcome = handle_key_event(
+            &mut app,
+            key(KeyCode::Char('1')),
+            &add_tx,
+            &transition_tx,
+            &edit_tx,
+        );
+        assert_eq!(outcome, None);
+        assert_eq!(app.pane_zoom(), PaneZoom::None);
+    }
+
+    #[test]
+    fn one_and_two_do_not_toggle_zoom_in_comment_input_mode() {
+        let mut app = App::new(mock_source(), false);
+        app.enter_comments_mode();
+        app.start_comment_input();
+        let (add_tx, _) = mpsc::channel();
+        let (transition_tx, _) = mpsc::channel();
+        let (edit_tx, _) = mpsc::channel();
+
+        let outcome = handle_key_event(
+            &mut app,
+            key(KeyCode::Char('2')),
+            &add_tx,
+            &transition_tx,
+            &edit_tx,
+        );
+        assert_eq!(outcome, None);
+        assert_eq!(app.pane_zoom(), PaneZoom::None);
+    }
+
+    #[test]
+    fn one_and_two_do_not_toggle_zoom_in_edit_input_mode() {
+        let mut app = App::new(mock_source(), false);
+        app.start_summary_edit_input();
+        let (add_tx, _) = mpsc::channel();
+        let (transition_tx, _) = mpsc::channel();
+        let (edit_tx, _) = mpsc::channel();
+        let mut edit_session = None;
+
+        let outcome = handle_key_event_with_edit_session(
+            &mut app,
+            &mut edit_session,
+            key(KeyCode::Char('2')),
+            &add_tx,
+            &transition_tx,
+            &edit_tx,
+        );
+        assert_eq!(outcome, None);
+        assert_eq!(app.pane_zoom(), PaneZoom::None);
     }
 
     #[test]
