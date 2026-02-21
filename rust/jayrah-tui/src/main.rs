@@ -4,6 +4,7 @@ mod cli_args;
 mod mock;
 mod telemetry;
 mod terminal;
+mod theme;
 mod tui;
 mod types;
 mod utils;

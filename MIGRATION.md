@@ -730,3 +730,9 @@ test result: ok. 82 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fin
 2026-02-21 16:39 UTC | codex | phase3-search-mode | Implemented dedicated detail-mode `/` search input with visible-row matching, Enter jump, and `n`/`N` repeat while keeping `f` bound to persistent filter focus | complete | Run formatting and jayrah-tui test suite
 2026-02-21 16:39 UTC | codex | phase3-search-mode | Verified with `cargo fmt --all` and `cargo test -p jayrah-tui` (103 passed) | complete | Update remaining todos/uncertainties snapshot
 2026-02-21 16:39 UTC | codex | remaining-todos-uncertainties | Updated current state after split filter/search keybinding implementation | none | none
+2026-02-21 16:54 UTC | codex | phase1-theme | Decision | Locked full-surface Solarized-warm theme pass with single default theme and no runtime switching for this iteration | Implement centralized theme module and wire semantic styles through the TUI draw path
+2026-02-21 16:54 UTC | codex | phase1-theme | Started themed-color implementation for Rust Ratatui UI surfaces | in_progress | Add semantic palette module and apply styles across panes, popups, bars, and footer/status
+2026-02-21 16:54 UTC | codex | phase1-theme | Added centralized `theme.rs` semantic palette with status-tone mapping and unit tests | complete | Wire theme into draw pipeline and edit input styling
+2026-02-21 16:54 UTC | codex | phase1-theme | Applied themed styles to issues table, detail pane, popups, filter/search bars, footer, and status emphasis in `tui.rs` | complete | Run formatting/checks/tests for regression coverage
+2026-02-21 16:54 UTC | codex | phase1-theme | Verified with `cargo fmt --all`, `cargo check --workspace`, and `cargo test -p jayrah-tui` (106 passed) | complete | Confirm migration log state and handoff changes
+2026-02-21 16:54 UTC | codex | phase1-theme | Remaining TODOs / uncertainties | none | Continue with next Rust TUI feature iteration

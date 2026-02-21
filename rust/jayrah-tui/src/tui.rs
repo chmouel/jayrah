@@ -5,8 +5,7 @@ use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifier
 use ratatui::{
     backend::CrosstermBackend,
     layout::{Constraint, Direction, Layout, Rect},
-    style::{Modifier, Style},
-    text::Line,
+    text::{Line, Span},
     widgets::{Block, Borders, Cell, Clear, Paragraph, Row, Table, TableState, Wrap},
     Frame, Terminal,
 };
@@ -14,6 +13,7 @@ use tui_textarea::TextArea;
 
 use crate::{
     app::{App, PaneOrientation, PaneZoom},
+    theme::{status_tone, Theme},
     worker::{
         start_add_comment_worker, start_apply_transition_worker, start_comment_worker,
         start_detail_worker, start_edit_issue_worker, start_transition_worker,
@@ -51,7 +51,13 @@ struct EditInputSession {
 }
 
 fn build_edit_textarea(value: &str) -> TextArea<'static> {
-    TextArea::from(value.split('\n'))
+    let theme = Theme::solarized_warm();
+    let mut textarea = TextArea::from(value.split('\n'));
+    textarea.set_style(theme.popup());
+    textarea.set_cursor_style(theme.table_selected());
+    textarea.set_cursor_line_style(theme.filter_bar(true));
+    textarea.set_selection_style(theme.filter_bar(true));
+    textarea
 }
 
 fn sync_edit_input_session(app: &App, edit_session: &mut Option<EditInputSession>) {
@@ -601,6 +607,9 @@ fn edit_input_height(inner_height: u16, is_summary_target: bool) -> u16 {
 }
 
 fn draw_ui(frame: &mut Frame, app: &mut App, edit_session: Option<&EditInputSession>) {
+    let theme = Theme::solarized_warm();
+    frame.render_widget(Block::default().style(theme.screen()), frame.area());
+
     let show_filter_bar = app.filter_mode || app.has_active_filter();
     let show_search_bar = app.search_mode;
     let mut root_constraints = Vec::new();
@@ -660,6 +669,7 @@ fn draw_ui(frame: &mut Frame, app: &mut App, edit_session: Option<&EditInputSess
                 Cell::from(issue.status.clone()),
                 Cell::from(issue.assignee.clone()),
             ])
+            .style(theme.table_row())
         })
         .collect();
 
@@ -668,6 +678,20 @@ fn draw_ui(frame: &mut Frame, app: &mut App, edit_session: Option<&EditInputSess
     } else {
         "Issues (mock) (1)"
     };
+
+    let issues_active = pane_zoom == PaneZoom::Issues;
+    let mut issues_block = Block::default()
+        .title(Line::from(Span::styled(
+            issues_title,
+            theme.panel_title(issues_active),
+        )))
+        .borders(Borders::ALL)
+        .border_style(theme.panel_border(issues_active))
+        .style(theme.panel());
+    if issues_active {
+        issues_block = issues_block
+            .title(Line::from(Span::styled("ZOOMED", theme.panel_title(true))).right_aligned());
+    }
 
     let table = Table::new(
         rows,
@@ -678,15 +702,9 @@ fn draw_ui(frame: &mut Frame, app: &mut App, edit_session: Option<&EditInputSess
             Constraint::Length(14),
         ],
     )
-    .header(Row::new(vec!["Key", "Summary", "Status", "Assignee"]))
-    .block({
-        let mut block = Block::default().title(issues_title).borders(Borders::ALL);
-        if pane_zoom == PaneZoom::Issues {
-            block = block.title(Line::from("ZOOMED").right_aligned());
-        }
-        block
-    })
-    .row_highlight_style(Style::default().add_modifier(Modifier::REVERSED))
+    .header(Row::new(vec!["Key", "Summary", "Status", "Assignee"]).style(theme.table_header()))
+    .block(issues_block)
+    .row_highlight_style(theme.table_selected())
     .highlight_symbol(">> ");
 
     let mut state = TableState::default();
@@ -711,14 +729,22 @@ fn draw_ui(frame: &mut Frame, app: &mut App, edit_session: Option<&EditInputSess
         };
         let detail_viewport_height = detail_area.height.saturating_sub(2);
         app.set_detail_viewport_height(detail_viewport_height);
+        let detail_active = pane_zoom == PaneZoom::Detail;
+        let mut detail_block = Block::default()
+            .title(Line::from(Span::styled(
+                "Detail (2)",
+                theme.panel_title(detail_active),
+            )))
+            .borders(Borders::ALL)
+            .border_style(theme.panel_border(detail_active))
+            .style(theme.panel());
+        if detail_active {
+            detail_block = detail_block
+                .title(Line::from(Span::styled("ZOOMED", theme.panel_title(true))).right_aligned());
+        }
         let detail = Paragraph::new(app.detail_text_for_selected())
-            .block({
-                let mut block = Block::default().title("Detail (2)").borders(Borders::ALL);
-                if pane_zoom == PaneZoom::Detail {
-                    block = block.title(Line::from("ZOOMED").right_aligned());
-                }
-                block
-            })
+            .style(theme.panel())
+            .block(detail_block)
             .scroll((app.detail_scroll(), 0))
             .wrap(Wrap { trim: false });
         frame.render_widget(detail, detail_area);
@@ -734,8 +760,17 @@ fn draw_ui(frame: &mut Frame, app: &mut App, edit_session: Option<&EditInputSess
             app.set_actions_viewport_height(popup_viewport_height);
         }
 
+        let popup_block = Block::default()
+            .title(Line::from(Span::styled(
+                popup_title.to_string(),
+                theme.popup_title(),
+            )))
+            .borders(Borders::ALL)
+            .border_style(theme.popup_border())
+            .style(theme.popup());
         let mut popup = Paragraph::new(popup_text)
-            .block(Block::default().title(popup_title).borders(Borders::ALL))
+            .style(theme.popup())
+            .block(popup_block)
             .wrap(Wrap { trim: false });
         if app.in_actions_mode() {
             popup = popup.scroll((app.actions_scroll(), 0));
@@ -753,7 +788,11 @@ fn draw_ui(frame: &mut Frame, app: &mut App, edit_session: Option<&EditInputSess
             .selected_issue_key()
             .unwrap_or_else(|| String::from("<no issue>"));
         let edit_title = format!("Edit {} ({issue_key})", app.edit_target_display());
-        let popup_block = Block::default().title(edit_title).borders(Borders::ALL);
+        let popup_block = Block::default()
+            .title(Line::from(Span::styled(edit_title, theme.popup_title())))
+            .borders(Borders::ALL)
+            .border_style(theme.popup_border())
+            .style(theme.popup());
         frame.render_widget(popup_block.clone(), edit_popup_area);
 
         let inner = popup_block.inner(edit_popup_area);
@@ -768,19 +807,23 @@ fn draw_ui(frame: &mut Frame, app: &mut App, edit_session: Option<&EditInputSess
                     frame.render_widget(&session.textarea, sections[0]);
                 } else {
                     frame.render_widget(
-                        Paragraph::new(app.edit_input()).wrap(Wrap { trim: false }),
+                        Paragraph::new(app.edit_input())
+                            .style(theme.popup())
+                            .wrap(Wrap { trim: false }),
                         sections[0],
                     );
                 }
                 let controls = Paragraph::new("Ctrl+s save  Esc cancel")
-                    .style(Style::default().add_modifier(Modifier::DIM))
+                    .style(theme.edit_help())
                     .wrap(Wrap { trim: true });
                 frame.render_widget(controls, sections[1]);
             } else if let Some(session) = edit_session {
                 frame.render_widget(&session.textarea, inner);
             } else {
                 frame.render_widget(
-                    Paragraph::new(app.edit_input()).wrap(Wrap { trim: false }),
+                    Paragraph::new(app.edit_input())
+                        .style(theme.popup())
+                        .wrap(Wrap { trim: false }),
                     inner,
                 );
             }
@@ -821,12 +864,22 @@ fn draw_ui(frame: &mut Frame, app: &mut App, edit_session: Option<&EditInputSess
         } else {
             display_filter
         };
-        let filter_bar = if app.filter_mode {
-            format!("[FILTER] {} | Enter unfocus | Esc clear", filter_label)
-        } else {
-            format!("[FILTER] {} | f focus", filter_label)
-        };
-        frame.render_widget(Paragraph::new(filter_bar), filter_bar_area);
+        let filter_line = Line::from(vec![
+            Span::styled("[FILTER]", theme.footer_mode()),
+            Span::styled(format!(" {filter_label}"), theme.footer_hint()),
+            Span::styled(
+                if app.filter_mode {
+                    " | Enter unfocus | Esc clear"
+                } else {
+                    " | f focus"
+                },
+                theme.footer_hint(),
+            ),
+        ]);
+        frame.render_widget(
+            Paragraph::new(filter_line).style(theme.filter_bar(app.filter_mode)),
+            filter_bar_area,
+        );
     }
     if let Some(search_bar_area) = search_bar_area {
         let display_search = app.search_input.as_str();
@@ -835,70 +888,93 @@ fn draw_ui(frame: &mut Frame, app: &mut App, edit_session: Option<&EditInputSess
         } else {
             display_search
         };
-        let search_bar = format!("[SEARCH] {} | Enter jump | Esc cancel", search_label);
-        frame.render_widget(Paragraph::new(search_bar), search_bar_area);
+        let search_line = Line::from(vec![
+            Span::styled("[SEARCH]", theme.footer_mode()),
+            Span::styled(format!(" {search_label}"), theme.footer_hint()),
+            Span::styled(" | Enter jump | Esc cancel", theme.footer_hint()),
+        ]);
+        frame.render_widget(
+            Paragraph::new(search_line).style(theme.search_bar(app.search_mode)),
+            search_bar_area,
+        );
     }
-    let footer = if app.filter_mode {
-        format!(
-            "[{}] type to filter | Enter unfocus | Esc clear | Backspace delete",
-            mode
+    let (footer_hint, include_status) = if app.filter_mode {
+        (
+            String::from("type to filter | Enter unfocus | Esc clear | Backspace delete"),
+            false,
         )
     } else if app.search_mode {
-        format!(
-            "[{}] type to search visible rows | Enter jump | Esc cancel | Backspace delete",
-            mode
+        (
+            String::from(
+                "type to search visible rows | Enter jump | Esc cancel | Backspace delete",
+            ),
+            false,
         )
     } else if app.in_comment_input_mode() {
-        format!(
-            "[{}] draft: {} | Enter submit | Esc cancel | {}",
-            mode,
-            app.comment_input(),
-            app.status_line
+        (
+            format!("draft: {} | Enter submit | Esc cancel", app.comment_input()),
+            true,
         )
     } else if app.in_edit_input_mode() {
-        format!(
-            "[{}] editor open | target: {} | Ctrl+s save | Esc cancel | {}",
-            mode,
-            app.edit_target_display(),
-            app.status_line
+        (
+            format!(
+                "editor open | target: {} | Ctrl+s save | Esc cancel",
+                app.edit_target_display()
+            ),
+            true,
         )
     } else if app.in_actions_mode() {
-        format!(
-            "[{}] j/k scroll | Ctrl+d/u page | ? close | q quit | {}",
-            mode, app.status_line
+        (
+            String::from("j/k scroll | Ctrl+d/u page | ? close | q quit"),
+            true,
         )
     } else if app.in_custom_fields_mode() {
-        format!(
-            "[{}] j/k pick | Enter edit | u close | q quit | {}",
-            mode, app.status_line
+        (
+            String::from("j/k pick | Enter edit | u close | q quit"),
+            true,
         )
     } else if app.in_boards_mode() {
-        format!(
-            "[{}] j/k pick | Enter switch | b close | q quit | {}",
-            mode, app.status_line
+        (
+            String::from("j/k pick | Enter switch | b close | q quit"),
+            true,
         )
     } else if app.in_transitions_mode() {
-        format!(
-            "[{}] j/k pick | Enter apply | t close | q quit | {}",
-            mode, app.status_line
+        (
+            String::from("j/k pick | Enter apply | t close | q quit"),
+            true,
         )
     } else if app.in_comments_mode() {
-        format!(
-            "[{}] j/k move | a add | c close | q quit | {}",
-            mode, app.status_line
-        )
+        (String::from("j/k move | a add | c close | q quit"), true)
     } else if app.choose_mode {
-        format!(
-            "[{}] j/k zoom | Enter choose | f filter | / search | n/N repeat | 1/2 zoom | Ctrl+v layout | ? help | q quit | {}",
-            mode, app.status_line
+        (
+            String::from(
+                "j/k zoom | Enter choose | f filter | / search | n/N repeat | 1/2 zoom | Ctrl+v layout | ? help | q quit",
+            ),
+            true,
         )
     } else {
-        format!(
-            "[{}] j/k scroll | f filter | / search | n/N repeat | r reload | o open | 1/2 zoom | Ctrl+v layout | ? help | q quit | {}",
-            mode, app.status_line
+        (
+            String::from(
+                "j/k scroll | f filter | / search | n/N repeat | r reload | o open | 1/2 zoom | Ctrl+v layout | ? help | q quit",
+            ),
+            true,
         )
     };
-    frame.render_widget(Paragraph::new(footer), footer_area);
+    let mut footer_spans = vec![
+        Span::styled(format!("[{mode}]"), theme.footer_mode()),
+        Span::styled(format!(" {footer_hint}"), theme.footer_hint()),
+    ];
+    if include_status && !app.status_line.is_empty() {
+        footer_spans.push(Span::styled(" | ", theme.footer_hint()));
+        footer_spans.push(Span::styled(
+            app.status_line.clone(),
+            theme.status(status_tone(app.status_line.as_str())),
+        ));
+    }
+    frame.render_widget(
+        Paragraph::new(Line::from(footer_spans)).style(theme.footer_base()),
+        footer_area,
+    );
 }
 
 #[cfg(test)]
