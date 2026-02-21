@@ -557,6 +557,18 @@ impl App {
         }
     }
 
+    pub fn select_visible_row(&mut self, row_index: usize) -> bool {
+        let len = self.visible_indices().len();
+        if len == 0 {
+            self.selected = 0;
+            return false;
+        }
+
+        self.selected = row_index.min(len - 1);
+        self.sync_selected_tracking();
+        true
+    }
+
     pub fn next(&mut self) {
         let len = self.visible_indices().len();
         if len == 0 {

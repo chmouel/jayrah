@@ -768,3 +768,11 @@ test result: ok. 82 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fin
 2026-02-21 18:41 UTC | codex | Decision | Changed default startup zoom policy from issues-zoomed to split view while keeping horizontal layout default, based on user feedback | recorded | Update Rust/Python defaults and tests
 2026-02-21 18:41 UTC | codex | tui-layout-defaults | Updated default startup zoom to split view while preserving horizontal layout default across Rust CLI and Python config defaults | complete | Re-verify targeted Rust/Python test suites
 2026-02-21 18:41 UTC | codex | tui-layout-defaults-tests | Re-verified with cargo test -p jayrah-tui and uv pytest tests/test_commands.py tests/test_rust_tui_launcher.py tests/test_config.py -q | complete | Remaining TODOs / uncertainties: none
+2026-02-21 18:47 UTC | codex | phase1-scroll-input | Started fixing pane-aware mouse wheel behavior in split layouts | in_progress | Add mouse capture and route wheel events by pane hit area
+2026-02-21 18:47 UTC | codex | phase1-scroll-input | Added mouse capture lifecycle, pane hit-testing, and wheel routing so right/detail pane scrolling no longer moves issue selection | complete | Add regression tests for vertical layout pane wheel routing
+2026-02-21 18:47 UTC | codex | phase1-scroll-input | Added vertical-layout mouse wheel regression tests and verified with `cargo fmt --all` and `cargo test -p jayrah-tui` (125 passed) | complete | Remaining TODOs / uncertainties update
+2026-02-21 18:47 UTC | codex | phase1-scroll-input | Remaining TODOs / uncertainties | none | none
+2026-02-21 18:53 UTC | codex | phase1-mouse-selection | Started adding click-to-select behavior for issues pane rows | in_progress | Route left-click in issues table to visible selection index
+2026-02-21 18:53 UTC | codex | phase1-mouse-selection | Added issue-row hit mapping + click selection API so left-click moves cursor/selection to clicked issue row | complete | Add regression tests and verify full crate tests
+2026-02-21 18:53 UTC | codex | phase1-mouse-selection | Added click selection regression tests and verified with `cargo fmt --all` and `cargo test -p jayrah-tui` (127 passed) | complete | Remaining TODOs / uncertainties update
+2026-02-21 18:53 UTC | codex | phase1-mouse-selection | Remaining TODOs / uncertainties | none | none

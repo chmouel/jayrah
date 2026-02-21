@@ -1,7 +1,10 @@
 use std::{io, time::Duration};
 
 use anyhow::Result;
-use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
+use crossterm::event::{
+    self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers, MouseButton, MouseEvent,
+    MouseEventKind,
+};
 use ratatui::{
     backend::CrosstermBackend,
     layout::{Constraint, Direction, Layout, Rect},
@@ -27,6 +30,13 @@ use crate::{
 pub enum RunOutcome {
     Quit,
     Chosen(Option<String>),
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+struct MouseHitAreas {
+    issues: Option<Rect>,
+    detail: Option<Rect>,
+    popup: Option<Rect>,
 }
 
 const POPUP_HORIZONTAL_MARGIN: u16 = 2;
@@ -114,6 +124,7 @@ pub fn run_app(
     let (apply_transition_request_tx, apply_transition_result_rx) = start_apply_transition_worker();
     let (edit_issue_request_tx, edit_issue_result_rx) = start_edit_issue_worker();
     let mut edit_session: Option<EditInputSession> = None;
+    let mut mouse_hit_areas = MouseHitAreas::default();
 
     loop {
         while let Ok(message) = detail_result_rx.try_recv() {
@@ -139,29 +150,151 @@ pub fn run_app(
         app.maybe_request_comments(&comment_request_tx);
         app.maybe_request_transitions(&transition_request_tx);
         sync_edit_input_session(&app, &mut edit_session);
-        terminal.draw(|frame| draw_ui(frame, &mut app, edit_session.as_ref()))?;
+        terminal.draw(|frame| {
+            mouse_hit_areas = draw_ui(frame, &mut app, edit_session.as_ref());
+        })?;
 
         if event::poll(Duration::from_millis(100))? {
-            let Event::Key(key) = event::read()? else {
-                continue;
-            };
+            match event::read()? {
+                Event::Key(key) => {
+                    if key.kind != KeyEventKind::Press {
+                        continue;
+                    }
 
-            if key.kind != KeyEventKind::Press {
-                continue;
-            }
-
-            if let Some(outcome) = handle_key_event_with_edit_session(
-                &mut app,
-                &mut edit_session,
-                key,
-                &add_comment_request_tx,
-                &apply_transition_request_tx,
-                &edit_issue_request_tx,
-            ) {
-                return Ok(outcome);
+                    if let Some(outcome) = handle_key_event_with_edit_session(
+                        &mut app,
+                        &mut edit_session,
+                        key,
+                        &add_comment_request_tx,
+                        &apply_transition_request_tx,
+                        &edit_issue_request_tx,
+                    ) {
+                        return Ok(outcome);
+                    }
+                }
+                Event::Mouse(mouse) => handle_mouse_event(&mut app, mouse, mouse_hit_areas),
+                _ => {}
             }
         }
     }
+}
+
+fn rect_contains(area: Rect, column: u16, row: u16) -> bool {
+    let max_x = area.x.saturating_add(area.width);
+    let max_y = area.y.saturating_add(area.height);
+    column >= area.x && column < max_x && row >= area.y && row < max_y
+}
+
+fn handle_mouse_event(app: &mut App, mouse: MouseEvent, hit_areas: MouseHitAreas) {
+    let is_scroll_down = matches!(mouse.kind, MouseEventKind::ScrollDown);
+    let is_scroll_up = matches!(mouse.kind, MouseEventKind::ScrollUp);
+    let is_left_click = matches!(mouse.kind, MouseEventKind::Down(MouseButton::Left));
+    if !is_scroll_down && !is_scroll_up {
+        if !is_left_click {
+            return;
+        }
+    }
+
+    if app.filter_mode || app.search_mode || app.in_comment_input_mode() || app.in_edit_input_mode()
+    {
+        return;
+    }
+
+    if let Some(popup_area) = hit_areas.popup {
+        if rect_contains(popup_area, mouse.column, mouse.row) {
+            if app.in_actions_mode() {
+                if is_scroll_down {
+                    app.scroll_actions_down(1);
+                } else {
+                    app.scroll_actions_up(1);
+                }
+            } else if app.in_comments_mode() {
+                if is_scroll_down {
+                    app.next_comment();
+                } else {
+                    app.prev_comment();
+                }
+            } else if app.in_transitions_mode() {
+                if is_scroll_down {
+                    app.next_transition();
+                } else {
+                    app.prev_transition();
+                }
+            } else if app.in_boards_mode() {
+                if is_scroll_down {
+                    app.next_board();
+                } else {
+                    app.prev_board();
+                }
+            } else if app.in_custom_fields_mode() {
+                if is_scroll_down {
+                    app.next_custom_field();
+                } else {
+                    app.prev_custom_field();
+                }
+            }
+        }
+        return;
+    }
+
+    if is_left_click {
+        if let Some(issues_area) = hit_areas.issues {
+            if let Some(position) =
+                issue_row_position_from_click(issues_area, mouse.column, mouse.row)
+            {
+                app.select_visible_row(position);
+            }
+        }
+        return;
+    }
+
+    if let Some(detail_area) = hit_areas.detail {
+        if rect_contains(detail_area, mouse.column, mouse.row) {
+            if is_scroll_down {
+                app.scroll_detail_down(1);
+            } else {
+                app.scroll_detail_up(1);
+            }
+            return;
+        }
+    }
+
+    if let Some(issues_area) = hit_areas.issues {
+        if rect_contains(issues_area, mouse.column, mouse.row) {
+            if is_scroll_down {
+                app.next();
+            } else {
+                app.prev();
+            }
+        }
+    }
+}
+
+fn issue_row_position_from_click(issues_area: Rect, column: u16, row: u16) -> Option<usize> {
+    if !rect_contains(issues_area, column, row) {
+        return None;
+    }
+
+    if issues_area.width < 2 || issues_area.height < 3 {
+        return None;
+    }
+
+    let content_x_start = issues_area.x.saturating_add(1);
+    let content_x_end = issues_area
+        .x
+        .saturating_add(issues_area.width.saturating_sub(1));
+    if column < content_x_start || column >= content_x_end {
+        return None;
+    }
+
+    let header_row = issues_area.y.saturating_add(1);
+    if row <= header_row {
+        return None;
+    }
+
+    Some(usize::from(
+        row.saturating_sub(header_row.saturating_add(1)),
+    ))
 }
 
 #[cfg(test)]
@@ -783,9 +916,14 @@ fn vertical_scrollbar_state(
     )
 }
 
-fn draw_ui(frame: &mut Frame, app: &mut App, edit_session: Option<&EditInputSession>) {
+fn draw_ui(
+    frame: &mut Frame,
+    app: &mut App,
+    edit_session: Option<&EditInputSession>,
+) -> MouseHitAreas {
     let theme = Theme::solarized_warm();
     frame.render_widget(Block::default().style(theme.screen()), frame.area());
+    let mut mouse_hit_areas = MouseHitAreas::default();
 
     let show_filter_bar = app.filter_mode || app.has_active_filter();
     let show_search_bar = app.search_mode;
@@ -895,6 +1033,7 @@ fn draw_ui(frame: &mut Frame, app: &mut App, edit_session: Option<&EditInputSess
         } else {
             main_chunks[0]
         };
+        mouse_hit_areas.issues = Some(issues_area);
         frame.render_stateful_widget(table, issues_area, &mut state);
     }
 
@@ -904,6 +1043,7 @@ fn draw_ui(frame: &mut Frame, app: &mut App, edit_session: Option<&EditInputSess
         } else {
             main_chunks[1]
         };
+        mouse_hit_areas.detail = Some(detail_area);
         let detail_viewport_height = detail_area.height.saturating_sub(2);
         app.set_detail_viewport_height(detail_viewport_height);
         let detail_active = pane_zoom == PaneZoom::Detail;
@@ -949,6 +1089,7 @@ fn draw_ui(frame: &mut Frame, app: &mut App, edit_session: Option<&EditInputSess
         let popup_title = app.right_pane_title();
         let popup_text = app.right_pane_text();
         let popup_area = adaptive_popup_area(main_area, popup_title, popup_text.as_str());
+        mouse_hit_areas.popup = Some(popup_area);
 
         if app.in_actions_mode() {
             let popup_viewport_height = popup_area.height.saturating_sub(2);
@@ -1187,6 +1328,7 @@ fn draw_ui(frame: &mut Frame, app: &mut App, edit_session: Option<&EditInputSess
         Paragraph::new(Line::from(footer_spans)).style(theme.footer_base()),
         footer_area,
     );
+    mouse_hit_areas
 }
 
 #[cfg(test)]
@@ -1194,13 +1336,15 @@ mod tests {
     use std::sync::mpsc;
 
     use crossterm::event::KeyEventState;
-    use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
+    use crossterm::event::{
+        KeyCode, KeyEvent, KeyEventKind, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
+    };
     use ratatui::{layout::Rect, widgets::ScrollbarState};
 
     use super::{
         adaptive_popup_area, build_detail_lines, build_edit_textarea, edit_input_height,
-        edit_popup_area, handle_key_event, handle_key_event_with_edit_session, percent_popup_area,
-        vertical_scrollbar_state, EditInputSession, RunOutcome,
+        edit_popup_area, handle_key_event, handle_key_event_with_edit_session, handle_mouse_event,
+        percent_popup_area, vertical_scrollbar_state, EditInputSession, MouseHitAreas, RunOutcome,
     };
     use crate::{
         app::{App, DetailMetaField, DetailViewMode, DetailViewModel, PaneOrientation, PaneZoom},
@@ -1231,6 +1375,24 @@ mod tests {
             modifiers,
             kind: KeyEventKind::Press,
             state: KeyEventState::empty(),
+        }
+    }
+
+    fn mouse_scroll(kind: MouseEventKind, column: u16, row: u16) -> MouseEvent {
+        MouseEvent {
+            kind,
+            column,
+            row,
+            modifiers: KeyModifiers::empty(),
+        }
+    }
+
+    fn mouse_click(column: u16, row: u16) -> MouseEvent {
+        MouseEvent {
+            kind: MouseEventKind::Down(MouseButton::Left),
+            column,
+            row,
+            modifiers: KeyModifiers::empty(),
         }
     }
 
@@ -2190,6 +2352,79 @@ mod tests {
         );
         assert_eq!(outcome, None);
         assert!(app.detail_scroll() < after_down);
+    }
+
+    #[test]
+    fn mouse_scroll_on_detail_pane_in_vertical_layout_scrolls_detail_only() {
+        let mut app = App::new(mock_source(), false);
+        let (detail_tx, _) = mpsc::channel();
+        app.maybe_request_detail(&detail_tx);
+        app.set_detail_viewport_height(4);
+        app.toggle_pane_orientation();
+        let hit_areas = MouseHitAreas {
+            issues: Some(Rect::new(0, 0, 40, 20)),
+            detail: Some(Rect::new(40, 0, 40, 20)),
+            popup: None,
+        };
+
+        let initial_selected = app.selected;
+        let initial_scroll = app.detail_scroll();
+
+        handle_mouse_event(
+            &mut app,
+            mouse_scroll(MouseEventKind::ScrollDown, 60, 2),
+            hit_areas,
+        );
+
+        assert_eq!(app.selected, initial_selected);
+        assert!(app.detail_scroll() > initial_scroll);
+    }
+
+    #[test]
+    fn mouse_scroll_on_issues_pane_moves_issue_selection() {
+        let mut app = App::new(mock_source(), false);
+        let hit_areas = MouseHitAreas {
+            issues: Some(Rect::new(0, 0, 40, 20)),
+            detail: Some(Rect::new(40, 0, 40, 20)),
+            popup: None,
+        };
+        let initial_selected = app.selected;
+
+        handle_mouse_event(
+            &mut app,
+            mouse_scroll(MouseEventKind::ScrollDown, 10, 2),
+            hit_areas,
+        );
+
+        assert_eq!(app.selected, initial_selected + 1);
+    }
+
+    #[test]
+    fn mouse_click_on_issue_row_moves_selection_to_clicked_row() {
+        let mut app = App::new(mock_source(), false);
+        let hit_areas = MouseHitAreas {
+            issues: Some(Rect::new(0, 0, 60, 20)),
+            detail: Some(Rect::new(60, 0, 40, 20)),
+            popup: None,
+        };
+
+        handle_mouse_event(&mut app, mouse_click(10, 4), hit_areas);
+        assert_eq!(app.selected, 2);
+        assert_eq!(app.selected_issue_key().as_deref(), Some("JAY-103"));
+    }
+
+    #[test]
+    fn mouse_click_on_issue_header_does_not_move_selection() {
+        let mut app = App::new(mock_source(), false);
+        let hit_areas = MouseHitAreas {
+            issues: Some(Rect::new(0, 0, 60, 20)),
+            detail: Some(Rect::new(60, 0, 40, 20)),
+            popup: None,
+        };
+        let initial = app.selected;
+
+        handle_mouse_event(&mut app, mouse_click(10, 1), hit_areas);
+        assert_eq!(app.selected, initial);
     }
 
     #[test]
