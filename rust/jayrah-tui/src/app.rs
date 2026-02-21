@@ -28,6 +28,7 @@ const PANE_RESIZE_STEP_PERCENT: u16 = 5;
 const MIN_LEFT_PANE_PERCENT: u16 = 25;
 const MAX_LEFT_PANE_PERCENT: u16 = 75;
 const ACTIONS_DEFAULT_VIEWPORT_HEIGHT: u16 = 20;
+const DETAIL_DEFAULT_VIEWPORT_HEIGHT: u16 = 20;
 
 #[derive(Debug)]
 pub struct DetailRequest {
@@ -164,6 +165,8 @@ pub struct App {
     pane_mode: DetailPaneMode,
     actions_scroll: u16,
     actions_viewport_height: u16,
+    detail_scroll: u16,
+    detail_viewport_height: u16,
     left_pane_percent: u16,
     last_selected_key: Option<String>,
     selected_changed_at: Instant,
@@ -208,6 +211,8 @@ impl App {
             pane_mode: DetailPaneMode::Detail,
             actions_scroll: 0,
             actions_viewport_height: ACTIONS_DEFAULT_VIEWPORT_HEIGHT,
+            detail_scroll: 0,
+            detail_viewport_height: DETAIL_DEFAULT_VIEWPORT_HEIGHT,
             left_pane_percent: 60,
             last_selected_key: None,
             selected_changed_at: Instant::now(),
@@ -419,6 +424,12 @@ impl App {
         u16::try_from(content_lines.saturating_sub(viewport_height)).unwrap_or(u16::MAX)
     }
 
+    fn detail_max_scroll(&self) -> u16 {
+        let viewport_height = usize::from(self.detail_viewport_height.max(1));
+        let content_lines = self.detail_text_for_selected().lines().count();
+        u16::try_from(content_lines.saturating_sub(viewport_height)).unwrap_or(u16::MAX)
+    }
+
     pub fn actions_scroll(&self) -> u16 {
         self.actions_scroll.min(self.actions_max_scroll())
     }
@@ -427,9 +438,22 @@ impl App {
         (self.actions_viewport_height / 2).max(1)
     }
 
+    pub fn detail_scroll(&self) -> u16 {
+        self.detail_scroll.min(self.detail_max_scroll())
+    }
+
+    pub fn detail_half_page_step(&self) -> u16 {
+        (self.detail_viewport_height / 2).max(1)
+    }
+
     pub fn set_actions_viewport_height(&mut self, viewport_height: u16) {
         self.actions_viewport_height = viewport_height.max(1);
         self.actions_scroll = self.actions_scroll.min(self.actions_max_scroll());
+    }
+
+    pub fn set_detail_viewport_height(&mut self, viewport_height: u16) {
+        self.detail_viewport_height = viewport_height.max(1);
+        self.detail_scroll = self.detail_scroll.min(self.detail_max_scroll());
     }
 
     pub fn scroll_actions_down(&mut self, lines: u16) {
@@ -439,6 +463,15 @@ impl App {
 
     pub fn scroll_actions_up(&mut self, lines: u16) {
         self.actions_scroll = self.actions_scroll.saturating_sub(lines.max(1));
+    }
+
+    pub fn scroll_detail_down(&mut self, lines: u16) {
+        let next = self.detail_scroll.saturating_add(lines.max(1));
+        self.detail_scroll = next.min(self.detail_max_scroll());
+    }
+
+    pub fn scroll_detail_up(&mut self, lines: u16) {
+        self.detail_scroll = self.detail_scroll.saturating_sub(lines.max(1));
     }
 
     pub fn start_comment_input(&mut self) {
@@ -699,6 +732,7 @@ impl App {
         self.transition_apply_in_flight = false;
         self.custom_fields.clear();
         self.custom_field_selected = 0;
+        self.detail_scroll = 0;
 
         if self.source.mock_only {
             self.issues = mock_issues(self.reload_count);
@@ -753,6 +787,7 @@ impl App {
             self.active_custom_field = None;
             self.transition_selected = 0;
             self.custom_field_selected = 0;
+            self.detail_scroll = 0;
         }
     }
 
@@ -1618,7 +1653,7 @@ impl App {
     pub fn actions_text(&self) -> String {
         let mode = if self.choose_mode { "choose" } else { "normal" };
         format!(
-            "Jayrah Rust TUI Actions ({mode} mode)\n\nNavigation (detail mode)\n  j/k or arrows: move issue selection\n  f or /: filter issues\n  r: reload issues\n\nIssue Actions\n  o: open selected issue in browser\n  e: edit issue summary\n  E: edit issue description\n  l: edit issue labels\n  m: edit issue components\n  u: custom field editor popup\n  b: board switcher popup\n  c: comments popup\n  t: transitions popup\n  ?: actions/help popup\n\nActions Popup\n  j/k or arrows: scroll help\n  Ctrl+d/Ctrl+u: page down/up\n\nComments Popup\n  j/k or n/p: previous/next comment\n  a: compose comment\n  Enter: submit comment draft\n\nTransitions Popup\n  j/k or n/p: previous/next transition\n  Enter: apply selected transition\n\nBoards Popup\n  j/k or n/p: previous/next board\n  Enter: switch active board\n\nCustom Fields Popup\n  j/k or n/p: previous/next field\n  Enter: edit selected custom field\n\nGlobal\n  q: quit (or close active popup)\n  Esc: close active popup/filter"
+            "Jayrah Rust TUI Actions ({mode} mode)\n\nNavigation (detail mode)\n  j/k or arrows: move issue selection\n  J/K: scroll detail pane\n  Ctrl+d/Ctrl+u: page detail pane down/up\n  f or /: filter issues\n  r: reload issues\n\nIssue Actions\n  o: open selected issue in browser\n  e: edit issue summary\n  E: edit issue description\n  l: edit issue labels\n  m: edit issue components\n  u: custom field editor popup\n  b: board switcher popup\n  c: comments popup\n  t: transitions popup\n  ?: actions/help popup\n\nActions Popup\n  j/k or arrows: scroll help\n  Ctrl+d/Ctrl+u: page down/up\n\nComments Popup\n  j/k or n/p: previous/next comment\n  a: compose comment\n  Enter: submit comment draft\n\nTransitions Popup\n  j/k or n/p: previous/next transition\n  Enter: apply selected transition\n\nBoards Popup\n  j/k or n/p: previous/next board\n  Enter: switch active board\n\nCustom Fields Popup\n  j/k or n/p: previous/next field\n  Enter: edit selected custom field\n\nGlobal\n  q: quit (or close active popup)\n  Esc: close active popup/filter"
         )
     }
 
@@ -1887,6 +1922,8 @@ mod tests {
         app.enter_actions_mode();
 
         let text = app.actions_text();
+        assert!(text.contains("J/K: scroll detail pane"));
+        assert!(text.contains("Ctrl+d/Ctrl+u: page detail pane down/up"));
         assert!(text.contains("b: board switcher popup"));
         assert!(text.contains("c: comments popup"));
         assert!(text.contains("t: transitions popup"));
@@ -1912,6 +1949,38 @@ mod tests {
 
         app.scroll_actions_up(500);
         assert_eq!(app.actions_scroll(), 0);
+    }
+
+    #[test]
+    fn detail_scroll_obeys_bounds() {
+        let mut app = App::new(mock_source(), false);
+        let (tx, _) = mpsc::channel();
+        app.maybe_request_detail(&tx);
+        app.set_detail_viewport_height(4);
+
+        app.scroll_detail_down(500);
+        let after_down = app.detail_scroll();
+        assert!(after_down > 0);
+
+        app.scroll_detail_up(2);
+        assert_eq!(app.detail_scroll(), after_down - 2);
+
+        app.scroll_detail_up(500);
+        assert_eq!(app.detail_scroll(), 0);
+    }
+
+    #[test]
+    fn detail_scroll_resets_when_selection_changes() {
+        let mut app = App::new(mock_source(), false);
+        let (tx, _) = mpsc::channel();
+        app.maybe_request_detail(&tx);
+        app.set_detail_viewport_height(4);
+        app.scroll_detail_down(3);
+        assert!(app.detail_scroll() > 0);
+
+        app.next();
+        app.maybe_request_detail(&tx);
+        assert_eq!(app.detail_scroll(), 0);
     }
 
     #[test]

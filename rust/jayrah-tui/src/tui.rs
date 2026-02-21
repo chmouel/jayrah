@@ -370,6 +370,14 @@ fn handle_key_event_with_edit_session(
         KeyCode::Char('q') | KeyCode::Esc => return Some(RunOutcome::Quit),
         KeyCode::Char('j') | KeyCode::Down => app.next(),
         KeyCode::Char('k') | KeyCode::Up => app.prev(),
+        KeyCode::Char('J') => app.scroll_detail_down(1),
+        KeyCode::Char('K') => app.scroll_detail_up(1),
+        KeyCode::Char('d') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+            app.scroll_detail_down(app.detail_half_page_step())
+        }
+        KeyCode::Char('u') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+            app.scroll_detail_up(app.detail_half_page_step())
+        }
         KeyCode::Char('e') => app.start_summary_edit_input(),
         KeyCode::Char('E') => app.start_description_edit_input(),
         KeyCode::Char('l') => app.start_labels_edit_input(),
@@ -576,8 +584,11 @@ fn draw_ui(frame: &mut Frame, app: &mut App, edit_session: Option<&EditInputSess
 
     frame.render_stateful_widget(table, main_chunks[0], &mut state);
 
+    let detail_viewport_height = main_chunks[1].height.saturating_sub(2);
+    app.set_detail_viewport_height(detail_viewport_height);
     let detail = Paragraph::new(app.detail_text_for_selected())
         .block(Block::default().title("Detail").borders(Borders::ALL))
+        .scroll((app.detail_scroll(), 0))
         .wrap(Wrap { trim: false });
     frame.render_widget(detail, main_chunks[1]);
 
@@ -712,12 +723,12 @@ fn draw_ui(frame: &mut Frame, app: &mut App, edit_session: Option<&EditInputSess
         )
     } else if app.choose_mode {
         format!(
-            "[{}] j/k move | Enter choose | e/E/l/m edit | u custom popup | b boards popup | c comments popup | t transitions popup | ? help popup | Alt+h/l resize panes | f filter | o open | q quit | {}",
+            "[{}] j/k move | J/K scroll detail | Ctrl+d/u page detail | Enter choose | e/E/l/m edit | u custom popup | b boards popup | c comments popup | t transitions popup | ? help popup | Alt+h/l resize panes | f filter | o open | q quit | {}",
             mode, app.status_line
         )
     } else {
         format!(
-            "[{}] j/k move | e/E/l/m edit | u custom popup | b boards popup | c comments popup | t transitions popup | ? help popup | Alt+h/l resize panes | f filter | r reload | o open | q quit | {}",
+            "[{}] j/k move | J/K scroll detail | Ctrl+d/u page detail | e/E/l/m edit | u custom popup | b boards popup | c comments popup | t transitions popup | ? help popup | Alt+h/l resize panes | f filter | r reload | o open | q quit | {}",
             mode, app.status_line
         )
     };
@@ -990,6 +1001,73 @@ mod tests {
         assert_eq!(outcome, None);
         let after_l = app.pane_width_percentages();
         assert_eq!(after_l.0, initial.0);
+    }
+
+    #[test]
+    fn uppercase_j_and_k_scroll_detail_without_moving_issue_selection() {
+        let mut app = App::new(mock_source(), false);
+        let (detail_tx, _) = mpsc::channel();
+        app.maybe_request_detail(&detail_tx);
+        app.set_detail_viewport_height(4);
+        let (add_tx, _) = mpsc::channel();
+        let (transition_tx, _) = mpsc::channel();
+        let (edit_tx, _) = mpsc::channel();
+
+        let initial_selected = app.selected;
+        let initial_scroll = app.detail_scroll();
+
+        let outcome = handle_key_event(
+            &mut app,
+            key(KeyCode::Char('J')),
+            &add_tx,
+            &transition_tx,
+            &edit_tx,
+        );
+        assert_eq!(outcome, None);
+        assert_eq!(app.selected, initial_selected);
+        assert!(app.detail_scroll() > initial_scroll);
+
+        let outcome = handle_key_event(
+            &mut app,
+            key(KeyCode::Char('K')),
+            &add_tx,
+            &transition_tx,
+            &edit_tx,
+        );
+        assert_eq!(outcome, None);
+        assert_eq!(app.detail_scroll(), initial_scroll);
+    }
+
+    #[test]
+    fn ctrl_d_and_ctrl_u_page_detail_in_normal_mode() {
+        let mut app = App::new(mock_source(), false);
+        let (detail_tx, _) = mpsc::channel();
+        app.maybe_request_detail(&detail_tx);
+        app.set_detail_viewport_height(6);
+        let (add_tx, _) = mpsc::channel();
+        let (transition_tx, _) = mpsc::channel();
+        let (edit_tx, _) = mpsc::channel();
+
+        let outcome = handle_key_event(
+            &mut app,
+            key_with_modifiers(KeyCode::Char('d'), KeyModifiers::CONTROL),
+            &add_tx,
+            &transition_tx,
+            &edit_tx,
+        );
+        assert_eq!(outcome, None);
+        let after_down = app.detail_scroll();
+        assert!(after_down > 0);
+
+        let outcome = handle_key_event(
+            &mut app,
+            key_with_modifiers(KeyCode::Char('u'), KeyModifiers::CONTROL),
+            &add_tx,
+            &transition_tx,
+            &edit_tx,
+        );
+        assert_eq!(outcome, None);
+        assert!(app.detail_scroll() < after_down);
     }
 
     #[test]
