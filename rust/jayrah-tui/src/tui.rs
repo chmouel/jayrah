@@ -89,6 +89,20 @@ fn handle_key_event(
     apply_transition_request_tx: &std::sync::mpsc::Sender<crate::app::ApplyTransitionRequest>,
     edit_issue_request_tx: &std::sync::mpsc::Sender<crate::app::EditIssueRequest>,
 ) -> Option<RunOutcome> {
+    if key.modifiers.contains(KeyModifiers::ALT) {
+        match key.code {
+            KeyCode::Char('h') => {
+                app.grow_left_pane();
+                return None;
+            }
+            KeyCode::Char('l') => {
+                app.grow_right_pane();
+                return None;
+            }
+            _ => {}
+        }
+    }
+
     if app.filter_mode {
         match key.code {
             KeyCode::Esc | KeyCode::Enter => {
@@ -311,9 +325,13 @@ fn draw_ui(frame: &mut Frame, app: &App) {
         .constraints([Constraint::Min(0), Constraint::Length(1)])
         .split(frame.area());
 
+    let (left_pane_percent, right_pane_percent) = app.pane_width_percentages();
     let main_chunks = Layout::default()
         .direction(Direction::Horizontal)
-        .constraints([Constraint::Percentage(60), Constraint::Percentage(40)])
+        .constraints([
+            Constraint::Percentage(left_pane_percent),
+            Constraint::Percentage(right_pane_percent),
+        ])
         .split(vertical[0]);
 
     let visible = app.visible_indices();
@@ -435,12 +453,12 @@ fn draw_ui(frame: &mut Frame, app: &App) {
         )
     } else if app.choose_mode {
         format!(
-            "[{}] j/k move | Enter choose | e/E/l/m edit | u custom | b boards | c comments | t transitions | ? help | f filter | o open | q quit | {}",
+            "[{}] j/k move | Enter choose | e/E/l/m edit | u custom | b boards | c comments | t transitions | ? help | Alt+h/l resize panes | f filter | o open | q quit | {}",
             mode, app.status_line
         )
     } else {
         format!(
-            "[{}] j/k move | e/E/l/m edit | u custom | b boards | c comments | t transitions | ? help | f filter | r reload | o open | q quit | {}",
+            "[{}] j/k move | e/E/l/m edit | u custom | b boards | c comments | t transitions | ? help | Alt+h/l resize panes | f filter | r reload | o open | q quit | {}",
             mode, app.status_line
         )
     };
@@ -469,6 +487,15 @@ mod tests {
         KeyEvent {
             code,
             modifiers: KeyModifiers::empty(),
+            kind: KeyEventKind::Press,
+            state: KeyEventState::empty(),
+        }
+    }
+
+    fn key_with_modifiers(code: KeyCode, modifiers: KeyModifiers) -> KeyEvent {
+        KeyEvent {
+            code,
+            modifiers,
             kind: KeyEventKind::Press,
             state: KeyEventState::empty(),
         }
@@ -668,5 +695,36 @@ mod tests {
 
         assert_eq!(outcome, None);
         assert!(app.in_custom_fields_mode());
+    }
+
+    #[test]
+    fn alt_h_and_alt_l_resize_panes() {
+        let mut app = App::new(mock_source(), false);
+        let (add_tx, _) = mpsc::channel();
+        let (transition_tx, _) = mpsc::channel();
+        let (edit_tx, _) = mpsc::channel();
+
+        let initial = app.pane_width_percentages();
+        let outcome = handle_key_event(
+            &mut app,
+            key_with_modifiers(KeyCode::Char('h'), KeyModifiers::ALT),
+            &add_tx,
+            &transition_tx,
+            &edit_tx,
+        );
+        assert_eq!(outcome, None);
+        let after_h = app.pane_width_percentages();
+        assert!(after_h.0 > initial.0);
+
+        let outcome = handle_key_event(
+            &mut app,
+            key_with_modifiers(KeyCode::Char('l'), KeyModifiers::ALT),
+            &add_tx,
+            &transition_tx,
+            &edit_tx,
+        );
+        assert_eq!(outcome, None);
+        let after_l = app.pane_width_percentages();
+        assert_eq!(after_l.0, initial.0);
     }
 }

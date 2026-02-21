@@ -24,6 +24,9 @@ use crate::{
 const DETAIL_FETCH_DEBOUNCE_MS: u64 = 120;
 const COMMENT_FETCH_DEBOUNCE_MS: u64 = 120;
 const TRANSITION_FETCH_DEBOUNCE_MS: u64 = 120;
+const PANE_RESIZE_STEP_PERCENT: u16 = 5;
+const MIN_LEFT_PANE_PERCENT: u16 = 25;
+const MAX_LEFT_PANE_PERCENT: u16 = 75;
 
 #[derive(Debug)]
 pub struct DetailRequest {
@@ -158,6 +161,7 @@ pub struct App {
     custom_fields: Vec<CustomFieldEntry>,
     custom_field_selected: usize,
     pane_mode: DetailPaneMode,
+    left_pane_percent: u16,
     last_selected_key: Option<String>,
     selected_changed_at: Instant,
 }
@@ -199,6 +203,7 @@ impl App {
             custom_fields: Vec::new(),
             custom_field_selected: 0,
             pane_mode: DetailPaneMode::Detail,
+            left_pane_percent: 60,
             last_selected_key: None,
             selected_changed_at: Instant::now(),
         };
@@ -1584,6 +1589,36 @@ impl App {
         }
     }
 
+    pub fn pane_width_percentages(&self) -> (u16, u16) {
+        (self.left_pane_percent, 100u16 - self.left_pane_percent)
+    }
+
+    pub fn grow_left_pane(&mut self) {
+        let new_value = self
+            .left_pane_percent
+            .saturating_add(PANE_RESIZE_STEP_PERCENT)
+            .min(MAX_LEFT_PANE_PERCENT);
+        self.left_pane_percent = new_value;
+        self.status_line = format!(
+            "Pane resize: issues {}% | detail {}%",
+            self.left_pane_percent,
+            100u16 - self.left_pane_percent
+        );
+    }
+
+    pub fn grow_right_pane(&mut self) {
+        let new_value = self
+            .left_pane_percent
+            .saturating_sub(PANE_RESIZE_STEP_PERCENT)
+            .max(MIN_LEFT_PANE_PERCENT);
+        self.left_pane_percent = new_value;
+        self.status_line = format!(
+            "Pane resize: issues {}% | detail {}%",
+            self.left_pane_percent,
+            100u16 - self.left_pane_percent
+        );
+    }
+
     pub fn open_selected_issue(&mut self) {
         let Some(key) = self.selected_issue_key() else {
             self.status_line = String::from("No issue selected");
@@ -1626,7 +1661,7 @@ impl App {
 mod tests {
     use std::sync::mpsc;
 
-    use super::App;
+    use super::{App, MAX_LEFT_PANE_PERCENT, MIN_LEFT_PANE_PERCENT};
     use crate::types::AdapterSource;
 
     fn mock_source() -> AdapterSource {
@@ -1944,5 +1979,24 @@ mod tests {
         assert!(app
             .status_line
             .contains("Updated custom field in mock mode"));
+    }
+
+    #[test]
+    fn pane_resize_bounds_are_enforced() {
+        let mut app = App::new(mock_source(), false);
+
+        for _ in 0..10 {
+            app.grow_left_pane();
+        }
+        let (left, right) = app.pane_width_percentages();
+        assert_eq!(left, MAX_LEFT_PANE_PERCENT);
+        assert_eq!(left + right, 100);
+
+        for _ in 0..20 {
+            app.grow_right_pane();
+        }
+        let (left, right) = app.pane_width_percentages();
+        assert_eq!(left, MIN_LEFT_PANE_PERCENT);
+        assert_eq!(left + right, 100);
     }
 }

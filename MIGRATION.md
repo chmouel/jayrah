@@ -478,3 +478,16 @@ Exit criteria:
 2026-02-21 07:14 UTC | codex | phaseC-rust-cli-config-file | Verified with `cargo fmt --all`, `cargo check --workspace`, `cargo test --workspace` (62 passed, 1 ignored), and `cargo run -p jayrah-tui -- --help` | complete | Continue with deferred live Jira validation when valid writable issue/env set is available
 - 2026-02-21 07:14 UTC | todo | Deferred: rerun guarded live-validation test later with a valid accessible issue key and required transition/custom-field env values.
 - 2026-02-21 07:14 UTC | uncertainty | none
+2026-02-21 07:16 UTC | codex | phaseC-pane-resize-keymap | Started Rust TUI ergonomics update for interactive pane resizing via keyboard shortcuts | in_progress | Add split-width state, `Alt+h`/`Alt+l` key handling, and layout wiring/tests
+2026-02-21 07:17 UTC | codex | phaseC-pane-resize-keymap | Added dynamic pane width state with bounded resize behavior and wired global `Alt+h`/`Alt+l` shortcuts to grow issues/detail panes respectively; updated draw layout to honor live split percentages and added app/tui tests | complete | Run rust workspace formatting/check/tests
+2026-02-21 07:17 UTC | codex | phaseC-pane-resize-keymap | Verified with `cargo fmt --all`, `cargo check --workspace`, and `cargo test --workspace` (64 passed, 1 ignored) | complete | Continue with deferred live Jira validation when valid writable issue/env set is available
+- 2026-02-21 07:17 UTC | todo | Deferred: rerun guarded live-validation test later with a valid accessible issue key and required transition/custom-field env values.
+- 2026-02-21 07:17 UTC | uncertainty | none
+2026-02-21 07:17 UTC | codex | phaseC-cli-help-alias | Started adding positional help alias for jayrah-tui CLI | in_progress | Accept `help` argument and add parser/help updates
+2026-02-21 07:17 UTC | codex | phaseC-cli-help-alias | Added positional `help` alias support in CLI parser and updated help usage output/tests | complete | Run rust tests and CLI help smoke check
+2026-02-21 07:17 UTC | codex | phaseC-cli-help-alias | Verified with `cargo test -p jayrah-tui` (52 passed) and `cargo run -q -p jayrah-tui -- help` | complete | Continue deferred live-validation rerun once valid issue/env values are available
+- 2026-02-21 07:17 UTC | todo | Deferred: rerun guarded live-validation test later with a valid accessible issue key and required transition/custom-field env values.
+- 2026-02-21 07:17 UTC | uncertainty | none
+2026-02-21 07:18 UTC | codex | phaseC-cli-help-alias | Re-verified positional help alias after formatting with `cargo fmt --all` and `cargo test -p jayrah-tui` (52 passed) | complete | Continue deferred live-validation rerun once valid issue/env values are available
+- 2026-02-21 07:18 UTC | todo | Deferred: rerun guarded live-validation test later with a valid accessible issue key and required transition/custom-field env values.
+- 2026-02-21 07:18 UTC | uncertainty | none
