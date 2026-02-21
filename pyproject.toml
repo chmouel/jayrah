@@ -59,6 +59,7 @@ disable = [
   "R0401",                      # Cyclic import
   "C0302",                      # Too many lines in module
   "W0718",                      # Too broad exception clause
+  "W0404",                      # Reimported module
   "line-too-long",              # Line too long
   "too-many-arguments",         # Too many arguments
   "too-many-locals",            # Too many local variables
