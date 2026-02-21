@@ -822,8 +822,8 @@ fn draw_ui(frame: &mut Frame, app: &mut App, edit_session: Option<&EditInputSess
 
     let (first_pane_percent, second_pane_percent) = app.pane_width_percentages();
     let main_direction = match app.pane_orientation() {
-        PaneOrientation::Horizontal => Direction::Horizontal,
-        PaneOrientation::Vertical => Direction::Vertical,
+        PaneOrientation::Horizontal => Direction::Vertical,
+        PaneOrientation::Vertical => Direction::Horizontal,
     };
     let main_chunks = Layout::default()
         .direction(main_direction)
