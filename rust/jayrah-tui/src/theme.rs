@@ -56,6 +56,30 @@ impl Theme {
         }
     }
 
+    pub fn detail_section_title(self) -> Style {
+        Style::default().fg(ORANGE).add_modifier(Modifier::BOLD)
+    }
+
+    pub fn detail_label(self) -> Style {
+        Style::default().fg(CYAN).add_modifier(Modifier::BOLD)
+    }
+
+    pub fn detail_value(self) -> Style {
+        Style::default().fg(BASE2)
+    }
+
+    pub fn detail_loading(self) -> Style {
+        Style::default().fg(BLUE).add_modifier(Modifier::BOLD)
+    }
+
+    pub fn detail_error(self) -> Style {
+        Style::default().fg(RED).add_modifier(Modifier::BOLD)
+    }
+
+    pub fn detail_placeholder(self) -> Style {
+        Style::default().fg(BASE1).add_modifier(Modifier::DIM)
+    }
+
     pub fn table_header(self) -> Style {
         Style::default()
             .bg(BASE02)
@@ -210,5 +234,21 @@ mod tests {
     fn status_tone_detects_error_and_success() {
         assert_eq!(status_tone("Failed to load issues"), StatusTone::Error);
         assert_eq!(status_tone("Loaded 10 issues"), StatusTone::Success);
+    }
+
+    #[test]
+    fn detail_styles_are_semantic_and_visible() {
+        let theme = Theme::solarized_warm();
+        let label = theme.detail_label();
+        assert_eq!(label.fg, Some(Color::Indexed(37)));
+        assert!(label.add_modifier.contains(Modifier::BOLD));
+
+        let loading = theme.detail_loading();
+        assert_eq!(loading.fg, Some(Color::Indexed(33)));
+        assert!(loading.add_modifier.contains(Modifier::BOLD));
+
+        let placeholder = theme.detail_placeholder();
+        assert_eq!(placeholder.fg, Some(Color::Indexed(245)));
+        assert!(placeholder.add_modifier.contains(Modifier::DIM));
     }
 }

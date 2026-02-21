@@ -5,14 +5,14 @@ use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifier
 use ratatui::{
     backend::CrosstermBackend,
     layout::{Constraint, Direction, Layout, Rect},
-    text::{Line, Span},
+    text::{Line, Span, Text},
     widgets::{Block, Borders, Cell, Clear, Paragraph, Row, Table, TableState, Wrap},
     Frame, Terminal,
 };
 use tui_textarea::TextArea;
 
 use crate::{
-    app::{App, PaneOrientation, PaneZoom},
+    app::{App, DetailViewMode, DetailViewModel, PaneOrientation, PaneZoom},
     theme::{status_tone, Theme},
     worker::{
         start_add_comment_worker, start_apply_transition_worker, start_comment_worker,
@@ -308,9 +308,7 @@ fn handle_key_event_with_edit_session(
         return None;
     }
 
-    if key.modifiers.contains(KeyModifiers::CONTROL)
-        && matches!(key.code, KeyCode::Char(c) if c.eq_ignore_ascii_case(&'v'))
-    {
+    if matches!(key.code, KeyCode::Tab) {
         app.toggle_pane_orientation();
         return None;
     }
@@ -480,6 +478,167 @@ fn handle_key_event_with_edit_session(
     }
 
     None
+}
+
+fn detail_key_value_line(label: &str, value: &str, theme: Theme) -> Line<'static> {
+    let value_style = if value == "<no description>" {
+        theme.detail_placeholder()
+    } else {
+        theme.detail_value()
+    };
+    Line::from(vec![
+        Span::styled(format!("{label}: "), theme.detail_label()),
+        Span::styled(value.to_string(), value_style),
+    ])
+}
+
+fn append_multiline_value(
+    lines: &mut Vec<Line<'static>>,
+    value: &str,
+    style: ratatui::style::Style,
+) {
+    let rendered = if value.is_empty() {
+        vec![String::new()]
+    } else {
+        value.lines().map(ToString::to_string).collect()
+    };
+    lines.extend(
+        rendered
+            .into_iter()
+            .map(|line| Line::from(Span::styled(line, style))),
+    );
+}
+
+fn build_detail_lines(view: &DetailViewModel, theme: Theme) -> Vec<Line<'static>> {
+    match view.mode {
+        DetailViewMode::EmptySelection => vec![Line::from(Span::styled(
+            "No issue selected",
+            theme.detail_placeholder(),
+        ))],
+        DetailViewMode::Loaded => {
+            let mut lines = Vec::new();
+            if let Some(key) = &view.key {
+                lines.push(detail_key_value_line("Key", key, theme));
+            }
+            lines.push(detail_key_value_line(
+                "Summary",
+                view.summary.as_str(),
+                theme,
+            ));
+            lines.extend(
+                view.meta_fields
+                    .iter()
+                    .map(|field| detail_key_value_line(field.label, field.value.as_str(), theme)),
+            );
+            lines.push(Line::default());
+            lines.push(Line::from(Span::styled(
+                "Description",
+                theme.detail_section_title(),
+            )));
+            let description_style = if view.description == "<no description>" {
+                theme.detail_placeholder()
+            } else {
+                theme.detail_value()
+            };
+            append_multiline_value(&mut lines, view.description.as_str(), description_style);
+            lines
+        }
+        DetailViewMode::Error => {
+            let mut lines = Vec::new();
+            let key = view.key.as_deref().unwrap_or("<no issue>");
+            lines.push(Line::from(Span::styled(
+                format!("Detail load failed for {key}"),
+                theme.detail_error(),
+            )));
+            lines.push(Line::default());
+            for field in &view.meta_fields {
+                lines.push(detail_key_value_line(
+                    field.label,
+                    field.value.as_str(),
+                    theme,
+                ));
+            }
+            lines.push(Line::default());
+            lines.push(Line::from(Span::styled(
+                "Summary",
+                theme.detail_section_title(),
+            )));
+            lines.push(Line::from(Span::styled(
+                view.summary.clone(),
+                theme.detail_value(),
+            )));
+            lines.push(Line::default());
+            lines.push(Line::from(Span::styled(
+                "Detail load failed",
+                theme.detail_error(),
+            )));
+            append_multiline_value(
+                &mut lines,
+                view.error_message.as_deref().unwrap_or("unknown error"),
+                theme.detail_value(),
+            );
+            lines
+        }
+        DetailViewMode::Loading => {
+            let mut lines = Vec::new();
+            let key = view.key.as_deref().unwrap_or("<no issue>");
+            lines.push(Line::from(Span::styled(
+                format!("Loading detail for {key}..."),
+                theme.detail_loading(),
+            )));
+            lines.push(Line::default());
+            lines.push(Line::from(Span::styled(
+                "Summary",
+                theme.detail_section_title(),
+            )));
+            lines.push(Line::from(Span::styled(
+                view.summary.clone(),
+                theme.detail_value(),
+            )));
+            lines.push(Line::default());
+            lines.push(Line::from(Span::styled(
+                "Source",
+                theme.detail_section_title(),
+            )));
+            lines.push(Line::from(Span::styled(
+                view.source.as_deref().unwrap_or("<none>").to_string(),
+                theme.detail_value(),
+            )));
+            lines
+        }
+        DetailViewMode::SummaryOnly => {
+            let mut lines = Vec::new();
+            if let Some(key) = &view.key {
+                lines.push(detail_key_value_line("Key", key, theme));
+            }
+            for field in &view.meta_fields {
+                lines.push(detail_key_value_line(
+                    field.label,
+                    field.value.as_str(),
+                    theme,
+                ));
+            }
+            lines.push(Line::default());
+            lines.push(Line::from(Span::styled(
+                "Summary",
+                theme.detail_section_title(),
+            )));
+            lines.push(Line::from(Span::styled(
+                view.summary.clone(),
+                theme.detail_value(),
+            )));
+            lines.push(Line::default());
+            lines.push(Line::from(Span::styled(
+                "Source",
+                theme.detail_section_title(),
+            )));
+            lines.push(Line::from(Span::styled(
+                view.source.as_deref().unwrap_or("<none>").to_string(),
+                theme.detail_value(),
+            )));
+            lines
+        }
+    }
 }
 
 fn popup_text_dimensions(text: &str) -> (u16, u16) {
@@ -740,7 +899,8 @@ fn draw_ui(frame: &mut Frame, app: &mut App, edit_session: Option<&EditInputSess
             detail_block = detail_block
                 .title(Line::from(Span::styled("ZOOMED", theme.panel_title(true))).right_aligned());
         }
-        let detail = Paragraph::new(app.detail_text_for_selected())
+        let detail_view = app.detail_view_model_for_selected();
+        let detail = Paragraph::new(Text::from(build_detail_lines(&detail_view, theme)))
             .style(theme.panel())
             .block(detail_block)
             .scroll((app.detail_scroll(), 0))
@@ -944,14 +1104,14 @@ fn draw_ui(frame: &mut Frame, app: &mut App, edit_session: Option<&EditInputSess
     } else if app.choose_mode {
         (
             String::from(
-                "j/k zoom | Enter choose | f filter | / search | n/N repeat | 1/2 zoom | Ctrl+v layout | ? help | q quit",
+                "j/k zoom | Enter choose | f filter | / search | n/N repeat | 1/2 zoom | TAB layout | ? help | q quit",
             ),
             true,
         )
     } else {
         (
             String::from(
-                "j/k scroll | f filter | / search | n/N repeat | r reload | o open | 1/2 zoom | Ctrl+v layout | ? help | q quit",
+                "j/k scroll | f filter | / search | n/N repeat | r reload | o open | 1/2 zoom | TAB layout | ? help | q quit",
             ),
             true,
         )
@@ -982,12 +1142,13 @@ mod tests {
     use ratatui::layout::Rect;
 
     use super::{
-        adaptive_popup_area, build_edit_textarea, edit_input_height, edit_popup_area,
-        handle_key_event, handle_key_event_with_edit_session, percent_popup_area, EditInputSession,
-        RunOutcome,
+        adaptive_popup_area, build_detail_lines, build_edit_textarea, edit_input_height,
+        edit_popup_area, handle_key_event, handle_key_event_with_edit_session, percent_popup_area,
+        EditInputSession, RunOutcome,
     };
     use crate::{
-        app::{App, PaneOrientation, PaneZoom},
+        app::{App, DetailMetaField, DetailViewMode, DetailViewModel, PaneOrientation, PaneZoom},
+        theme::Theme,
         types::AdapterSource,
     };
 
@@ -1015,6 +1176,109 @@ mod tests {
             kind: KeyEventKind::Press,
             state: KeyEventState::empty(),
         }
+    }
+
+    #[test]
+    fn build_detail_lines_loaded_orders_sections_and_fields() {
+        let view = DetailViewModel {
+            mode: DetailViewMode::Loaded,
+            key: Some(String::from("JAY-500")),
+            summary: String::from("Structured detail rendering"),
+            meta_fields: vec![
+                DetailMetaField {
+                    label: "Status",
+                    value: String::from("In Progress"),
+                },
+                DetailMetaField {
+                    label: "Assignee",
+                    value: String::from("alice"),
+                },
+            ],
+            description: String::from("First line\nSecond line"),
+            source: None,
+            error_message: None,
+        };
+
+        let lines = build_detail_lines(&view, Theme::solarized_warm());
+        assert_eq!(lines[0].spans[0].content, "Key: ");
+        assert_eq!(lines[0].spans[1].content, "JAY-500");
+        assert_eq!(lines[1].spans[0].content, "Summary: ");
+        assert_eq!(lines[2].spans[0].content, "Status: ");
+        assert_eq!(lines[3].spans[0].content, "Assignee: ");
+        assert_eq!(lines[5].spans[0].content, "Description");
+        assert_eq!(lines[6].spans[0].content, "First line");
+        assert_eq!(lines[7].spans[0].content, "Second line");
+    }
+
+    #[test]
+    fn build_detail_lines_loading_includes_loading_banner() {
+        let view = DetailViewModel {
+            mode: DetailViewMode::Loading,
+            key: Some(String::from("JAY-501")),
+            summary: String::from("Loading summary"),
+            meta_fields: Vec::new(),
+            description: String::new(),
+            source: Some(String::from("board=myissue")),
+            error_message: None,
+        };
+
+        let lines = build_detail_lines(&view, Theme::solarized_warm());
+        assert_eq!(lines[0].spans[0].content, "Loading detail for JAY-501...");
+        assert_eq!(lines[2].spans[0].content, "Summary");
+        assert_eq!(lines[5].spans[0].content, "Source");
+        assert_eq!(lines[6].spans[0].content, "board=myissue");
+    }
+
+    #[test]
+    fn build_detail_lines_error_includes_error_banner_and_message() {
+        let view = DetailViewModel {
+            mode: DetailViewMode::Error,
+            key: Some(String::from("JAY-502")),
+            summary: String::from("Problematic issue"),
+            meta_fields: vec![
+                DetailMetaField {
+                    label: "Status",
+                    value: String::from("Open"),
+                },
+                DetailMetaField {
+                    label: "Assignee",
+                    value: String::from("bob"),
+                },
+            ],
+            description: String::new(),
+            source: None,
+            error_message: Some(String::from("adapter timeout")),
+        };
+
+        let lines = build_detail_lines(&view, Theme::solarized_warm());
+        assert_eq!(lines[0].spans[0].content, "Detail load failed for JAY-502");
+        assert_eq!(lines[5].spans[0].content, "Summary");
+        assert_eq!(lines[8].spans[0].content, "Detail load failed");
+        assert_eq!(lines[9].spans[0].content, "adapter timeout");
+    }
+
+    #[test]
+    fn build_detail_lines_marks_missing_description_as_placeholder() {
+        let view = DetailViewModel {
+            mode: DetailViewMode::Loaded,
+            key: Some(String::from("JAY-503")),
+            summary: String::from("No description"),
+            meta_fields: vec![DetailMetaField {
+                label: "Status",
+                value: String::from("Open"),
+            }],
+            description: String::from("<no description>"),
+            source: None,
+            error_message: None,
+        };
+
+        let lines = build_detail_lines(&view, Theme::solarized_warm());
+        let description_line = lines.last().expect("description line");
+        assert_eq!(description_line.spans[0].content, "<no description>");
+        assert!(description_line.spans[0]
+            .style
+            .add_modifier
+            .contains(ratatui::style::Modifier::DIM));
     }
 
     #[test]
@@ -1253,7 +1517,7 @@ mod tests {
 
         let outcome = handle_key_event(
             &mut app,
-            key_with_modifiers(KeyCode::Char('v'), KeyModifiers::CONTROL),
+            key(KeyCode::Tab),
             &add_tx,
             &transition_tx,
             &edit_tx,
@@ -1272,7 +1536,7 @@ mod tests {
 
         let outcome = handle_key_event(
             &mut app,
-            key_with_modifiers(KeyCode::Char('v'), KeyModifiers::CONTROL),
+            key(KeyCode::Tab),
             &add_tx,
             &transition_tx,
             &edit_tx,

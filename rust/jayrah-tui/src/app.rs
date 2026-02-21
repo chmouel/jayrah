@@ -148,6 +148,86 @@ enum SearchDirection {
     Backward,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DetailViewMode {
+    EmptySelection,
+    SummaryOnly,
+    Loading,
+    Error,
+    Loaded,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DetailMetaField {
+    pub label: &'static str,
+    pub value: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DetailViewModel {
+    pub mode: DetailViewMode,
+    pub key: Option<String>,
+    pub summary: String,
+    pub meta_fields: Vec<DetailMetaField>,
+    pub description: String,
+    pub source: Option<String>,
+    pub error_message: Option<String>,
+}
+
+fn meta_value<'a>(meta_fields: &'a [DetailMetaField], label: &str) -> Option<&'a str> {
+    meta_fields
+        .iter()
+        .find_map(|field| (field.label == label).then_some(field.value.as_str()))
+}
+
+fn format_detail_view_model_plain_text(view: &DetailViewModel) -> String {
+    match view.mode {
+        DetailViewMode::EmptySelection => String::from("No issue selected"),
+        DetailViewMode::Loaded => {
+            let mut lines = Vec::new();
+            if let Some(key) = &view.key {
+                lines.push(format!("Key: {key}"));
+            }
+            lines.push(format!("Summary: {}", view.summary));
+            for field in &view.meta_fields {
+                lines.push(format!("{}: {}", field.label, field.value));
+            }
+            lines.push(String::new());
+            lines.push(String::from("Description"));
+            lines.extend(view.description.lines().map(ToString::to_string));
+            lines.join("\n")
+        }
+        DetailViewMode::Error => {
+            let key = view.key.as_deref().unwrap_or("<no issue>");
+            let status = meta_value(&view.meta_fields, "Status").unwrap_or("-");
+            let assignee = meta_value(&view.meta_fields, "Assignee").unwrap_or("-");
+            let error_message = view.error_message.as_deref().unwrap_or("unknown error");
+            format!(
+                "Key: {key}\nStatus: {status}\nAssignee: {assignee}\n\nSummary\n{}\n\nDetail load failed\n{error_message}",
+                view.summary
+            )
+        }
+        DetailViewMode::Loading => {
+            let key = view.key.as_deref().unwrap_or("<no issue>");
+            let source = view.source.as_deref().unwrap_or("-");
+            format!(
+                "Loading detail for {key}...\n\nSummary\n{}\n\nSource\n{source}",
+                view.summary
+            )
+        }
+        DetailViewMode::SummaryOnly => {
+            let key = view.key.as_deref().unwrap_or("<no issue>");
+            let status = meta_value(&view.meta_fields, "Status").unwrap_or("-");
+            let assignee = meta_value(&view.meta_fields, "Assignee").unwrap_or("-");
+            let source = view.source.as_deref().unwrap_or("-");
+            format!(
+                "Key: {key}\nStatus: {status}\nAssignee: {assignee}\n\nSummary\n{}\n\nSource\n{source}",
+                view.summary
+            )
+        }
+    }
+}
+
 fn issue_matches_query(issue: &Issue, query: &str) -> bool {
     issue.key.to_lowercase().contains(query)
         || issue.summary.to_lowercase().contains(query)
@@ -1598,8 +1678,20 @@ impl App {
     }
 
     pub fn detail_text_for_selected(&self) -> String {
+        format_detail_view_model_plain_text(&self.detail_view_model_for_selected())
+    }
+
+    pub fn detail_view_model_for_selected(&self) -> DetailViewModel {
         let Some(issue) = self.selected_issue() else {
-            return "No issue selected".to_string();
+            return DetailViewModel {
+                mode: DetailViewMode::EmptySelection,
+                key: None,
+                summary: String::new(),
+                meta_fields: Vec::new(),
+                description: String::new(),
+                source: None,
+                error_message: None,
+            };
         };
 
         let key = issue.key.as_str();
@@ -1613,52 +1705,109 @@ impl App {
                 detail.description.as_str()
             };
 
-            return format!(
-                "Key: {}\nSummary: {}\nStatus: {}\nPriority: {}\nType: {}\nAssignee: {}\nReporter: {}\nCreated: {}\nUpdated: {}\nLabels: {}\nComponents: {}\nFix Versions: {}\n\nDescription\n{}",
-                detail.key,
-                detail.summary,
-                detail.status,
-                detail.priority,
-                detail.issue_type,
-                detail.assignee,
-                detail.reporter,
-                detail.created,
-                detail.updated,
-                labels,
-                components,
-                fix_versions,
-                description,
-            );
+            return DetailViewModel {
+                mode: DetailViewMode::Loaded,
+                key: Some(detail.key.clone()),
+                summary: detail.summary.clone(),
+                meta_fields: vec![
+                    DetailMetaField {
+                        label: "Status",
+                        value: detail.status.clone(),
+                    },
+                    DetailMetaField {
+                        label: "Priority",
+                        value: detail.priority.clone(),
+                    },
+                    DetailMetaField {
+                        label: "Type",
+                        value: detail.issue_type.clone(),
+                    },
+                    DetailMetaField {
+                        label: "Assignee",
+                        value: detail.assignee.clone(),
+                    },
+                    DetailMetaField {
+                        label: "Reporter",
+                        value: detail.reporter.clone(),
+                    },
+                    DetailMetaField {
+                        label: "Created",
+                        value: detail.created.clone(),
+                    },
+                    DetailMetaField {
+                        label: "Updated",
+                        value: detail.updated.clone(),
+                    },
+                    DetailMetaField {
+                        label: "Labels",
+                        value: labels,
+                    },
+                    DetailMetaField {
+                        label: "Components",
+                        value: components,
+                    },
+                    DetailMetaField {
+                        label: "Fix Versions",
+                        value: fix_versions,
+                    },
+                ],
+                description: description.to_string(),
+                source: None,
+                error_message: None,
+            };
         }
 
         if let Some(error) = self.detail_errors.get(key) {
-            return format!(
-                "Key: {}\nStatus: {}\nAssignee: {}\n\nSummary\n{}\n\nDetail load failed\n{}",
-                issue.key,
-                issue.status,
-                issue.assignee,
-                issue.summary,
-                compact_error(error),
-            );
+            return DetailViewModel {
+                mode: DetailViewMode::Error,
+                key: Some(issue.key.clone()),
+                summary: issue.summary.clone(),
+                meta_fields: vec![
+                    DetailMetaField {
+                        label: "Status",
+                        value: issue.status.clone(),
+                    },
+                    DetailMetaField {
+                        label: "Assignee",
+                        value: issue.assignee.clone(),
+                    },
+                ],
+                description: String::new(),
+                source: None,
+                error_message: Some(compact_error(error)),
+            };
         }
 
         if self.detail_loading_key.as_deref() == Some(key) {
-            return format!(
-                "Loading detail for {}...\n\nSummary\n{}\n\nSource\n{}",
-                issue.key,
-                issue.summary,
-                self.source.describe(),
-            );
+            return DetailViewModel {
+                mode: DetailViewMode::Loading,
+                key: Some(issue.key.clone()),
+                summary: issue.summary.clone(),
+                meta_fields: Vec::new(),
+                description: String::new(),
+                source: Some(self.source.describe()),
+                error_message: None,
+            };
         }
 
-        format!(
-            "Key: {}\nStatus: {}\nAssignee: {}\n\nSummary\n{}\n\nSource\n{}",
-            issue.key,
-            issue.status,
-            issue.assignee,
-            issue.summary,
-            self.source.describe(),
-        )
+        DetailViewModel {
+            mode: DetailViewMode::SummaryOnly,
+            key: Some(issue.key.clone()),
+            summary: issue.summary.clone(),
+            meta_fields: vec![
+                DetailMetaField {
+                    label: "Status",
+                    value: issue.status.clone(),
+                },
+                DetailMetaField {
+                    label: "Assignee",
+                    value: issue.assignee.clone(),
+                },
+            ],
+            description: String::new(),
+            source: Some(self.source.describe()),
+            error_message: None,
+        }
     }
 
     pub fn comments_text_for_selected(&self) -> String {
@@ -1831,7 +1980,7 @@ impl App {
     pub fn actions_text(&self) -> String {
         let mode = if self.choose_mode { "choose" } else { "normal" };
         format!(
-            "Jayrah Actions ({mode} mode)\n\nNavigation (detail mode)\n  j/k or arrows: move issue selection (j/k scroll detail when detail pane is zoomed)\n  J/K: scroll detail pane\n  Ctrl+d/Ctrl+u: page detail pane down/up\n  Ctrl+v: toggle horizontal/vertical layout\n  Alt+h/Alt+l: resize first/second pane\n  1: toggle issues pane zoom\n  2: toggle detail pane zoom\n  f: filter issues\n  /: search visible issues\n  n/N: next/previous search match\n  r: reload issues\n\nIssue Actions\n  o: open selected issue in browser\n  e: edit issue summary\n  E: edit issue description\n  l: edit issue labels\n  m: edit issue components\n  u: custom field editor popup\n  b: board switcher popup\n  c: comments popup\n  t: transitions popup\n  ?: actions/help popup\n\nActions Popup\n  j/k or arrows: scroll help\n  Ctrl+d/Ctrl+u: page down/up\n\nComments Popup\n  j/k or n/p: previous/next comment\n  a: compose comment\n  Enter: submit comment draft\n\nTransitions Popup\n  j/k or n/p: previous/next transition\n  Enter: apply selected transition\n\nBoards Popup\n  j/k or n/p: previous/next board\n  Enter: switch active board\n\nCustom Fields Popup\n  j/k or n/p: previous/next field\n  Enter: edit selected custom field\n\nGlobal\n  q: quit (or close active popup)\n  Esc: close active popup; clear filter/search while focused"
+            "Jayrah Actions ({mode} mode)\n\nNavigation (detail mode)\n  j/k or arrows: move issue selection (j/k scroll detail when detail pane is zoomed)\n  J/K: scroll detail pane\n  Ctrl+d/Ctrl+u: page detail pane down/up\n  TAB: toggle horizontal/vertical layout\n  Alt+h/Alt+l: resize first/second pane\n  1: toggle issues pane zoom\n  2: toggle detail pane zoom\n  f: filter issues\n  /: search visible issues\n  n/N: next/previous search match\n  r: reload issues\n\nIssue Actions\n  o: open selected issue in browser\n  e: edit issue summary\n  E: edit issue description\n  l: edit issue labels\n  m: edit issue components\n  u: custom field editor popup\n  b: board switcher popup\n  c: comments popup\n  t: transitions popup\n  ?: actions/help popup\n\nActions Popup\n  j/k or arrows: scroll help\n  Ctrl+d/Ctrl+u: page down/up\n\nComments Popup\n  j/k or n/p: previous/next comment\n  a: compose comment\n  Enter: submit comment draft\n\nTransitions Popup\n  j/k or n/p: previous/next transition\n  Enter: apply selected transition\n\nBoards Popup\n  j/k or n/p: previous/next board\n  Enter: switch active board\n\nCustom Fields Popup\n  j/k or n/p: previous/next field\n  Enter: edit selected custom field\n\nGlobal\n  q: quit (or close active popup)\n  Esc: close active popup; clear filter/search while focused"
         )
     }
 
@@ -1990,7 +2139,10 @@ impl App {
 mod tests {
     use std::sync::mpsc;
 
-    use super::{App, PaneOrientation, PaneZoom, MAX_LEFT_PANE_PERCENT, MIN_LEFT_PANE_PERCENT};
+    use super::{
+        App, DetailViewMode, PaneOrientation, PaneZoom, MAX_LEFT_PANE_PERCENT,
+        MIN_LEFT_PANE_PERCENT,
+    };
     use crate::types::AdapterSource;
 
     fn mock_source() -> AdapterSource {
@@ -2073,6 +2225,68 @@ mod tests {
         let detail = app.detail_text_for_selected();
         assert!(detail.contains("Description"));
         assert!(detail.contains("Mock detail payload"));
+    }
+
+    #[test]
+    fn detail_view_model_loaded_contains_expected_sections() {
+        let mut app = App::new(mock_source(), false);
+        let (tx, _) = mpsc::channel();
+        app.maybe_request_detail(&tx);
+
+        let view = app.detail_view_model_for_selected();
+        assert_eq!(view.mode, DetailViewMode::Loaded);
+        assert_eq!(view.key.as_deref(), Some("JAY-101"));
+        assert!(view
+            .meta_fields
+            .iter()
+            .any(|field| field.label == "Priority" && !field.value.is_empty()));
+        assert!(view
+            .meta_fields
+            .iter()
+            .any(|field| field.label == "Labels" && field.value.contains("mock")));
+        assert!(view.description.contains("Mock detail payload"));
+    }
+
+    #[test]
+    fn detail_view_model_loading_state_has_source() {
+        let mut app = App::new(mock_source(), false);
+        app.source.mock_only = false;
+        app.using_adapter = true;
+        let key = app.selected_issue_key().expect("selected key");
+        app.detail_loading_key = Some(key);
+
+        let view = app.detail_view_model_for_selected();
+        assert_eq!(view.mode, DetailViewMode::Loading);
+        assert_eq!(view.source.as_deref(), Some("board=myissue"));
+    }
+
+    #[test]
+    fn detail_view_model_error_state_has_compact_error() {
+        let mut app = App::new(mock_source(), false);
+        let key = app.selected_issue_key().expect("selected key");
+        app.detail_errors.insert(
+            key,
+            String::from("top-level failure caused by nested adapter timeout details"),
+        );
+
+        let view = app.detail_view_model_for_selected();
+        assert_eq!(view.mode, DetailViewMode::Error);
+        assert!(view
+            .error_message
+            .as_deref()
+            .expect("error message")
+            .contains("top-level failure"));
+    }
+
+    #[test]
+    fn detail_view_model_empty_selection_state() {
+        let mut app = App::new(mock_source(), false);
+        app.filter_input = String::from("no-such-issue");
+        app.normalize_selection();
+
+        let view = app.detail_view_model_for_selected();
+        assert_eq!(view.mode, DetailViewMode::EmptySelection);
+        assert_eq!(view.key, None);
     }
 
     #[test]
@@ -2206,7 +2420,7 @@ mod tests {
         let text = app.actions_text();
         assert!(text.contains("J/K: scroll detail pane"));
         assert!(text.contains("Ctrl+d/Ctrl+u: page detail pane down/up"));
-        assert!(text.contains("Ctrl+v: toggle horizontal/vertical layout"));
+        assert!(text.contains("TAB: toggle horizontal/vertical layout"));
         assert!(text.contains("Alt+h/Alt+l: resize first/second pane"));
         assert!(text.contains("1: toggle issues pane zoom"));
         assert!(text.contains("2: toggle detail pane zoom"));
