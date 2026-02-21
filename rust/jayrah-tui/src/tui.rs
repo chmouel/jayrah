@@ -127,6 +127,7 @@ pub fn run_app(
     }
 }
 
+#[cfg(test)]
 fn handle_key_event(
     app: &mut App,
     key: KeyEvent,
@@ -226,8 +227,8 @@ fn handle_key_event_with_edit_session(
                 ..
             } if modifiers.contains(KeyModifiers::CONTROL) && c.eq_ignore_ascii_case(&'s') => {
                 let value = session.textarea.lines().join("\n");
-                app.set_edit_input(value.clone());
-                app.submit_edit_value(value, edit_issue_request_tx);
+                app.set_edit_input(value);
+                app.submit_edit_input(edit_issue_request_tx);
                 sync_edit_input_session(app, edit_session);
             }
             _ => {
@@ -376,6 +377,8 @@ fn handle_key_event_with_edit_session(
 
     match key.code {
         KeyCode::Char('q') | KeyCode::Esc => return Some(RunOutcome::Quit),
+        KeyCode::Char('j') if app.pane_zoom() == PaneZoom::Detail => app.scroll_detail_down(1),
+        KeyCode::Char('k') if app.pane_zoom() == PaneZoom::Detail => app.scroll_detail_up(1),
         KeyCode::Char('j') | KeyCode::Down => app.next(),
         KeyCode::Char('k') | KeyCode::Up => app.prev(),
         KeyCode::Char('J') => app.scroll_detail_down(1),
@@ -764,12 +767,12 @@ fn draw_ui(frame: &mut Frame, app: &mut App, edit_session: Option<&EditInputSess
         )
     } else if app.choose_mode {
         format!(
-            "[{}] j/k move | J/K scroll detail | Ctrl+d/u page detail | Ctrl+v toggle layout | 1/2 zoom panes | Enter choose | e/E/l/m edit | u custom popup | b boards popup | c comments popup | t transitions popup | ? help popup | Alt+h/l resize first/second pane | f filter | o open | q quit | {}",
+            "[{}] j/k move (scroll in detail zoom) | J/K scroll detail | Ctrl+d/u page detail | Ctrl+v toggle layout | 1/2 zoom panes | Enter choose | e/E/l/m edit | u custom popup | b boards popup | c comments popup | t transitions popup | ? help popup | Alt+h/l resize first/second pane | f filter | o open | q quit | {}",
             mode, app.status_line
         )
     } else {
         format!(
-            "[{}] j/k move | J/K scroll detail | Ctrl+d/u page detail | Ctrl+v toggle layout | 1/2 zoom panes | e/E/l/m edit | u custom popup | b boards popup | c comments popup | t transitions popup | ? help popup | Alt+h/l resize first/second pane | f filter | r reload | o open | q quit | {}",
+            "[{}] j/k move (scroll in detail zoom) | J/K scroll detail | Ctrl+d/u page detail | Ctrl+v toggle layout | 1/2 zoom panes | e/E/l/m edit | u custom popup | b boards popup | c comments popup | t transitions popup | ? help popup | Alt+h/l resize first/second pane | f filter | r reload | o open | q quit | {}",
             mode, app.status_line
         )
     };
@@ -1323,6 +1326,43 @@ mod tests {
             &edit_tx,
         );
         assert_eq!(outcome, None);
+        assert_eq!(app.detail_scroll(), initial_scroll);
+    }
+
+    #[test]
+    fn lowercase_j_and_k_scroll_detail_when_detail_pane_is_zoomed() {
+        let mut app = App::new(mock_source(), false);
+        let (detail_tx, _) = mpsc::channel();
+        app.maybe_request_detail(&detail_tx);
+        app.set_detail_viewport_height(4);
+        app.toggle_zoom_detail();
+        let (add_tx, _) = mpsc::channel();
+        let (transition_tx, _) = mpsc::channel();
+        let (edit_tx, _) = mpsc::channel();
+
+        let initial_selected = app.selected;
+        let initial_scroll = app.detail_scroll();
+
+        let outcome = handle_key_event(
+            &mut app,
+            key(KeyCode::Char('j')),
+            &add_tx,
+            &transition_tx,
+            &edit_tx,
+        );
+        assert_eq!(outcome, None);
+        assert_eq!(app.selected, initial_selected);
+        assert!(app.detail_scroll() > initial_scroll);
+
+        let outcome = handle_key_event(
+            &mut app,
+            key(KeyCode::Char('k')),
+            &add_tx,
+            &transition_tx,
+            &edit_tx,
+        );
+        assert_eq!(outcome, None);
+        assert_eq!(app.selected, initial_selected);
         assert_eq!(app.detail_scroll(), initial_scroll);
     }
 

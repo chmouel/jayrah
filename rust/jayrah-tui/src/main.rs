@@ -44,11 +44,7 @@ fn main() -> Result<()> {
         &mut terminal,
         App::new(run_config.source, run_config.choose_mode),
     );
-    let restore_result = restore_terminal(&mut terminal);
-
-    if let Err(error) = restore_result {
-        return Err(error);
-    }
+    restore_terminal(&mut terminal)?;
     let outcome = run_result?;
     if let RunOutcome::Chosen(Some(key)) = outcome {
         let choose_output_path = env::var("JAYRAH_TUI_CHOOSE_FILE").ok();

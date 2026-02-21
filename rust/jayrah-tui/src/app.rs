@@ -606,14 +606,11 @@ impl App {
     fn normalize_edit_value(&self, value: String) -> String {
         match self.edit_target {
             EditField::Summary => value
-                .replace('\r', " ")
-                .replace('\n', " ")
+                .replace(['\r', '\n'], " ")
                 .split_whitespace()
                 .collect::<Vec<_>>()
                 .join(" "),
-            EditField::Labels | EditField::Components => {
-                value.replace('\r', ",").replace('\n', ",")
-            }
+            EditField::Labels | EditField::Components => value.replace(['\r', '\n'], ","),
             EditField::Description | EditField::CustomField => value,
         }
     }
@@ -1674,7 +1671,7 @@ impl App {
     pub fn actions_text(&self) -> String {
         let mode = if self.choose_mode { "choose" } else { "normal" };
         format!(
-            "Jayrah Rust TUI Actions ({mode} mode)\n\nNavigation (detail mode)\n  j/k or arrows: move issue selection\n  J/K: scroll detail pane\n  Ctrl+d/Ctrl+u: page detail pane down/up\n  Ctrl+v: toggle horizontal/vertical layout\n  Alt+h/Alt+l: resize first/second pane\n  1: toggle issues pane zoom\n  2: toggle detail pane zoom\n  f or /: filter issues\n  r: reload issues\n\nIssue Actions\n  o: open selected issue in browser\n  e: edit issue summary\n  E: edit issue description\n  l: edit issue labels\n  m: edit issue components\n  u: custom field editor popup\n  b: board switcher popup\n  c: comments popup\n  t: transitions popup\n  ?: actions/help popup\n\nActions Popup\n  j/k or arrows: scroll help\n  Ctrl+d/Ctrl+u: page down/up\n\nComments Popup\n  j/k or n/p: previous/next comment\n  a: compose comment\n  Enter: submit comment draft\n\nTransitions Popup\n  j/k or n/p: previous/next transition\n  Enter: apply selected transition\n\nBoards Popup\n  j/k or n/p: previous/next board\n  Enter: switch active board\n\nCustom Fields Popup\n  j/k or n/p: previous/next field\n  Enter: edit selected custom field\n\nGlobal\n  q: quit (or close active popup)\n  Esc: close active popup/filter"
+            "Jayrah Rust TUI Actions ({mode} mode)\n\nNavigation (detail mode)\n  j/k or arrows: move issue selection (j/k scroll detail when detail pane is zoomed)\n  J/K: scroll detail pane\n  Ctrl+d/Ctrl+u: page detail pane down/up\n  Ctrl+v: toggle horizontal/vertical layout\n  Alt+h/Alt+l: resize first/second pane\n  1: toggle issues pane zoom\n  2: toggle detail pane zoom\n  f or /: filter issues\n  r: reload issues\n\nIssue Actions\n  o: open selected issue in browser\n  e: edit issue summary\n  E: edit issue description\n  l: edit issue labels\n  m: edit issue components\n  u: custom field editor popup\n  b: board switcher popup\n  c: comments popup\n  t: transitions popup\n  ?: actions/help popup\n\nActions Popup\n  j/k or arrows: scroll help\n  Ctrl+d/Ctrl+u: page down/up\n\nComments Popup\n  j/k or n/p: previous/next comment\n  a: compose comment\n  Enter: submit comment draft\n\nTransitions Popup\n  j/k or n/p: previous/next transition\n  Enter: apply selected transition\n\nBoards Popup\n  j/k or n/p: previous/next board\n  Enter: switch active board\n\nCustom Fields Popup\n  j/k or n/p: previous/next field\n  Enter: edit selected custom field\n\nGlobal\n  q: quit (or close active popup)\n  Esc: close active popup/filter"
         )
     }
 
